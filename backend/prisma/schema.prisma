@@ -1,0 +1,134 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Direction {
+  PB_TO_LIMASAWA
+  LIMASAWA_TO_PB
+}
+
+enum Sex {
+  Male
+  Female
+}
+
+enum DiscountType {
+  none
+  senior
+  pwd
+  student
+}
+
+enum BookingStatus {
+  pending_payment
+  confirmed
+  cancelled
+  payment_declined
+  refund_requested
+  refunded
+}
+
+enum PaymentStatus {
+  pending
+  paid
+  failed
+  expired
+}
+
+model Admin {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("admins")
+}
+
+model Ferry {
+  id           String     @id @default(uuid())
+  name         String
+  seatCapacity Int        @map("seat_capacity")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  schedules    Schedule[]
+
+  @@map("ferries")
+}
+
+model Schedule {
+  id                String    @id @default(uuid())
+  ferryId           String    @map("ferry_id")
+  ferry             Ferry     @relation(fields: [ferryId], references: [id])
+  direction         Direction
+  departureDatetime DateTime  @map("departure_datetime")
+  baseFare          Decimal   @map("base_fare") @db.Decimal(10, 2)
+  createdAt         DateTime  @default(now()) @map("created_at")
+  bookings          Booking[]
+
+  @@map("schedules")
+}
+
+model Booking {
+  id               String             @id @default(uuid())
+  scheduleId       String             @map("schedule_id")
+  schedule         Schedule           @relation(fields: [scheduleId], references: [id])
+  referenceCode    String             @unique @map("reference_code")
+  status           BookingStatus      @default(pending_payment)
+  contactEmail     String             @map("contact_email")
+  contactNumber    String             @map("contact_number")
+  totalFare        Decimal            @map("total_fare") @db.Decimal(10, 2)
+  receiptImagePath String?            @map("receipt_image_path")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  passengers       BookingPassenger[]
+  payment          Payment?
+
+  @@map("bookings")
+}
+
+model BookingPassenger {
+  id              String       @id @default(uuid())
+  bookingId       String       @map("booking_id")
+  booking         Booking      @relation(fields: [bookingId], references: [id])
+  firstName       String       @map("first_name")
+  middleName      String?      @map("middle_name")
+  lastName        String       @map("last_name")
+  suffix          String?
+  sex             Sex
+  nationality     String
+  barangay        String
+  cityMunicipality String      @map("city_municipality")
+  province        String
+  zipCode         String       @map("zip_code")
+  country         String       @default("Philippines")
+  email           String?
+  contactNumber   String       @map("contact_number")
+  discountType    DiscountType @default(none) @map("discount_type")
+  discountIdPath  String?      @map("discount_id_path")
+  fare            Decimal      @db.Decimal(10, 2)
+
+  @@map("booking_passengers")
+}
+
+model Payment {
+  id              String        @id @default(uuid())
+  bookingId       String        @unique
+  booking         Booking       @relation(fields: [bookingId], references: [id])
+  paymentIntentId String?
+  paymentMethodId String?
+  qrCodeImageUrl  String?       @db.Text
+  amount          Decimal
+  status          PaymentStatus @default(pending)
+  expiresAt       DateTime?
+  paidAt          DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("payments")
+}
