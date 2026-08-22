@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { api } from '../api.js'
+import { useAuth } from '../context/AuthContext.jsx'
+import BookingSteps from '../components/BookingSteps.jsx'
 
 function emptyPassenger() {
   return {
@@ -18,8 +20,11 @@ function emptyPassenger() {
     email: '',
     contact_number: '',
     discount_type: 'none',
-    discountFile: null,
   }
+}
+
+function passengerFullName(p) {
+  return [p.first_name, p.middle_name, p.last_name, p.suffix].filter(Boolean).join(' ')
 }
 
 export default function Booking() {
@@ -29,9 +34,16 @@ export default function Booking() {
   const datetime = searchParams.get('datetime')
   const direction = searchParams.get('direction') === 'LIMASAWA_TO_PB' ? 'LIMASAWA_TO_PB' : 'PB_TO_LIMASAWA'
 
-  const [contactEmail, setContactEmail] = useState('')
-  const [contactNumber, setContactNumber] = useState('')
+  const { customer } = useAuth()
+  // Only a logged-in, admin-verified profile can use its discount type.
+  const canUseDiscount = customer?.discountStatus === 'verified'
+
+  // 'form' -> filling out passenger details, 'review' -> read-only summary
+  // before the booking is actually created.
+  const [phase, setPhase] = useState('form')
+
   const [passengers, setPassengers] = useState([emptyPassenger()])
+  const [passengerCountInput, setPassengerCountInput] = useState('1')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
@@ -45,6 +57,19 @@ export default function Booking() {
   const [paymentStatus, setPaymentStatus] = useState('idle') // idle | loading | awaiting_payment | paid | expired | error
   const [paymentError, setPaymentError] = useState('')
 
+  // No separate "Contact Details" step — the contact email/number used for
+  // booking lookups, receipts, and payment polling comes from the
+  // logged-in customer's account, or from Passenger 1's fields for guests.
+  const contactEmail = customer ? customer.email : passengers[0]?.email || ''
+  const contactNumber = customer ? customer.contactNumber || '' : passengers[0]?.contact_number || ''
+
+  let currentStep = 'passenger'
+  if (booking) {
+    currentStep = paymentStatus === 'paid' ? 'confirmation' : 'payment'
+  } else if (phase === 'review') {
+    currentStep = 'review'
+  }
+
   function updatePassengerCount(count) {
     const num = Math.max(1, Math.min(10, count))
     setPassengers((prev) => {
@@ -55,48 +80,62 @@ export default function Booking() {
     })
   }
 
+  function handlePassengerCountChange(e) {
+    const raw = e.target.value
+    setPassengerCountInput(raw)
+    const num = parseInt(raw, 10)
+    if (!isNaN(num) && num >= 1 && num <= 10) {
+      updatePassengerCount(num)
+    }
+  }
+
+  function handlePassengerCountBlur() {
+    const num = parseInt(passengerCountInput, 10)
+    const clamped = Math.max(1, Math.min(10, isNaN(num) ? 1 : num))
+    updatePassengerCount(clamped)
+    setPassengerCountInput(String(clamped))
+  }
+
   function updatePassenger(index, field, value) {
     setPassengers((prev) =>
       prev.map((p, i) => (i === index ? { ...p, [field]: value } : p))
     )
   }
 
-  async function submitBooking() {
+  function estimateFare(p) {
+    const base = Number(fare)
+    return p.discount_type !== 'none' ? base * 0.8 : base
+  }
+  const estimatedTotal = passengers.reduce((sum, p) => sum + estimateFare(p), 0)
+
+  function goToReview() {
     setError('')
     if (!contactEmail || passengers.some((p) => !p.first_name || !p.last_name)) {
-      setError("Please fill in your email and every passenger's first and last name.")
+      setError(
+        customer
+          ? "Please fill in every passenger's first and last name."
+          : "Please fill in Passenger 1's email and every passenger's first and last name."
+      )
       return
     }
+    setPhase('review')
+  }
+
+  async function submitBooking() {
+    setError('')
     setSubmitting(true)
     try {
       const payload = {
         schedule_id: scheduleId,
         contact_email: contactEmail,
         contact_number: contactNumber,
-        passengers: passengers.map(({ discountFile, ...p }) => p),
+        passengers,
       }
       const data = await api.createBooking(payload)
-      const createdBooking = data.booking
-
-      // Upload discount IDs for any passenger who selected a discount and a file.
-      // Correlated by array position (booking + its passengers are created in
-      // one request, in the order submitted).
-      await Promise.all(
-        passengers.map(async (p, i) => {
-          if (p.discount_type !== 'none' && p.discountFile) {
-            const returnedPassenger = createdBooking.passengers[i]
-            const formData = new FormData()
-            formData.append('reference_code', createdBooking.referenceCode)
-            formData.append('contact_email', contactEmail)
-            formData.append('discount_id', p.discountFile)
-            await api.uploadDiscountId(returnedPassenger.id, formData)
-          }
-        })
-      )
-
-      setBooking(createdBooking)
+      setBooking(data.booking)
     } catch (err) {
       setError(err.message)
+      setPhase('form') // something went wrong — let them fix it, not stare at a dead review screen
     } finally {
       setSubmitting(false)
     }
@@ -165,6 +204,8 @@ export default function Booking() {
 
   return (
     <div>
+      <BookingSteps currentStep={currentStep} />
+
       <h1 className="text-2xl font-bold text-gray-800">Book Your Trip</h1>
 
       <div className="mt-4 rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm">
@@ -172,25 +213,29 @@ export default function Booking() {
         <p className="text-teal-700 font-bold">Base Fare: &#8369;{fare}</p>
       </div>
 
-      {!booking && (
+      {!booking && phase === 'form' && (
         <>
-          <div className="mt-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-gray-800">Contact Details</h2>
-            <label className="mt-3 block text-sm font-medium text-gray-700">Your Email</label>
-            <input
-              type="email"
-              value={contactEmail}
-              onChange={(e) => setContactEmail(e.target.value)}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
-            />
-            <label className="mt-3 block text-sm font-medium text-gray-700">Your Contact Number</label>
-            <input
-              type="text"
-              value={contactNumber}
-              onChange={(e) => setContactNumber(e.target.value)}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
-            />
-          </div>
+          {!canUseDiscount && (
+            <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+              {customer ? (
+                <>
+                  Your account isn't verified for a discount yet.{' '}
+                  <Link to="/account" className="font-medium underline">
+                    Submit your ID on your account page
+                  </Link>{' '}
+                  to unlock Senior/PWD/Student pricing.
+                </>
+              ) : (
+                <>
+                  Discounts (Senior/PWD/Student) are only available to logged-in, verified accounts.{' '}
+                  <Link to="/account/login" className="font-medium underline">Log in</Link>{' '}
+                  or{' '}
+                  <Link to="/register" className="font-medium underline">register</Link>{' '}
+                  if you're eligible.
+                </>
+              )}
+            </div>
+          )}
 
           <div className="mt-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
             <h2 className="text-lg font-semibold text-gray-800">Passengers</h2>
@@ -199,14 +244,23 @@ export default function Booking() {
               type="number"
               min="1"
               max="10"
-              value={passengers.length}
-              onChange={(e) => updatePassengerCount(parseInt(e.target.value) || 1)}
+              value={passengerCountInput}
+              onChange={handlePassengerCountChange}
+              onBlur={handlePassengerCountBlur}
+              onFocus={(e) => e.target.select()}
               className="mt-1 w-32 rounded-md border border-gray-300 px-3 py-2"
             />
 
             {passengers.map((p, i) => (
               <div key={i} className="mt-5 border-t border-gray-100 pt-4">
-                <h3 className="font-semibold text-gray-700">Passenger {i + 1}</h3>
+                <h3 className="font-semibold text-gray-700">
+                  Passenger {i + 1}
+                  {i === 0 && !customer && (
+                    <span className="ml-2 text-xs font-normal text-gray-500">
+                      (booking contact — enter your email &amp; number below)
+                    </span>
+                  )}
+                </h3>
 
                 <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
@@ -283,10 +337,12 @@ export default function Booking() {
                   </div>
                 </div>
 
-                <h4 className="mt-4 text-sm font-semibold text-gray-700">Contact & Discount</h4>
+                <h4 className="mt-4 text-sm font-semibold text-gray-700">Contact &amp; Discount</h4>
                 <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="block text-sm text-gray-600">Email</label>
+                    <label className="block text-sm text-gray-600">
+                      Email{i === 0 && !customer ? ' (used as your booking contact)' : ''}
+                    </label>
                     <input type="email" value={p.email}
                       onChange={(e) => updatePassenger(i, 'email', e.target.value)}
                       className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2" />
@@ -299,25 +355,26 @@ export default function Booking() {
                   </div>
                   <div>
                     <label className="block text-sm text-gray-600">Discount Type</label>
-                    <select value={p.discount_type} onChange={(e) => updatePassenger(i, 'discount_type', e.target.value)}
-                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2">
+                    <select
+                      value={p.discount_type}
+                      disabled={!canUseDiscount}
+                      onChange={(e) => updatePassenger(i, 'discount_type', e.target.value)}
+                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-100 disabled:text-gray-400"
+                    >
                       <option value="none">None</option>
-                      <option value="senior">Senior Citizen</option>
-                      <option value="pwd">PWD</option>
-                      <option value="student">Student</option>
+                      {canUseDiscount && (
+                        <option value={customer.discountType}>
+                          {customer.discountType === 'senior' && 'Senior Citizen'}
+                          {customer.discountType === 'pwd' && 'PWD'}
+                          {customer.discountType === 'student' && 'Student'}
+                          {' (verified)'}
+                        </option>
+                      )}
                     </select>
+                    {!canUseDiscount && (
+                      <p className="mt-1 text-xs text-gray-500">Log in with a verified profile to enable this.</p>
+                    )}
                   </div>
-                  {p.discount_type !== 'none' && (
-                    <div>
-                      <label className="block text-sm text-gray-600">Upload Valid ID</label>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => updatePassenger(i, 'discountFile', e.target.files[0])}
-                        className="mt-1 w-full text-sm"
-                      />
-                    </div>
-                  )}
                 </div>
               </div>
             ))}
@@ -326,13 +383,61 @@ export default function Booking() {
           {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
 
           <button
-            onClick={submitBooking}
-            disabled={submitting}
-            className="mt-6 rounded-md bg-teal-700 px-5 py-2 font-medium text-white hover:bg-teal-800 disabled:opacity-50"
+            onClick={goToReview}
+            className="mt-6 rounded-md bg-teal-700 px-5 py-2 font-medium text-white hover:bg-teal-800"
           >
-            {submitting ? 'Booking...' : 'Confirm Booking'}
+            Review Booking
           </button>
         </>
+      )}
+
+      {!booking && phase === 'review' && (
+        <div className="mt-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-gray-800">Review Your Booking</h2>
+          <p className="mt-1 text-sm text-gray-600">Double-check everything before confirming.</p>
+
+          <div className="mt-4 space-y-3">
+            {passengers.map((p, i) => (
+              <div key={i} className="flex items-center justify-between rounded-md border border-gray-100 bg-gray-50 p-3">
+                <div>
+                  <p className="font-medium text-gray-800">{passengerFullName(p) || `Passenger ${i + 1}`}</p>
+                  <p className="text-xs text-gray-500">
+                    {p.discount_type === 'none' ? 'Regular fare' : `${p.discount_type} discount`}
+                  </p>
+                </div>
+                <p className="font-semibold text-teal-700">&#8369;{estimateFare(p).toFixed(2)}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4 border-t border-gray-100 pt-3 text-sm text-gray-600">
+            <p><span className="font-medium">Contact email:</span> {contactEmail}</p>
+            <p className="mt-1"><span className="font-medium">Contact number:</span> {contactNumber || '—'}</p>
+          </div>
+
+          <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-3">
+            <p className="font-semibold text-gray-800">Estimated Total</p>
+            <p className="text-xl font-bold text-teal-700">&#8369;{estimatedTotal.toFixed(2)}</p>
+          </div>
+
+          {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+
+          <div className="mt-6 flex gap-3">
+            <button
+              onClick={() => setPhase('form')}
+              className="rounded-md border border-gray-300 px-5 py-2 font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Edit
+            </button>
+            <button
+              onClick={submitBooking}
+              disabled={submitting}
+              className="rounded-md bg-teal-700 px-5 py-2 font-medium text-white hover:bg-teal-800 disabled:opacity-50"
+            >
+              {submitting ? 'Confirming...' : 'Confirm & Pay'}
+            </button>
+          </div>
+        </div>
       )}
 
       {booking && (

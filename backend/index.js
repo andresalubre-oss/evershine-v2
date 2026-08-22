@@ -145,7 +145,7 @@ app.use('/api', publicLimiter);
 // ---------------------------------------------------------------------------
 
 const uploadsDir = path.join(__dirname, 'uploads');
-for (const sub of ['receipts', 'discount-ids']) {
+for (const sub of ['receipts', 'discount-ids', 'selfies']) {
   fs.mkdirSync(path.join(uploadsDir, sub), { recursive: true });
 }
 
@@ -180,6 +180,25 @@ const uploadDiscountId = multer({
   fileFilter: imageFileFilter,
 });
 
+// Profile Verification submits two files at once — the ID photo and a live
+// selfie captured from the camera — each routed to its own subfolder based
+// on which form field it came in on.
+const uploadVerificationFiles = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const sub = file.fieldname === 'selfie' ? 'selfies' : 'discount-ids';
+      cb(null, path.join(uploadsDir, sub));
+    },
+    filename: (req, file, cb) => {
+      const ext = file.mimetype.split('/')[1];
+      const randomName = crypto.randomBytes(16).toString('hex');
+      cb(null, `${randomName}.${ext}`);
+    },
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: imageFileFilter,
+});
+
 // ---------------------------------------------------------------------------
 // Validation schemas
 // ---------------------------------------------------------------------------
@@ -187,6 +206,44 @@ const uploadDiscountId = multer({
 const loginSchema = z.object({
   email: z.string().trim().email().max(255),
   password: z.string().min(1).max(200),
+}).strict();
+
+const registerSchema = z.object({
+  first_name: z.string().trim().min(1).max(100),
+  middle_name: z.string().trim().max(100).optional().or(z.literal('')),
+  last_name: z.string().trim().min(1).max(100),
+  suffix: z.string().trim().max(20).optional().or(z.literal('')),
+  barangay: z.string().trim().min(1).max(150),
+  city_municipality: z.string().trim().min(1).max(150),
+  province: z.string().trim().min(1).max(150),
+  zip_code: z.string().trim().min(1).max(20),
+  region: z.string().trim().min(1).max(150),
+  email: z.string().trim().email().max(255),
+  password: z.string().min(8).max(200),
+  contact_number: z.string().trim().min(1).max(30),
+}).strict();
+
+const customerLoginSchema = z.object({
+  email: z.string().trim().email().max(255),
+  password: z.string().min(1).max(200),
+}).strict();
+
+const discountRequestSchema = z.object({
+  discount_type: z.enum(['senior', 'pwd', 'student']),
+}).strict();
+
+const updateProfileSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  contact_number: z.string().trim().max(30).optional().or(z.literal('')),
+}).strict();
+
+const verifyDiscountSchema = z.object({
+  expires_at: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD')
+    .refine((val) => new Date(`${val}T00:00:00`) > new Date(), {
+      message: 'Expiry date must be in the future',
+    }),
 }).strict();
 
 const schedulesQuerySchema = z.object({
@@ -293,6 +350,85 @@ function deleteUploadedFileOnError(file) {
   }
 }
 
+function signCustomerToken(customer) {
+  return jwt.sign(
+    { customerId: customer.id, email: customer.email, role: 'customer' },
+    process.env.JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+}
+
+// A verified discount lapses once discountVerifiedUntil passes — we don't
+// mutate the stored status (so admins can still see it was once verified,
+// and can re-verify with a fresh date), we just report it as 'expired' to
+// anything that checks it, including the booking discount enforcement below.
+function isDiscountExpired(customer) {
+  return (
+    customer.discountStatus === 'verified' &&
+    customer.discountVerifiedUntil &&
+    customer.discountVerifiedUntil < new Date()
+  );
+}
+
+function publicCustomer(customer) {
+  return {
+    id: customer.id,
+    firstName: customer.firstName,
+    middleName: customer.middleName,
+    lastName: customer.lastName,
+    suffix: customer.suffix,
+    // Computed convenience field — pages that haven't been updated to the
+    // structured name yet (Account dashboard, Admin) can keep reading
+    // `.name` unchanged until they're revised.
+    name: [customer.firstName, customer.lastName].filter(Boolean).join(' '),
+    email: customer.email,
+    contactNumber: customer.contactNumber,
+    barangay: customer.barangay,
+    cityMunicipality: customer.cityMunicipality,
+    province: customer.province,
+    zipCode: customer.zipCode,
+    region: customer.region,
+    discountType: customer.discountType,   // none | senior | pwd | student
+    discountStatus: isDiscountExpired(customer) ? 'expired' : customer.discountStatus,
+    discountVerifiedUntil: customer.discountVerifiedUntil,
+  };
+}
+
+// Requires a valid customer token — used for routes only a logged-in
+// customer may hit (profile, discount request).
+function requireCustomerAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Not logged in' });
+  }
+  try {
+    const payload = jwt.verify(authHeader.slice(7), process.env.JWT_SECRET);
+    if (payload.role !== 'customer') {
+      return res.status(401).json({ error: 'Not logged in' });
+    }
+    req.customerId = payload.customerId;
+    next();
+  } catch {
+    return res.status(401).json({ error: 'Session expired, please log in again' });
+  }
+}
+
+// Optional auth — attaches req.customerId if a valid customer token is
+// present, but never rejects the request. Used on booking creation so
+// guests can still check out, while logged-in customers get recognized.
+function attachCustomerIfPresent(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    try {
+      const payload = jwt.verify(authHeader.slice(7), process.env.JWT_SECRET);
+      if (payload.role === 'customer') req.customerId = payload.customerId;
+    } catch {
+      // invalid/expired token — treat this request as a guest instead of rejecting it
+    }
+  }
+  next();
+}
+
 // ---------------------------------------------------------------------------
 // Auth
 // ---------------------------------------------------------------------------
@@ -311,7 +447,7 @@ app.post('/api/login', loginLimiter, validate(loginSchema), async (req, res) => 
   }
 
   const token = jwt.sign(
-    { id: admin.id, email: admin.email },
+    { id: admin.id, email: admin.email, role: 'admin' },
     process.env.JWT_SECRET,
     { expiresIn: '1d' }
   );
@@ -326,6 +462,140 @@ app.post('/api/login', loginLimiter, validate(loginSchema), async (req, res) => 
 app.get('/api/whoami', requireAuth, async (req, res) => {
   res.json({ message: 'You are logged in as:', admin: req.admin });
 });
+
+// ---------------------------------------------------------------------------
+// Customer accounts — registration, login, profile, discount verification.
+//
+// Discount policy: a passenger's discount only counts if the person booking
+// is logged in AND their account has discountStatus === 'verified' (an
+// admin reviewed their uploaded ID once, on their profile). This is checked
+// server-side in POST /api/bookings below — never trust the client's
+// discount_type on its own.
+// ---------------------------------------------------------------------------
+
+app.post('/api/register', loginLimiter, validate(registerSchema), async (req, res) => {
+  const {
+    first_name, middle_name, last_name, suffix,
+    barangay, city_municipality, province, zip_code, region,
+    email, password, contact_number,
+  } = req.body;
+
+  const existing = await prisma.customer.findUnique({ where: { email } });
+  if (existing) {
+    return res.status(400).json({ error: 'An account with this email already exists' });
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  const customer = await prisma.customer.create({
+    data: {
+      firstName: first_name,
+      middleName: middle_name || null,
+      lastName: last_name,
+      suffix: suffix || null,
+      email,
+      passwordHash,
+      contactNumber: contact_number,
+      barangay,
+      cityMunicipality: city_municipality,
+      province,
+      zipCode: zip_code,
+      region,
+    },
+  });
+
+  const token = signCustomerToken(customer);
+  res.json({ message: 'Account created', token, customer: publicCustomer(customer) });
+});
+
+app.post('/api/customer/login', loginLimiter, validate(customerLoginSchema), async (req, res) => {
+  const { email, password } = req.body;
+
+  const customer = await prisma.customer.findUnique({ where: { email } });
+  if (!customer) {
+    return res.status(400).json({ error: 'Invalid email or password' });
+  }
+  const passwordMatches = await bcrypt.compare(password, customer.passwordHash);
+  if (!passwordMatches) {
+    return res.status(400).json({ error: 'Invalid email or password' });
+  }
+
+  const token = signCustomerToken(customer);
+  res.json({ message: 'Login successful', token, customer: publicCustomer(customer) });
+});
+
+app.get('/api/customer/me', requireCustomerAuth, async (req, res) => {
+  const customer = await prisma.customer.findUnique({ where: { id: req.customerId } });
+  if (!customer) return res.status(404).json({ error: 'Account not found' });
+  res.json({ customer: publicCustomer(customer) });
+});
+
+app.patch('/api/customer/me', requireCustomerAuth, writeLimiter, validate(updateProfileSchema), async (req, res) => {
+  const { name, contact_number } = req.body;
+  // The Account dashboard's Edit Profile form still edits one "Name" field
+  // (that page hasn't been revised to the structured name yet), so this
+  // splits it best-effort on the first space. Revisit once that page is
+  // rebuilt to edit firstName/middleName/lastName/suffix directly.
+  const trimmed = name.trim();
+  const spaceIndex = trimmed.indexOf(' ');
+  const firstName = spaceIndex === -1 ? trimmed : trimmed.slice(0, spaceIndex);
+  const lastName = spaceIndex === -1 ? trimmed : trimmed.slice(spaceIndex + 1).trim() || trimmed;
+
+  const customer = await prisma.customer.update({
+    where: { id: req.customerId },
+    data: {
+      firstName,
+      lastName,
+      contactNumber: contact_number || undefined, // contactNumber is required — skip the update if left blank
+    },
+  });
+  res.json({ message: 'Profile updated', customer: publicCustomer(customer) });
+});
+
+// Only ever returns bookings tied to the authenticated customer's own ID —
+// never trusts an email/reference-code from the client the way the guest
+// "Manage Booking" lookup does.
+app.get('/api/customer/bookings', requireCustomerAuth, async (req, res) => {
+  const bookings = await prisma.booking.findMany({
+    where: { customerId: req.customerId },
+    include: { schedule: true, passengers: true },
+    orderBy: { createdAt: 'desc' },
+  });
+  res.json(bookings);
+});
+
+app.post(
+  '/api/customer/discount-request',
+  requireCustomerAuth,
+  writeLimiter,
+  uploadVerificationFiles.fields([
+    { name: 'discount_id', maxCount: 1 },
+    { name: 'selfie', maxCount: 1 },
+  ]),
+  validate(discountRequestSchema),
+  async (req, res) => {
+    const { discount_type } = req.body;
+    const idFile = req.files?.discount_id?.[0];
+    const selfieFile = req.files?.selfie?.[0];
+    if (!idFile) {
+      return res.status(400).json({ error: 'Please upload a photo of your ID' });
+    }
+    if (!selfieFile) {
+      return res.status(400).json({ error: 'A live selfie is required for verification' });
+    }
+
+    await prisma.customer.update({
+      where: { id: req.customerId },
+      data: {
+        discountType: discount_type,
+        discountIdPath: `discount-ids/${idFile.filename}`,
+        selfiePath: `selfies/${selfieFile.filename}`,
+        discountStatus: 'pending',
+      },
+    });
+
+    res.json({ message: 'Submitted for verification. This can take a little while — check back on your account page.' });
+  }
+);
 
 // ---------------------------------------------------------------------------
 // Public: ferries & schedules
@@ -355,7 +625,7 @@ app.get('/api/schedules', validate(schedulesQuerySchema, 'query'), async (req, r
 // Guest bookings (no login required, no seat selection)
 // ---------------------------------------------------------------------------
 
-app.post('/api/bookings', writeLimiter, validate(createBookingSchema), async (req, res) => {
+app.post('/api/bookings', writeLimiter, attachCustomerIfPresent, validate(createBookingSchema), async (req, res) => {
   const { schedule_id, contact_email, contact_number, passengers } = req.body;
 
   const schedule = await prisma.schedule.findUnique({ where: { id: schedule_id } });
@@ -363,8 +633,23 @@ app.post('/api/bookings', writeLimiter, validate(createBookingSchema), async (re
     return res.status(404).json({ error: 'Schedule not found' });
   }
 
+  // Server-side discount enforcement — never trust discount_type from the
+  // client. It only survives if the booker is logged in with a verified
+  // profile, and only for the discount type that profile was verified for.
+  let allowedDiscountType = null;
+  if (req.customerId) {
+    const customer = await prisma.customer.findUnique({ where: { id: req.customerId } });
+    if (customer && customer.discountStatus === 'verified' && !isDiscountExpired(customer)) {
+      allowedDiscountType = customer.discountType;
+    }
+  }
+  const sanitizedPassengers = passengers.map((p) => ({
+    ...p,
+    discount_type: p.discount_type === allowedDiscountType ? p.discount_type : 'none',
+  }));
+
   const referenceCode = generateReferenceCode();
-  const passengersWithFare = passengers.map((p) => ({
+  const passengersWithFare = sanitizedPassengers.map((p) => ({
     ...p,
     fare: calculateFare(schedule.baseFare, p.discount_type),
   }));
@@ -377,6 +662,9 @@ app.post('/api/bookings', writeLimiter, validate(createBookingSchema), async (re
       contactEmail: contact_email,
       contactNumber: contact_number,
       totalFare,
+      // Tags the booking to the logged-in customer, if any, so it shows up
+      // in their dashboard's booking history. Guests (no token) leave this null.
+      customerId: req.customerId || null,
       passengers: {
         create: passengersWithFare.map((p) => ({
           firstName: p.first_name,
@@ -746,13 +1034,53 @@ app.get('/api/admin/analytics/monthly-sales', requireAuth, adminLimiter, async (
   res.json(result);
 });
 
+app.get('/api/admin/customers/pending-discounts', requireAuth, adminLimiter, async (req, res) => {
+  const customers = await prisma.customer.findMany({
+    where: { discountStatus: 'pending' },
+    select: {
+      id: true, firstName: true, lastName: true, email: true, contactNumber: true,
+      discountType: true, discountIdPath: true, selfiePath: true, createdAt: true,
+    },
+  });
+  // Admin.jsx's Profile Verification tab still reads a single `.name` —
+  // compute it here so that page doesn't need changes for this revision.
+  res.json(customers.map((c) => ({ ...c, name: [c.firstName, c.lastName].filter(Boolean).join(' ') })));
+});
+
+app.post(
+  '/api/admin/customers/:id/verify-discount',
+  requireAuth,
+  adminLimiter,
+  validate(idParamSchema, 'params'),
+  validate(verifyDiscountSchema),
+  async (req, res) => {
+    const { expires_at } = req.body;
+    await prisma.customer.update({
+      where: { id: req.params.id },
+      data: {
+        discountStatus: 'verified',
+        discountVerifiedUntil: new Date(`${expires_at}T23:59:59`),
+      },
+    });
+    res.json({ message: 'Discount verified' });
+  }
+);
+
+app.post('/api/admin/customers/:id/reject-discount', requireAuth, adminLimiter, validate(idParamSchema, 'params'), async (req, res) => {
+  await prisma.customer.update({
+    where: { id: req.params.id },
+    data: { discountStatus: 'rejected', discountVerifiedUntil: null },
+  });
+  res.json({ message: 'Discount rejected' });
+});
+
 // ---------------------------------------------------------------------------
 // Admin-only file access (receipts, discount IDs)
 // ---------------------------------------------------------------------------
 
 app.get('/api/admin/uploads/:folder/:filename', requireAuth, (req, res) => {
   const { folder, filename } = req.params;
-  if (!['receipts', 'discount-ids'].includes(folder)) {
+  if (!['receipts', 'discount-ids', 'selfies'].includes(folder)) {
     return res.status(400).json({ error: 'Invalid folder' });
   }
   const safeName = path.basename(filename);

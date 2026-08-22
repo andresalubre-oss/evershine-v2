@@ -1,7 +1,22 @@
 import { useEffect, useState } from 'react'
-import { Link, Outlet } from 'react-router-dom'
+import { Link, Outlet, useLocation } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext.jsx'
+
+function IconUser(props) {
+  return (
+    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="8" r="4" />
+      <path strokeLinecap="round" d="M4 21c1.5-4.5 5-6 8-6s6.5 1.5 8 6" />
+    </svg>
+  )
+}
 
 export default function Layout() {
+  const { customer } = useAuth()
+  const location = useLocation()
+  // The admin dashboard has its own sidebar/Log Out — the customer-facing
+  // nav (Book, Refund & Cancellation, Travel Info, etc.) doesn't belong there.
+  const isAdminDashboard = location.pathname === '/admin'
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [travelInfoOpen, setTravelInfoOpen] = useState(false)
@@ -15,6 +30,8 @@ export default function Layout() {
   }, [])
 
   // Items with a `children` array render as a dropdown instead of a plain link.
+  // The account/login link is handled separately below (not in this array)
+  // since it needs a two-line icon treatment instead of a plain text link.
   const navLinks = [
     { to: '/', label: 'Book' },
     { to: '/Book', label: 'Refund & Cancellation' },
@@ -30,6 +47,7 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {!isAdminDashboard && (
       <div className="fixed inset-x-0 top-0 z-50 bg-white text-black shadow-md">
         <div className="flex items-center justify-between px-6 py-4">
           <Link to="/" className="text-xl font-bold" onClick={() => setMenuOpen(false)}>
@@ -39,7 +57,7 @@ export default function Layout() {
           </Link>
 
           {/* Desktop nav — hidden by default, shown from md: (768px) up */}
-          <nav className="hidden md:flex gap-10 text-sm">
+          <nav className="hidden md:flex md:items-center gap-10 text-sm">
             {navLinks.map((link) =>
               link.children ? (
                 // ---- Dropdown item (Travel Info) ----
@@ -71,7 +89,7 @@ export default function Layout() {
                           key={child.to}
                           to={child.to}
                           onClick={() => setTravelInfoOpen(false)}
-                          className="block px-4 py-2 text-lg text-black hover:bg-gray-100"
+                          className="block px-4 py-2 text-sm text-black hover:bg-gray-100"
                         >
                           {child.label}
                         </Link>
@@ -89,6 +107,35 @@ export default function Layout() {
                   {link.label}
                 </Link>
               )
+            )}
+
+            {/* Account — profile icon + "Account" with a "Mabuhay, {name}" greeting
+                underneath when logged in; a plain icon + "Log In" otherwise. */}
+            {customer ? (
+              <Link to="/account" className="flex items-center gap-2.5 rounded-md px-1 hover:bg-gray-50">
+                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-teal-50 text-teal-700">
+                  <IconUser className="h-5 w-5" />
+                </span>
+                <span className="text-left leading-tight">
+                  <span className="block text-base font-semibold">Account</span>
+                  <span className="block text-xs font-normal text-gray-500">Mabuhay, {customer.name.split(' ')[0]}</span>
+                </span>
+              </Link>
+            ) : (
+              <>
+                <Link to="/account/login" className="flex items-center gap-2 rounded-md px-1 hover:bg-gray-50">
+                  <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-600">
+                    <IconUser className="h-5 w-5" />
+                  </span>
+                  <span className="text-lg font-medium">Log In</span>
+                </Link>
+                <Link
+                  to="/register"
+                  className="whitespace-nowrap rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal-800"
+                >
+                  Register
+                </Link>
+              </>
             )}
           </nav>
 
@@ -142,11 +189,49 @@ export default function Layout() {
                 </Link>
               )
             )}
+
+            {/* Account — same icon treatment as desktop, stacked into the mobile list. */}
+            {customer ? (
+              <Link
+                to="/account"
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center gap-2.5 rounded-md px-3 py-2 hover:bg-gray-100"
+              >
+                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-teal-50 text-teal-700">
+                  <IconUser className="h-5 w-5" />
+                </span>
+                <span className="text-left leading-tight">
+                  <span className="block font-semibold">Account</span>
+                  <span className="block text-xs font-normal text-gray-500">Mabuhay, {customer.name.split(' ')[0]}</span>
+                </span>
+              </Link>
+            ) : (
+              <>
+                <Link
+                  to="/account/login"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center gap-2.5 rounded-md px-3 py-2 font-medium hover:bg-gray-100"
+                >
+                  <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-600">
+                    <IconUser className="h-5 w-5" />
+                  </span>
+                  Log In
+                </Link>
+                <Link
+                  to="/register"
+                  onClick={() => setMenuOpen(false)}
+                  className="mt-1 rounded-md bg-teal-700 px-3 py-2 text-center font-semibold text-white hover:bg-teal-800"
+                >
+                  Register
+                </Link>
+              </>
+            )}
           </nav>
         )}
       </div>
+      )}
 
-      <main className="mx-auto max-w-5xl px-4 py-8 pt-28">
+      <main className={`mx-auto max-w-5xl px-4 py-8 ${isAdminDashboard ? '' : 'pt-28'}`}>
         <Outlet />
       </main>
     </div>

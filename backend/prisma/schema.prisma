@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -24,6 +21,13 @@ enum DiscountType {
   senior
   pwd
   student
+}
+
+enum DiscountStatus {
+  none
+  pending
+  verified
+  rejected
 }
 
 enum BookingStatus {
@@ -50,6 +54,34 @@ model Admin {
   createdAt    DateTime @default(now()) @map("created_at")
 
   @@map("admins")
+}
+
+model Customer {
+  id                    String         @id @default(uuid())
+  firstName             String         @map("first_name")
+  middleName            String?        @map("middle_name")
+  lastName              String         @map("last_name")
+  suffix                String?
+  email                 String         @unique
+  passwordHash          String         @map("password_hash")
+  contactNumber         String         @map("contact_number")
+  barangay              String
+  cityMunicipality      String         @map("city_municipality")
+  province              String
+  zipCode               String         @map("zip_code")
+  region                String
+  // Live camera capture taken during Profile Verification (not a gallery
+  // upload) — kept separate from discountIdPath so admins can compare the
+  // live selfie against the uploaded ID photo.
+  selfiePath            String?        @map("selfie_path")
+  discountType          DiscountType   @default(none) @map("discount_type")
+  discountIdPath        String?        @map("discount_id_path")
+  discountStatus        DiscountStatus @default(none) @map("discount_status")
+  discountVerifiedUntil DateTime?      @map("discount_verified_until")
+  createdAt             DateTime       @default(now()) @map("created_at")
+  bookings              Booking[]
+
+  @@map("customers")
 }
 
 model Ferry {
@@ -88,6 +120,12 @@ model Booking {
   createdAt        DateTime           @default(now()) @map("created_at")
   passengers       BookingPassenger[]
   payment          Payment?
+  // Nullable — guest checkout still doesn't require an account. Set from the
+  // logged-in customer's token (if any) at booking-creation time, so "My
+  // Bookings" on the dashboard can look these up without trusting anything
+  // the client sends.
+  customerId       String?            @map("customer_id")
+  customer         Customer?          @relation(fields: [customerId], references: [id])
 
   @@map("bookings")
 }

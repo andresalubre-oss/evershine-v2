@@ -5,6 +5,11 @@ function authHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
+function customerAuthHeaders() {
+  const token = localStorage.getItem('customerToken')
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
 async function request(path, options = {}) {
   const response = await fetch(`${BASE}${path}`, options)
   const data = await response.json().catch(() => ({}))
@@ -21,6 +26,13 @@ async function adminRequest(path, options = {}) {
   })
 }
 
+async function customerRequest(path, options = {}) {
+  return request(path, {
+    ...options,
+    headers: { ...customerAuthHeaders(), ...(options.headers || {}) },
+  })
+}
+
 export const api = {
   login: (email, password) =>
     request('/login', {
@@ -34,12 +46,54 @@ export const api = {
   getSchedules: (direction, date) =>
     request(`/schedules?direction=${direction}&date=${date}`),
 
+  // Attaches the customer's token if they're logged in (so the backend can
+  // check whether their profile is discount-verified), but works fine
+  // without one too — guests can still book.
   createBooking: (payload) =>
     request('/bookings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...customerAuthHeaders() },
+      body: JSON.stringify(payload),
+    }),
+
+  register: (payload) =>
+    request('/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     }),
+
+  customerLogin: (email, password) =>
+    request('/customer/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    }),
+
+  getCustomerMe: () => customerRequest('/customer/me'),
+
+  updateProfile: (payload) =>
+    customerRequest('/customer/me', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
+
+  getMyBookings: () => customerRequest('/customer/bookings'),
+
+  requestDiscount: (formData) =>
+    customerRequest('/customer/discount-request', { method: 'POST', body: formData }),
+
+  getPendingDiscounts: () => adminRequest('/admin/customers/pending-discounts'),
+
+  verifyDiscount: (id, expiresAt) =>
+    adminRequest(`/admin/customers/${id}/verify-discount`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ expires_at: expiresAt }),
+    }),
+
+  rejectDiscount: (id) => adminRequest(`/admin/customers/${id}/reject-discount`, { method: 'POST' }),
 
   uploadReceipt: (formData) =>
     request('/bookings/upload-receipt', { method: 'POST', body: formData }),
