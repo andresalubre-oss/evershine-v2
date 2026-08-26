@@ -5,6 +5,24 @@ import { useNavigate, Link } from 'react-router-dom'
 import { api } from '../api.js'
 import { useAuth } from '../context/AuthContext.jsx'
 
+function IconEye(props) {
+  return (
+    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7z" />
+      <circle cx="12" cy="12" r="3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+function IconEyeOff(props) {
+  return (
+    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10.6 5.1A9.9 9.9 0 0112 5c6 0 9.5 7 9.5 7a15.8 15.8 0 01-3.1 4.1M6.6 6.6C4 8.3 2.5 12 2.5 12s3.5 7 9.5 7a9.4 9.4 0 004.4-1.1" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.9 9.9a3 3 0 004.2 4.2" />
+    </svg>
+  )
+}
+
 function Field({ label, required, children }) {
   return (
     <div>
@@ -127,6 +145,9 @@ export default function Register() {
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [contactNumber, setContactNumber] = useState('')
 
   const [error, setError] = useState('')
@@ -268,6 +289,10 @@ export default function Register() {
       setError('Password must be at least 8 characters.')
       return
     }
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.')
+      return
+    }
     setSubmitting(true)
     try {
       const data = await api.register({
@@ -392,22 +417,52 @@ export default function Register() {
         <section>
           <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Account</h2>
           <div className="mt-3 space-y-4">
-            <Field label="Email" required>
-              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} />
-            </Field>
             <Field label="Phone Number" required>
               <input type="text" required value={contactNumber} onChange={(e) => setContactNumber(e.target.value)} className={inputClass} />
             </Field>
+            <Field label="Email" required>
+              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} />
+            </Field>
             <Field label="Password" required>
-              <input
-                type="password"
-                required
-                minLength={8}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className={inputClass}
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  minLength={8}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className={`${inputClass} pr-10`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 hover:text-gray-600"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <IconEyeOff className="h-5 w-5" /> : <IconEye className="h-5 w-5" />}
+                </button>
+              </div>
               <p className="mt-1 text-xs text-gray-500">At least 8 characters.</p>
+            </Field>
+            <Field label="Confirm Password" required>
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  required
+                  minLength={8}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className={`${inputClass} pr-10`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((v) => !v)}
+                  className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 hover:text-gray-600"
+                  aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showConfirmPassword ? <IconEyeOff className="h-5 w-5" /> : <IconEye className="h-5 w-5" />}
+                </button>
+              </div>
             </Field>
           </div>
         </section>
