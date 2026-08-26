@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
+import ChatWidget from './ChatWidget.jsx'
+import Footer from './Footer.jsx'
 
 function IconUser(props) {
   return (
@@ -34,11 +36,12 @@ export default function Layout() {
   // since it needs a two-line icon treatment instead of a plain text link.
   const navLinks = [
     { to: '/', label: 'Book' },
-    { to: '/Book', label: 'Refund & Cancellation' },
+    { to: '/refund-cancellation', label: 'Refund & Cancellation' },
     {
       label: 'Travel Info',
       children: [
         { to: '/travel-info/policies', label: 'Policies' },
+        { to: '/travel-info/ticket-policies', label: 'Ticket Policies' },
         { to: '/travel-info/faqs', label: 'FAQs' },
       ],
     },
@@ -46,7 +49,7 @@ export default function Layout() {
   ]
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="flex min-h-screen flex-col bg-gray-50">
       {!isAdminDashboard && (
       <div className="fixed inset-x-0 top-0 z-50 bg-white text-black shadow-md">
         <div className="flex items-center justify-between px-6 py-4">
@@ -231,9 +234,12 @@ export default function Layout() {
       </div>
       )}
 
-      <main className={`mx-auto max-w-5xl px-4 py-8 ${isAdminDashboard ? '' : 'pt-28'}`}>
+      <main className={`mx-auto w-full max-w-5xl flex-1 px-4 py-8 ${isAdminDashboard ? '' : 'pt-28'}`}>
         <Outlet />
       </main>
+
+      {!isAdminDashboard && <Footer />}
+      {!isAdminDashboard && <ChatWidget />}
     </div>
   )
 }

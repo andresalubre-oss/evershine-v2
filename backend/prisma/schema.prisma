@@ -52,6 +52,11 @@ model Admin {
   passwordHash String   @map("password_hash")
   name         String?
   createdAt    DateTime @default(now()) @map("created_at")
+  // Two-factor auth (TOTP, e.g. Google Authenticator). totpSecret is written
+  // during setup but twoFactorEnabled stays false until the admin confirms
+  // a code — login only demands the second factor once it's true.
+  totpSecret       String?  @map("totp_secret")
+  twoFactorEnabled Boolean  @default(false) @map("two_factor_enabled")
 
   @@map("admins")
 }
@@ -76,8 +81,17 @@ model Customer {
   selfiePath            String?        @map("selfie_path")
   discountType          DiscountType   @default(none) @map("discount_type")
   discountIdPath        String?        @map("discount_id_path")
+  // Front and back of the ID are both required so admins can check the
+  // printed expiry date, which is often only on the back of Philippine IDs.
+  discountIdBackPath    String?        @map("discount_id_back_path")
   discountStatus        DiscountStatus @default(none) @map("discount_status")
   discountVerifiedUntil DateTime?      @map("discount_verified_until")
+  // Confirms the registrant actually controls the inbox at the email they
+  // signed up with. Doesn't block login/booking — it's a trust signal shown
+  // on the account page with a resend option, not a hard gate.
+  emailVerified            Boolean   @default(false) @map("email_verified")
+  emailVerificationToken   String?   @map("email_verification_token")
+  emailVerificationExpires DateTime? @map("email_verification_expires")
   createdAt             DateTime       @default(now()) @map("created_at")
   bookings              Booking[]
 
@@ -126,6 +140,12 @@ model Booking {
   // the client sends.
   customerId       String?            @map("customer_id")
   customer         Customer?          @relation(fields: [customerId], references: [id])
+
+  // Refunds are reviewed and sent manually by an admin (no automated payout
+  // integration) — these just record the customer's stated reason and when
+  // an admin confirmed the money was actually sent.
+  cancellationReason String?          @map("cancellation_reason")
+  refundedAt         DateTime?        @map("refunded_at")
 
   @@map("bookings")
 }

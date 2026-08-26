@@ -97,6 +97,14 @@ function IconX(props) {
     </svg>
   )
 }
+function IconAlertTriangle(props) {
+  return (
+    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10.3 3.9L1.9 18a1.5 1.5 0 001.3 2.3h17.6a1.5 1.5 0 001.3-2.3L13.7 3.9a1.5 1.5 0 00-2.6 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4M12 16.5v.01" />
+    </svg>
+  )
+}
 function IconCamera(props) {
   return (
     <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -353,24 +361,79 @@ function ProfileCard({ customer, onSaved }) {
   )
 }
 
-function DiscountCard({ customer, onUpdated }) {
+// Reused for both sides of the ID — click-to-upload dropzone that swaps to
+// a filename/size preview once a file is picked, same treatment for front
+// and back so the form reads as one consistent pattern.
+function IdUploadField({ label, hint, file, onChange }) {
+  return (
+    <>
+      <label className="mt-4 block text-xs font-medium uppercase tracking-wide text-gray-500">{label}</label>
+      {hint && <p className="mt-0.5 text-xs text-gray-400">{hint}</p>}
+      {file ? (
+        <div className="mt-1.5 flex items-center gap-3 rounded-md border border-gray-200 bg-gray-50 p-3">
+          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-teal-50 text-teal-700">
+            <IconImage className="h-5 w-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-gray-800">{file.name}</p>
+            <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(0)} KB</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            aria-label={`Remove ${label.toLowerCase()}`}
+            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-gray-400 hover:bg-gray-200 hover:text-gray-600"
+          >
+            <IconX className="h-4 w-4" />
+          </button>
+        </div>
+      ) : (
+        <label className="mt-1.5 flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-md border-2 border-dashed border-gray-300 px-4 py-6 text-center transition-colors hover:border-teal-400 hover:bg-teal-50/40">
+          <IconUpload className="h-6 w-6 text-gray-400" />
+          <span className="text-sm font-medium text-teal-700">Click to upload {label.toLowerCase()}</span>
+          <span className="text-xs text-gray-400">JPG or PNG</span>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => onChange(e.target.files[0] || null)}
+            className="hidden"
+          />
+        </label>
+      )}
+    </>
+  )
+}
+
+// Profile Verification is the single gate for discount eligibility — there's
+// no separate "discount status" anymore. Submitting requires a live camera
+// photo (which also becomes the account's permanent profile picture, see
+// the hero banner in Account() below), a valid ID, and the discount type
+// being verified for. An admin approving the request is what makes the
+// customer both "Profile Verified" and eligible for that discount.
+function ProfileVerificationCard({ customer, onUpdated }) {
   const [discountType, setDiscountType] = useState('senior')
   const [file, setFile] = useState(null)
+  const [backFile, setBackFile] = useState(null)
   const [selfieFile, setSelfieFile] = useState(null)
   const [message, setMessage] = useState('')
   const [error, setError] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
-  async function submitDiscountRequest() {
+  async function submitVerificationRequest() {
     setMessage('')
     setError(false)
-    if (!file) {
-      setMessage('Please upload a photo of your ID.')
+    if (!selfieFile) {
+      setMessage('A live profile photo is required for verification.')
       setError(true)
       return
     }
-    if (!selfieFile) {
-      setMessage('A live selfie is required to verify your identity.')
+    if (!file) {
+      setMessage('Please upload a photo of the front of your ID.')
+      setError(true)
+      return
+    }
+    if (!backFile) {
+      setMessage('Please upload a photo of the back of your ID.')
       setError(true)
       return
     }
@@ -379,6 +442,7 @@ function DiscountCard({ customer, onUpdated }) {
       const formData = new FormData()
       formData.append('discount_type', discountType)
       formData.append('discount_id', file)
+      formData.append('discount_id_back', backFile)
       formData.append('selfie', selfieFile)
       await api.requestDiscount(formData)
       setMessage('Submitted! An admin will review it shortly.')
@@ -401,15 +465,16 @@ function DiscountCard({ customer, onUpdated }) {
   }
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+    <div id="profile-verification" className="scroll-mt-24 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
       <CardHeading icon={IconTag} accent="purple">
-        Discount Status
+        Profile Verification
       </CardHeading>
 
       <div className={`mt-4 rounded-lg border p-4 text-sm ${statusStyles[customer.discountStatus] || statusStyles.none}`}>
         {customer.discountStatus === 'verified' && (
           <>
-            Verified for a <span className="font-semibold capitalize">{customer.discountType}</span> discount.
+            You're Profile Verified, which makes you eligible for the{' '}
+            <span className="font-semibold capitalize">{customer.discountType}</span> discount.
             It applies automatically to your bookings while you're logged in.
             {customer.discountVerifiedUntil && (
               <> Valid until <b>{new Date(customer.discountVerifiedUntil).toLocaleDateString()}</b>.</>
@@ -418,20 +483,26 @@ function DiscountCard({ customer, onUpdated }) {
         )}
         {customer.discountStatus === 'expired' && (
           <>
-            Your <span className="capitalize">{customer.discountType}</span> verification expired on{' '}
-            {new Date(customer.discountVerifiedUntil).toLocaleDateString()}. Submit your ID again below to renew it.
+            Your Profile Verification (for the <span className="capitalize">{customer.discountType}</span> discount) expired on{' '}
+            {new Date(customer.discountVerifiedUntil).toLocaleDateString()}. Submit again below to renew your eligibility.
           </>
         )}
         {customer.discountStatus === 'pending' && (
-          <>Your <span className="capitalize">{customer.discountType}</span> ID is under review. Check back later.</>
+          <>Your Profile Verification is under review. Check back later — you're not yet eligible for the <span className="capitalize">{customer.discountType}</span> discount until it's approved.</>
         )}
-        {customer.discountStatus === 'rejected' && 'Your last discount request was rejected. You can submit a new one below.'}
-        {customer.discountStatus === 'none' && "You haven't requested a discount yet. Submit your ID below to get verified."}
+        {customer.discountStatus === 'rejected' && 'Your last Profile Verification request was not approved. You can submit a new one below.'}
+        {customer.discountStatus === 'none' && "You're not Profile Verified yet. Verifying is required to become eligible for a Senior, PWD, or Student discount."}
       </div>
 
       {['none', 'rejected', 'expired'].includes(customer.discountStatus) && (
         <div className="mt-4">
-          <label className="block text-xs font-medium uppercase tracking-wide text-gray-500">Discount Type</label>
+          <label className="block text-xs font-medium uppercase tracking-wide text-gray-500">Live Profile Photo</label>
+          <p className="mt-0.5 text-xs text-gray-400">
+            Take a live photo with your camera — required to verify your profile. This also becomes your profile picture.
+          </p>
+          <SelfieCapture file={selfieFile} onChange={setSelfieFile} />
+
+          <label className="mt-4 block text-xs font-medium uppercase tracking-wide text-gray-500">Discount Type</label>
           <select
             value={discountType}
             onChange={(e) => setDiscountType(e.target.value)}
@@ -442,49 +513,17 @@ function DiscountCard({ customer, onUpdated }) {
             <option value="student">Student</option>
           </select>
 
-          <label className="mt-4 block text-xs font-medium uppercase tracking-wide text-gray-500">Live Selfie</label>
-          <p className="mt-0.5 text-xs text-gray-400">
-            Take a live photo with your camera so we can match your face to your ID — required for verification.
-          </p>
-          <SelfieCapture file={selfieFile} onChange={setSelfieFile} />
-
-          <label className="mt-4 block text-xs font-medium uppercase tracking-wide text-gray-500">Upload Valid ID</label>
-
-          {file ? (
-            <div className="mt-1.5 flex items-center gap-3 rounded-md border border-gray-200 bg-gray-50 p-3">
-              <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-teal-50 text-teal-700">
-                <IconImage className="h-5 w-5" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-gray-800">{file.name}</p>
-                <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(0)} KB</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setFile(null)}
-                aria-label="Remove selected file"
-                className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-gray-400 hover:bg-gray-200 hover:text-gray-600"
-              >
-                <IconX className="h-4 w-4" />
-              </button>
-            </div>
-          ) : (
-            <label className="mt-1.5 flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-md border-2 border-dashed border-gray-300 px-4 py-6 text-center transition-colors hover:border-teal-400 hover:bg-teal-50/40">
-              <IconUpload className="h-6 w-6 text-gray-400" />
-              <span className="text-sm font-medium text-teal-700">Click to upload a photo of your ID</span>
-              <span className="text-xs text-gray-400">JPG or PNG</span>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setFile(e.target.files[0] || null)}
-                className="hidden"
-              />
-            </label>
-          )}
+          <IdUploadField label="ID (Front)" file={file} onChange={setFile} />
+          <IdUploadField
+            label="ID (Back)"
+            hint="Most IDs print the expiry date on the back — we need both sides."
+            file={backFile}
+            onChange={setBackFile}
+          />
 
           <button
-            onClick={submitDiscountRequest}
-            disabled={submitting || !file || !selfieFile}
+            onClick={submitVerificationRequest}
+            disabled={submitting || !file || !backFile || !selfieFile}
             className="mt-4 rounded-md bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800 disabled:opacity-50"
           >
             {submitting ? 'Submitting...' : 'Submit for Verification'}
@@ -567,6 +606,46 @@ export default function Account() {
   const { customer, loading, logout, refreshMe } = useAuth()
   const navigate = useNavigate()
 
+  // The live selfie from Profile Verification doubles as the account's
+  // permanent profile photo. Fetched separately from `customer` (it's a
+  // file, not a JSON field) and re-fetched after a new verification is
+  // submitted, so a fresh photo replaces the old one right away. Hooks must
+  // run unconditionally on every render, so this — and its effect — sits
+  // above the `loading`/`!customer` early returns below, guarding on
+  // `customer` internally instead of being skipped by them.
+  const [photoUrl, setPhotoUrl] = useState(null)
+  const [resendingVerification, setResendingVerification] = useState(false)
+  const [resendMessage, setResendMessage] = useState('')
+
+  async function handleResendVerification() {
+    setResendingVerification(true)
+    setResendMessage('')
+    try {
+      const data = await api.resendVerification()
+      setResendMessage(data.message)
+    } catch (err) {
+      setResendMessage(err.message)
+    } finally {
+      setResendingVerification(false)
+    }
+  }
+
+  async function reloadPhoto() {
+    const url = await api.getMyPhotoUrl()
+    setPhotoUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev)
+      return url
+    })
+  }
+
+  useEffect(() => {
+    if (!customer) return
+    let cancelled = false
+    api.getMyPhotoUrl().then((url) => { if (!cancelled) setPhotoUrl(url) })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customer?.id])
+
   if (loading) return <p className="text-gray-500">Loading...</p>
   if (!customer) return <Navigate to="/account/login" replace />
 
@@ -575,15 +654,28 @@ export default function Account() {
     navigate('/')
   }
 
+  async function handleVerificationUpdated() {
+    await refreshMe()
+    await reloadPhoto()
+  }
+
   return (
     <div>
       {/* Hero banner — gives the dashboard a real visual anchor instead of
           starting straight into gray boxes. */}
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-gradient-to-r from-teal-700 to-teal-600 p-6 text-white shadow-sm sm:p-8">
         <div className="flex items-center gap-4">
-          <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-white/15 text-lg font-bold ring-2 ring-white/30">
-            {initialsOf(customer.name)}
-          </div>
+          {photoUrl ? (
+            <img
+              src={photoUrl}
+              alt="Your profile photo"
+              className="h-14 w-14 flex-shrink-0 rounded-full object-cover ring-2 ring-white/30"
+            />
+          ) : (
+            <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-white/15 text-lg font-bold ring-2 ring-white/30">
+              {initialsOf(customer.name)}
+            </div>
+          )}
           <div>
             <h1 className="text-xl font-bold sm:text-2xl">Welcome back, {customer.name.split(' ')[0]}</h1>
             <p className="text-sm text-teal-50">{customer.email}</p>
@@ -596,6 +688,53 @@ export default function Account() {
           Log out
         </button>
       </div>
+
+      {/* Unverified-email notice — separate from Profile Verification below.
+          This just confirms the customer controls their inbox; it doesn't
+          block login or booking. */}
+      {!customer.emailVerified && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <div className="flex items-center gap-2.5">
+            <IconAlertTriangle className="h-5 w-5 flex-shrink-0 text-amber-600" />
+            <span>Please verify your email address. Check your inbox at {customer.email} for a link.</span>
+          </div>
+          <div className="flex flex-shrink-0 items-center gap-2">
+            {resendMessage && <span className="text-xs text-amber-700">{resendMessage}</span>}
+            <button
+              onClick={handleResendVerification}
+              disabled={resendingVerification}
+              className="whitespace-nowrap rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
+            >
+              {resendingVerification ? 'Sending...' : 'Resend Email'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Not-verified notice — only shown when there's something to act on
+          (never verified, or a previous submission expired/was rejected).
+          Silent for 'pending' (already submitted, nothing to do) and
+          'verified' (nothing to warn about). */}
+      {['none', 'rejected', 'expired'].includes(customer.discountStatus) && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <div className="flex items-center gap-2.5">
+            <IconAlertTriangle className="h-5 w-5 flex-shrink-0 text-amber-600" />
+            <span>
+              {customer.discountStatus === 'rejected'
+                ? "Your Profile Verification wasn't approved. Submit again to become eligible for a discount."
+                : customer.discountStatus === 'expired'
+                ? 'Your Profile Verification has expired. Renew it to keep your discount eligibility.'
+                : "Your profile isn't verified yet. Verify it to unlock Senior, PWD, or Student discounts."}
+            </span>
+          </div>
+          <a
+            href="#profile-verification"
+            className="flex-shrink-0 whitespace-nowrap rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700"
+          >
+            Verify Now
+          </a>
+        </div>
+      )}
 
       {/* Quick actions */}
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -630,7 +769,7 @@ export default function Account() {
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-1">
           <ProfileCard customer={customer} onSaved={refreshMe} />
-          <DiscountCard customer={customer} onUpdated={refreshMe} />
+          <ProfileVerificationCard customer={customer} onUpdated={handleVerificationUpdated} />
         </div>
         <div className="lg:col-span-2">
           <BookingHistoryCard />

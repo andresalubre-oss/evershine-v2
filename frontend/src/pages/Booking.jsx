@@ -47,10 +47,73 @@ export default function Booking() {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
+  // Logged-in customers get Passenger 1 pre-filled from their account by
+  // default (since most bookings are for the account holder), but a booking
+  // is often made on someone else's behalf — a parent booking for their
+  // child, a friend booking a group trip, etc. This toggle lets them switch
+  // Passenger 1 back to a blank, freely-editable form for that case.
+  const [bookingForSelf, setBookingForSelf] = useState(true)
+
+  function fillPassengerOneFromAccount() {
+    if (!customer) return
+    const nameParts = customer.name.trim().split(/\s+/).filter(Boolean)
+    const first_name = nameParts[0] || ''
+    const last_name = nameParts.length > 1 ? nameParts[nameParts.length - 1] : ''
+    const middle_name = nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : ''
+    setPassengers((prev) => {
+      const next = [...prev]
+      next[0] = {
+        ...next[0],
+        first_name,
+        middle_name,
+        last_name,
+        barangay: customer.barangay || '',
+        city_municipality: customer.cityMunicipality || '',
+        province: customer.province || '',
+        zip_code: customer.zipCode || '',
+        country: 'Philippines',
+        email: customer.email || '',
+        contact_number: customer.contactNumber || '',
+        discount_type: canUseDiscount ? customer.discountType : 'none',
+      }
+      return next
+    })
+  }
+
+  function handleBookingForSelfToggle(checked) {
+    setBookingForSelf(checked)
+    if (checked) {
+      fillPassengerOneFromAccount()
+    } else {
+      // Switching to "someone else" — clear the account-derived fields so
+      // there's no leftover data from the account holder on the new
+      // passenger's ticket. Sex/Nationality aren't account fields, so leave
+      // whatever was already entered there untouched.
+      setPassengers((prev) => {
+        const next = [...prev]
+        next[0] = {
+          ...next[0],
+          first_name: '', middle_name: '', last_name: '',
+          barangay: '', city_municipality: '', province: '', zip_code: '', country: 'Philippines',
+          email: '', contact_number: '', discount_type: 'none',
+        }
+        return next
+      })
+    }
+  }
+
+  // Auto-fill Passenger 1 as soon as we know who's logged in.
+  useEffect(() => {
+    if (customer && bookingForSelf) fillPassengerOneFromAccount()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customer?.id])
+
+  // Passenger 1's identity/contact/address fields are locked while booking
+  // for the account holder — they come straight from the verified account,
+  // so there's nothing to edit. Unchecking "Booking for myself" unlocks them.
+  const lockPassengerOneFields = Boolean(customer) && bookingForSelf
+
   const [booking, setBooking] = useState(null)
-  const [receiptFile, setReceiptFile] = useState(null)
-  const [uploadMessage, setUploadMessage] = useState('')
-  const [uploadError, setUploadError] = useState(false)
 
   const [qrCodeImageUrl, setQrCodeImageUrl] = useState(null)
   const [testUrl, setTestUrl] = useState(null)
@@ -175,29 +238,6 @@ export default function Booking() {
     return () => clearInterval(interval)
   }, [paymentStatus, booking, contactEmail])
 
-  async function submitReceipt() {
-    setUploadMessage('')
-    setUploadError(false)
-    if (!receiptFile) {
-      setUploadMessage('Choose an image file first.')
-      setUploadError(true)
-      return
-    }
-    const formData = new FormData()
-    formData.append('reference_code', booking.referenceCode)
-    formData.append('contact_email', contactEmail)
-    formData.append('receipt', receiptFile)
-
-    try {
-      await api.uploadReceipt(formData)
-      setUploadMessage('Receipt uploaded! Awaiting admin approval.')
-      setUploadError(false)
-    } catch (err) {
-      setUploadMessage(err.message)
-      setUploadError(true)
-    }
-  }
-
   if (!scheduleId) {
     return <p className="text-red-600">No trip selected. Go back and search again.</p>
   }
@@ -253,33 +293,54 @@ export default function Booking() {
 
             {passengers.map((p, i) => (
               <div key={i} className="mt-5 border-t border-gray-100 pt-4">
-                <h3 className="font-semibold text-gray-700">
-                  Passenger {i + 1}
-                  {i === 0 && !customer && (
-                    <span className="ml-2 text-xs font-normal text-gray-500">
-                      (booking contact — enter your email &amp; number below)
-                    </span>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="font-semibold text-gray-700">
+                    Passenger {i + 1}
+                    {i === 0 && !customer && (
+                      <span className="ml-2 text-xs font-normal text-gray-500">
+                        (booking contact — enter your email &amp; number below)
+                      </span>
+                    )}
+                  </h3>
+                  {i === 0 && customer && (
+                    <label className="flex items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={bookingForSelf}
+                        onChange={(e) => handleBookingForSelfToggle(e.target.checked)}
+                        className="h-4 w-4 rounded border-gray-300 text-teal-700 focus:ring-teal-600"
+                      />
+                      Booking for myself
+                    </label>
                   )}
-                </h3>
+                </div>
+                {i === 0 && customer && !bookingForSelf && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    Enter this passenger's own details below — they won't be saved to your account.
+                  </p>
+                )}
 
                 <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label className="block text-sm text-gray-600">First Name</label>
                     <input type="text" value={p.first_name}
+                      disabled={i === 0 && lockPassengerOneFields}
                       onChange={(e) => updatePassenger(i, 'first_name', e.target.value)}
-                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2" />
+                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-100 disabled:text-gray-500" />
                   </div>
                   <div>
                     <label className="block text-sm text-gray-600">Middle Name (optional)</label>
                     <input type="text" value={p.middle_name}
+                      disabled={i === 0 && lockPassengerOneFields}
                       onChange={(e) => updatePassenger(i, 'middle_name', e.target.value)}
-                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2" />
+                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-100 disabled:text-gray-500" />
                   </div>
                   <div>
                     <label className="block text-sm text-gray-600">Last Name</label>
                     <input type="text" value={p.last_name}
+                      disabled={i === 0 && lockPassengerOneFields}
                       onChange={(e) => updatePassenger(i, 'last_name', e.target.value)}
-                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2" />
+                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-100 disabled:text-gray-500" />
                   </div>
                   <div>
                     <label className="block text-sm text-gray-600">Suffix (optional)</label>
@@ -308,32 +369,37 @@ export default function Booking() {
                   <div>
                     <label className="block text-sm text-gray-600">Barangay</label>
                     <input type="text" value={p.barangay}
+                      disabled={i === 0 && lockPassengerOneFields}
                       onChange={(e) => updatePassenger(i, 'barangay', e.target.value)}
-                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2" />
+                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-100 disabled:text-gray-500" />
                   </div>
                   <div>
                     <label className="block text-sm text-gray-600">City/Municipality</label>
                     <input type="text" value={p.city_municipality}
+                      disabled={i === 0 && lockPassengerOneFields}
                       onChange={(e) => updatePassenger(i, 'city_municipality', e.target.value)}
-                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2" />
+                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-100 disabled:text-gray-500" />
                   </div>
                   <div>
                     <label className="block text-sm text-gray-600">Province</label>
                     <input type="text" value={p.province}
+                      disabled={i === 0 && lockPassengerOneFields}
                       onChange={(e) => updatePassenger(i, 'province', e.target.value)}
-                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2" />
+                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-100 disabled:text-gray-500" />
                   </div>
                   <div>
                     <label className="block text-sm text-gray-600">Zip Code</label>
                     <input type="text" value={p.zip_code}
+                      disabled={i === 0 && lockPassengerOneFields}
                       onChange={(e) => updatePassenger(i, 'zip_code', e.target.value)}
-                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2" />
+                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-100 disabled:text-gray-500" />
                   </div>
                   <div>
                     <label className="block text-sm text-gray-600">Country</label>
                     <input type="text" value={p.country}
+                      disabled={i === 0 && lockPassengerOneFields}
                       onChange={(e) => updatePassenger(i, 'country', e.target.value)}
-                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2" />
+                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-100 disabled:text-gray-500" />
                   </div>
                 </div>
 
@@ -344,20 +410,22 @@ export default function Booking() {
                       Email{i === 0 && !customer ? ' (used as your booking contact)' : ''}
                     </label>
                     <input type="email" value={p.email}
+                      disabled={i === 0 && lockPassengerOneFields}
                       onChange={(e) => updatePassenger(i, 'email', e.target.value)}
-                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2" />
+                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-100 disabled:text-gray-500" />
                   </div>
                   <div>
                     <label className="block text-sm text-gray-600">Contact Number</label>
                     <input type="text" value={p.contact_number}
+                      disabled={i === 0 && lockPassengerOneFields}
                       onChange={(e) => updatePassenger(i, 'contact_number', e.target.value)}
-                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2" />
+                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-100 disabled:text-gray-500" />
                   </div>
                   <div>
                     <label className="block text-sm text-gray-600">Discount Type</label>
                     <select
                       value={p.discount_type}
-                      disabled={!canUseDiscount}
+                      disabled={!canUseDiscount || (i === 0 && customer && !bookingForSelf)}
                       onChange={(e) => updatePassenger(i, 'discount_type', e.target.value)}
                       className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-100 disabled:text-gray-400"
                     >
@@ -373,6 +441,11 @@ export default function Booking() {
                     </select>
                     {!canUseDiscount && (
                       <p className="mt-1 text-xs text-gray-500">Log in with a verified profile to enable this.</p>
+                    )}
+                    {canUseDiscount && i === 0 && customer && !bookingForSelf && (
+                      <p className="mt-1 text-xs text-gray-500">
+                        Your discount only applies when you're the passenger.
+                      </p>
                     )}
                   </div>
                 </div>
@@ -481,6 +554,48 @@ export default function Booking() {
                 alt="Scan to pay"
                 className="mx-auto mt-3 h-56 w-56 rounded-md border border-gray-200 bg-white p-2"
               />
+
+              {/* Booking from the same phone you'd use to scan? You can't point
+                  a camera at the screen it's displayed on. GCash, Maya, and
+                  most banking apps also let you scan a QR image saved to your
+                  gallery instead of using the live camera, so offer that as
+                  the on-device path. The QR image is hosted by our payment
+                  provider on a different domain, so a plain download link
+                  can't reliably force-save it — a long-press works in every
+                  mobile browser regardless. */}
+              <div className="mx-auto mt-4 max-w-sm rounded-lg border border-teal-100 bg-teal-50 p-4 text-left">
+                <div className="flex items-center gap-2.5">
+                  <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-teal-600 text-white">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
+                      <rect x="7" y="2" width="10" height="20" rx="2" />
+                      <path strokeLinecap="round" d="M11 18h2" />
+                    </svg>
+                  </span>
+                  <p className="text-sm font-semibold text-gray-800">Paying with the phone you're on right now?</p>
+                </div>
+                <ol className="mt-3 space-y-2.5">
+                  <li className="flex gap-2.5">
+                    <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-white text-[11px] font-bold text-teal-700 ring-1 ring-teal-200">
+                      1
+                    </span>
+                    <p className="text-xs leading-relaxed text-gray-700">
+                      Press and hold the QR code above, then choose{' '}
+                      <span className="font-semibold">"Save Image"</span> (or "Add to Photos").
+                    </p>
+                  </li>
+                  <li className="flex gap-2.5">
+                    <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-white text-[11px] font-bold text-teal-700 ring-1 ring-teal-200">
+                      2
+                    </span>
+                    <p className="text-xs leading-relaxed text-gray-700">
+                      Open your GCash, Maya, or banking app and choose{' '}
+                      <span className="font-semibold">"Scan QR" &rarr; "Upload from Gallery"</span> to pay with the
+                      saved image.
+                    </p>
+                  </li>
+                </ol>
+              </div>
+
               <p className="mt-3 text-sm text-gray-600">Waiting for payment confirmation...</p>
               <p className="mt-1 text-xs text-gray-500">This code expires in 30 minutes.</p>
               {testUrl && (
@@ -523,33 +638,6 @@ export default function Booking() {
             </div>
           )}
 
-          {paymentStatus !== 'paid' && (
-            <details className="mt-6 text-left">
-              <summary className="cursor-pointer text-sm text-teal-700">
-                Paid another way? Upload a receipt instead
-              </summary>
-              <div className="mt-3">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setReceiptFile(e.target.files[0])}
-                />
-                <div>
-                  <button
-                    onClick={submitReceipt}
-                    className="mt-3 rounded-md bg-gray-600 px-5 py-2 text-sm font-medium text-white hover:bg-gray-700"
-                  >
-                    Upload Receipt
-                  </button>
-                </div>
-                {uploadMessage && (
-                  <p className={`mt-3 text-sm ${uploadError ? 'text-red-600' : 'text-teal-700'}`}>
-                    {uploadMessage}
-                  </p>
-                )}
-              </div>
-            </details>
-          )}
         </div>
       )}
     </div>

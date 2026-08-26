@@ -12,11 +12,19 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { z } = require('zod');
+// otplib v13 is a ground-up rewrite (low-level generate/verify functions,
+// no `authenticator` object) — this code targets the classic v12 API, so
+// package.json pins otplib to ^12, not whatever "latest" resolves to.
+const { authenticator } = require('otplib');
+const QRCode = require('qrcode');
+// Allow one 30s step of clock drift either side when checking a submitted code.
+authenticator.options = { window: 1 };
 
 const prisma = require('./lib/prisma');
 const requireAuth = require('./middleware/auth');
 const validate = require('./middleware/validate');
 const paymongo = require('./lib/paymongo');
+const { sendVerificationEmail } = require('./lib/email');
 
 const app = express();
 app.disable('x-powered-by');
@@ -145,19 +153,8 @@ app.use('/api', publicLimiter);
 // ---------------------------------------------------------------------------
 
 const uploadsDir = path.join(__dirname, 'uploads');
-for (const sub of ['receipts', 'discount-ids', 'selfies']) {
+for (const sub of ['discount-ids', 'selfies']) {
   fs.mkdirSync(path.join(uploadsDir, sub), { recursive: true });
-}
-
-function makeStorage(subfolder) {
-  return multer.diskStorage({
-    destination: path.join(uploadsDir, subfolder),
-    filename: (req, file, cb) => {
-      const ext = file.mimetype.split('/')[1];
-      const randomName = crypto.randomBytes(16).toString('hex');
-      cb(null, `${randomName}.${ext}`);
-    },
-  });
 }
 
 const imageFileFilter = (req, file, cb) => {
@@ -167,18 +164,6 @@ const imageFileFilter = (req, file, cb) => {
   }
   cb(null, true);
 };
-
-const uploadReceipt = multer({
-  storage: makeStorage('receipts'),
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: imageFileFilter,
-});
-
-const uploadDiscountId = multer({
-  storage: makeStorage('discount-ids'),
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: imageFileFilter,
-});
 
 // Profile Verification submits two files at once — the ID photo and a live
 // selfie captured from the camera — each routed to its own subfolder based
@@ -205,6 +190,19 @@ const uploadVerificationFiles = multer({
 
 const loginSchema = z.object({
   email: z.string().trim().email().max(255),
+  password: z.string().min(1).max(200),
+}).strict();
+
+const twoFactorVerifySchema = z.object({
+  pending_token: z.string().min(1),
+  code: z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code'),
+}).strict();
+
+const twoFactorEnableSchema = z.object({
+  code: z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code'),
+}).strict();
+
+const twoFactorDisableSchema = z.object({
   password: z.string().min(1).max(200),
 }).strict();
 
@@ -285,16 +283,7 @@ const lookupQuerySchema = z.object({
 const cancelBookingSchema = z.object({
   reference_code: refCodeField,
   contact_email: z.string().trim().email().max(255),
-}).strict();
-
-const uploadReceiptSchema = z.object({
-  reference_code: refCodeField,
-  contact_email: z.string().trim().email().max(255),
-}).strict();
-
-const uploadDiscountIdSchema = z.object({
-  reference_code: refCodeField,
-  contact_email: z.string().trim().email().max(255),
+  reason: z.string().trim().min(3, 'Please tell us why you want to cancel.').max(500),
 }).strict();
 
 const generatePaymentSchema = z.object({
@@ -306,8 +295,6 @@ const paymentStatusQuerySchema = z.object({
   reference_code: refCodeField,
   contact_email: z.string().trim().email().max(255),
 }).strict();
-
-const passengerIdParamSchema = z.object({ passengerId: z.string().uuid() }).strict();
 
 const addFerrySchema = z.object({
   name: z.string().trim().min(1).max(100),
@@ -344,17 +331,31 @@ function generateReferenceCode() {
   return code;
 }
 
-function deleteUploadedFileOnError(file) {
-  if (file?.path) {
-    fs.unlink(file.path, () => {});
-  }
-}
-
 function signCustomerToken(customer) {
   return jwt.sign(
     { customerId: customer.id, email: customer.email, role: 'customer' },
     process.env.JWT_SECRET,
     { expiresIn: '7d' }
+  );
+}
+
+function signAdminToken(admin) {
+  return jwt.sign(
+    { id: admin.id, email: admin.email, role: 'admin' },
+    process.env.JWT_SECRET,
+    { expiresIn: '1d' }
+  );
+}
+
+// Issued right after a correct password when the account has 2FA enabled.
+// Deliberately a different `role` than 'admin' so it can't be used against
+// any requireAuth-protected route — it's only good for POST /api/login/2fa,
+// and only for 5 minutes.
+function signAdminPendingToken(admin) {
+  return jwt.sign(
+    { id: admin.id, role: 'admin_2fa_pending' },
+    process.env.JWT_SECRET,
+    { expiresIn: '5m' }
   );
 }
 
@@ -391,7 +392,12 @@ function publicCustomer(customer) {
     discountType: customer.discountType,   // none | senior | pwd | student
     discountStatus: isDiscountExpired(customer) ? 'expired' : customer.discountStatus,
     discountVerifiedUntil: customer.discountVerifiedUntil,
+    emailVerified: customer.emailVerified,
   };
+}
+
+function generateEmailVerificationToken() {
+  return crypto.randomBytes(32).toString('hex');
 }
 
 // Requires a valid customer token — used for routes only a logged-in
@@ -446,21 +452,112 @@ app.post('/api/login', loginLimiter, validate(loginSchema), async (req, res) => 
     return res.status(400).json({ error: 'Invalid email or password' });
   }
 
-  const token = jwt.sign(
-    { id: admin.id, email: admin.email, role: 'admin' },
-    process.env.JWT_SECRET,
-    { expiresIn: '1d' }
-  );
+  // Password alone isn't enough once 2FA is turned on — hand back a
+  // short-lived pending token instead of a real session, and require a
+  // second call with a valid TOTP code before a usable token is issued.
+  if (admin.twoFactorEnabled) {
+    return res.json({
+      requiresTwoFactor: true,
+      pendingToken: signAdminPendingToken(admin),
+    });
+  }
 
   res.json({
     message: 'Login successful',
-    token,
-    admin: { id: admin.id, email: admin.email, name: admin.name },
+    token: signAdminToken(admin),
+    admin: { id: admin.id, email: admin.email, name: admin.name, twoFactorEnabled: admin.twoFactorEnabled },
+  });
+});
+
+app.post('/api/login/2fa', loginLimiter, validate(twoFactorVerifySchema), async (req, res) => {
+  const { pending_token, code } = req.body;
+
+  let payload;
+  try {
+    payload = jwt.verify(pending_token, process.env.JWT_SECRET);
+  } catch {
+    return res.status(401).json({ error: 'That login attempt expired. Please log in again.' });
+  }
+  if (payload.role !== 'admin_2fa_pending') {
+    return res.status(401).json({ error: 'That login attempt expired. Please log in again.' });
+  }
+
+  const admin = await prisma.admin.findUnique({ where: { id: payload.id } });
+  if (!admin || !admin.twoFactorEnabled || !admin.totpSecret) {
+    return res.status(401).json({ error: 'That login attempt expired. Please log in again.' });
+  }
+
+  const valid = authenticator.verify({ token: code, secret: admin.totpSecret });
+  if (!valid) {
+    return res.status(400).json({ error: 'Invalid code. Please try again.' });
+  }
+
+  res.json({
+    message: 'Login successful',
+    token: signAdminToken(admin),
+    admin: { id: admin.id, email: admin.email, name: admin.name, twoFactorEnabled: admin.twoFactorEnabled },
   });
 });
 
 app.get('/api/whoami', requireAuth, async (req, res) => {
   res.json({ message: 'You are logged in as:', admin: req.admin });
+});
+
+app.get('/api/admin/me', requireAuth, async (req, res) => {
+  const admin = await prisma.admin.findUnique({ where: { id: req.admin.id } });
+  if (!admin) return res.status(404).json({ error: 'Admin not found' });
+  res.json({ id: admin.id, email: admin.email, name: admin.name, twoFactorEnabled: admin.twoFactorEnabled });
+});
+
+// Step 1 of turning 2FA on: generate a fresh secret, store it (unconfirmed —
+// twoFactorEnabled stays false), and hand back a QR code for an authenticator
+// app plus the raw secret as a manual-entry fallback.
+app.post('/api/admin/2fa/setup', requireAuth, adminLimiter, async (req, res) => {
+  const admin = await prisma.admin.findUnique({ where: { id: req.admin.id } });
+  if (!admin) return res.status(404).json({ error: 'Admin not found' });
+
+  const secret = authenticator.generateSecret();
+  await prisma.admin.update({ where: { id: admin.id }, data: { totpSecret: secret } });
+
+  const otpauthUrl = authenticator.keyuri(admin.email, 'Evershine Booking Admin', secret);
+  const qrCode = await QRCode.toDataURL(otpauthUrl);
+
+  res.json({ qrCode, secret });
+});
+
+// Step 2: admin proves they actually scanned the QR / added the secret by
+// submitting a live code. Only then does 2FA actually start being enforced.
+app.post('/api/admin/2fa/enable', requireAuth, adminLimiter, validate(twoFactorEnableSchema), async (req, res) => {
+  const { code } = req.body;
+  const admin = await prisma.admin.findUnique({ where: { id: req.admin.id } });
+  if (!admin?.totpSecret) {
+    return res.status(400).json({ error: 'Start setup first to get a QR code.' });
+  }
+  const valid = authenticator.verify({ token: code, secret: admin.totpSecret });
+  if (!valid) {
+    return res.status(400).json({ error: 'Invalid code. Please try again.' });
+  }
+  await prisma.admin.update({ where: { id: admin.id }, data: { twoFactorEnabled: true } });
+  res.json({ message: 'Two-factor authentication is now enabled.' });
+});
+
+// Requires the current password (not just an existing session) so leaving a
+// laptop unlocked isn't enough to strip 2FA off the account.
+app.post('/api/admin/2fa/disable', requireAuth, adminLimiter, validate(twoFactorDisableSchema), async (req, res) => {
+  const { password } = req.body;
+  const admin = await prisma.admin.findUnique({ where: { id: req.admin.id } });
+  if (!admin) return res.status(404).json({ error: 'Admin not found' });
+
+  const passwordMatches = await bcrypt.compare(password, admin.passwordHash);
+  if (!passwordMatches) {
+    return res.status(400).json({ error: 'Incorrect password.' });
+  }
+
+  await prisma.admin.update({
+    where: { id: admin.id },
+    data: { twoFactorEnabled: false, totpSecret: null },
+  });
+  res.json({ message: 'Two-factor authentication is now disabled.' });
 });
 
 // ---------------------------------------------------------------------------
@@ -486,6 +583,7 @@ app.post('/api/register', loginLimiter, validate(registerSchema), async (req, re
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
+  const verificationToken = generateEmailVerificationToken();
   const customer = await prisma.customer.create({
     data: {
       firstName: first_name,
@@ -500,11 +598,60 @@ app.post('/api/register', loginLimiter, validate(registerSchema), async (req, re
       province,
       zipCode: zip_code,
       region,
+      emailVerificationToken: verificationToken,
+      emailVerificationExpires: new Date(Date.now() + 24 * 60 * 60 * 1000),
     },
   });
 
+  // Fire-and-forget — sendVerificationEmail never throws, so a mail
+  // provider hiccup doesn't stop the account from being created. The
+  // customer can always hit "Resend verification email" from their account.
+  sendVerificationEmail(customer.email, customer.firstName, verificationToken);
+
   const token = signCustomerToken(customer);
   res.json({ message: 'Account created', token, customer: publicCustomer(customer) });
+});
+
+app.get('/api/verify-email', async (req, res) => {
+  const token = typeof req.query.token === 'string' ? req.query.token : '';
+  if (!token) {
+    return res.status(400).json({ error: 'Missing verification token' });
+  }
+
+  const customer = await prisma.customer.findFirst({ where: { emailVerificationToken: token } });
+  if (!customer) {
+    return res.status(400).json({ error: 'This verification link is invalid or was already used.' });
+  }
+  if (!customer.emailVerificationExpires || customer.emailVerificationExpires < new Date()) {
+    return res.status(400).json({ error: 'This verification link has expired. Request a new one from your account page.' });
+  }
+
+  await prisma.customer.update({
+    where: { id: customer.id },
+    data: { emailVerified: true, emailVerificationToken: null, emailVerificationExpires: null },
+  });
+
+  res.json({ message: 'Email verified' });
+});
+
+app.post('/api/customer/resend-verification', requireCustomerAuth, writeLimiter, async (req, res) => {
+  const customer = await prisma.customer.findUnique({ where: { id: req.customerId } });
+  if (!customer) return res.status(404).json({ error: 'Account not found' });
+  if (customer.emailVerified) {
+    return res.json({ message: 'Your email is already verified.' });
+  }
+
+  const verificationToken = generateEmailVerificationToken();
+  await prisma.customer.update({
+    where: { id: customer.id },
+    data: {
+      emailVerificationToken: verificationToken,
+      emailVerificationExpires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    },
+  });
+  sendVerificationEmail(customer.email, customer.firstName, verificationToken);
+
+  res.json({ message: 'Verification email sent — check your inbox.' });
 });
 
 app.post('/api/customer/login', loginLimiter, validate(customerLoginSchema), async (req, res) => {
@@ -527,6 +674,22 @@ app.get('/api/customer/me', requireCustomerAuth, async (req, res) => {
   const customer = await prisma.customer.findUnique({ where: { id: req.customerId } });
   if (!customer) return res.status(404).json({ error: 'Account not found' });
   res.json({ customer: publicCustomer(customer) });
+});
+
+// The live selfie captured during Profile Verification doubles as the
+// account's permanent profile photo. Deliberately ignores any path/filename
+// from the client — it only ever serves the authenticated customer's own
+// selfiePath, so there's no way to request anyone else's file through this.
+app.get('/api/customer/me/photo', requireCustomerAuth, async (req, res) => {
+  const customer = await prisma.customer.findUnique({ where: { id: req.customerId } });
+  if (!customer?.selfiePath) {
+    return res.status(404).json({ error: 'No profile photo yet' });
+  }
+  const filePath = path.join(uploadsDir, customer.selfiePath);
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'No profile photo yet' });
+  }
+  res.sendFile(filePath);
 });
 
 app.patch('/api/customer/me', requireCustomerAuth, writeLimiter, validate(updateProfileSchema), async (req, res) => {
@@ -569,15 +732,20 @@ app.post(
   writeLimiter,
   uploadVerificationFiles.fields([
     { name: 'discount_id', maxCount: 1 },
+    { name: 'discount_id_back', maxCount: 1 },
     { name: 'selfie', maxCount: 1 },
   ]),
   validate(discountRequestSchema),
   async (req, res) => {
     const { discount_type } = req.body;
     const idFile = req.files?.discount_id?.[0];
+    const idBackFile = req.files?.discount_id_back?.[0];
     const selfieFile = req.files?.selfie?.[0];
     if (!idFile) {
-      return res.status(400).json({ error: 'Please upload a photo of your ID' });
+      return res.status(400).json({ error: 'Please upload a photo of the front of your ID' });
+    }
+    if (!idBackFile) {
+      return res.status(400).json({ error: 'Please upload a photo of the back of your ID' });
     }
     if (!selfieFile) {
       return res.status(400).json({ error: 'A live selfie is required for verification' });
@@ -588,6 +756,7 @@ app.post(
       data: {
         discountType: discount_type,
         discountIdPath: `discount-ids/${idFile.filename}`,
+        discountIdBackPath: `discount-ids/${idBackFile.filename}`,
         selfiePath: `selfies/${selfieFile.filename}`,
         discountStatus: 'pending',
       },
@@ -710,7 +879,7 @@ app.get('/api/bookings/lookup', validate(lookupQuerySchema, 'query'), async (req
 });
 
 app.post('/api/bookings/cancel', writeLimiter, validate(cancelBookingSchema), async (req, res) => {
-  const { reference_code, contact_email } = req.body;
+  const { reference_code, contact_email, reason } = req.body;
 
   const booking = await prisma.booking.findUnique({
     where: { referenceCode: reference_code },
@@ -722,82 +891,37 @@ app.post('/api/bookings/cancel', writeLimiter, validate(cancelBookingSchema), as
   if (booking.contactEmail.toLowerCase() !== contact_email.toLowerCase()) {
     return res.status(403).json({ error: 'Reference code and email do not match' });
   }
-
-  const hoursUntilDeparture = (booking.schedule.departureDatetime - new Date()) / (1000 * 60 * 60);
-  if (hoursUntilDeparture < 24) {
-    return res.status(400).json({ error: 'Cannot cancel within 24 hours of departure' });
+  if (['cancelled', 'refund_requested', 'refunded'].includes(booking.status)) {
+    return res.status(400).json({ error: 'This booking has already been cancelled.' });
   }
+
+  // Cancellation window is 24 hours from when the booking was PURCHASED,
+  // not how far away departure is — a deliberate policy choice so a
+  // last-minute booking can still be cancelled shortly after it's made.
+  const hoursSincePurchase = (Date.now() - booking.createdAt.getTime()) / (1000 * 60 * 60);
+  if (hoursSincePurchase > 24) {
+    return res.status(400).json({ error: 'Cancellations must be requested within 24 hours of booking.' });
+  }
+
+  // No money has changed hands yet for an unpaid booking, so there's
+  // nothing for an admin to refund — cancel it outright instead of putting
+  // it in the manual refund-review queue.
+  const noPaymentTaken = booking.status === 'pending_payment' || booking.status === 'payment_declined';
 
   await prisma.booking.update({
     where: { id: booking.id },
-    data: { status: 'cancelled' },
+    data: {
+      status: noPaymentTaken ? 'cancelled' : 'refund_requested',
+      cancellationReason: reason,
+    },
   });
 
-  res.json({ message: 'Booking cancelled' });
-});
-
-app.post('/api/bookings/upload-receipt', writeLimiter, uploadReceipt.single('receipt'), validate(uploadReceiptSchema), async (req, res) => {
-  const { reference_code, contact_email } = req.body;
-  const file = req.file;
-
-  if (!file) {
-    return res.status(400).json({ error: 'No file uploaded' });
-  }
-
-  const booking = await prisma.booking.findUnique({ where: { referenceCode: reference_code } });
-  if (!booking) {
-    deleteUploadedFileOnError(file);
-    return res.status(404).json({ error: 'Booking not found' });
-  }
-  if (booking.contactEmail.toLowerCase() !== contact_email.toLowerCase()) {
-    deleteUploadedFileOnError(file);
-    return res.status(403).json({ error: 'Reference code and email do not match' });
-  }
-
-  await prisma.booking.update({
-    where: { id: booking.id },
-    data: { receiptImagePath: `receipts/${file.filename}` },
+  res.json({
+    message: noPaymentTaken
+      ? 'Booking cancelled.'
+      : "Cancellation request submitted. Our team will review it and process your refund.",
   });
-
-  res.json({ message: 'Receipt uploaded' });
 });
-
-app.post(
-  '/api/bookings/passengers/:passengerId/discount-id',
-  writeLimiter,
-  uploadDiscountId.single('discount_id'),
-  validate(passengerIdParamSchema, 'params'),
-  validate(uploadDiscountIdSchema),
-  async (req, res) => {
-    const { reference_code, contact_email } = req.body;
-    const file = req.file;
-
-    if (!file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    }
-
-    const passenger = await prisma.bookingPassenger.findUnique({
-      where: { id: req.params.passengerId },
-      include: { booking: true },
-    });
-
-    if (!passenger || passenger.booking.referenceCode !== reference_code) {
-      deleteUploadedFileOnError(file);
-      return res.status(404).json({ error: 'Passenger not found for this booking' });
-    }
-    if (passenger.booking.contactEmail.toLowerCase() !== contact_email.toLowerCase()) {
-      deleteUploadedFileOnError(file);
-      return res.status(403).json({ error: 'Reference code and email do not match' });
-    }
-
-    await prisma.bookingPassenger.update({
-      where: { id: passenger.id },
-      data: { discountIdPath: `discount-ids/${file.filename}` },
-    });
-
-    res.json({ message: 'Discount ID uploaded' });
-  }
-);
 
 // ---------------------------------------------------------------------------
 // Automated payment: PayMongo QR Ph
@@ -975,30 +1099,6 @@ app.get('/api/admin/schedules', requireAuth, adminLimiter, async (req, res) => {
   res.json(schedules);
 });
 
-app.get('/api/admin/bookings/pending', requireAuth, adminLimiter, async (req, res) => {
-  const bookings = await prisma.booking.findMany({
-    where: { status: 'pending_payment', receiptImagePath: { not: null } },
-    include: { passengers: true },
-  });
-  res.json(bookings);
-});
-
-app.post('/api/admin/bookings/:id/approve', requireAuth, adminLimiter, validate(idParamSchema, 'params'), async (req, res) => {
-  await prisma.booking.update({
-    where: { id: req.params.id },
-    data: { status: 'confirmed' },
-  });
-  res.json({ message: 'Booking approved' });
-});
-
-app.post('/api/admin/bookings/:id/decline', requireAuth, adminLimiter, validate(idParamSchema, 'params'), async (req, res) => {
-  await prisma.booking.update({
-    where: { id: req.params.id },
-    data: { status: 'payment_declined' },
-  });
-  res.json({ message: 'Booking declined' });
-});
-
 app.get('/api/admin/bookings', requireAuth, adminLimiter, async (req, res) => {
   const bookings = await prisma.booking.findMany({
     include: { passengers: true, schedule: true },
@@ -1006,6 +1106,57 @@ app.get('/api/admin/bookings', requireAuth, adminLimiter, async (req, res) => {
   });
   res.json(bookings);
 });
+
+// Refunds are never sent automatically — a customer's cancellation just
+// queues the booking here with their stated reason. An admin reviews it and
+// either confirms they've manually sent the money (mark-refunded) or
+// decides the request doesn't hold up and reinstates the booking (reject).
+app.get('/api/admin/refund-requests', requireAuth, adminLimiter, async (req, res) => {
+  const bookings = await prisma.booking.findMany({
+    where: { status: 'refund_requested' },
+    include: { passengers: true, schedule: true },
+    orderBy: { createdAt: 'asc' },
+  });
+  res.json(bookings);
+});
+
+app.post(
+  '/api/admin/refund-requests/:id/mark-refunded',
+  requireAuth,
+  adminLimiter,
+  validate(idParamSchema, 'params'),
+  async (req, res) => {
+    const booking = await prisma.booking.findUnique({ where: { id: req.params.id } });
+    if (!booking || booking.status !== 'refund_requested') {
+      return res.status(400).json({ error: 'This booking is not awaiting a refund.' });
+    }
+    await prisma.booking.update({
+      where: { id: req.params.id },
+      data: { status: 'refunded', refundedAt: new Date() },
+    });
+    res.json({ message: 'Booking marked as refunded.' });
+  }
+);
+
+app.post(
+  '/api/admin/refund-requests/:id/reject',
+  requireAuth,
+  adminLimiter,
+  validate(idParamSchema, 'params'),
+  async (req, res) => {
+    const booking = await prisma.booking.findUnique({ where: { id: req.params.id } });
+    if (!booking || booking.status !== 'refund_requested') {
+      return res.status(400).json({ error: 'This booking is not awaiting a refund.' });
+    }
+    // Denying the request means the cancellation itself didn't hold up —
+    // reinstate the booking as confirmed rather than leaving it in limbo.
+    await prisma.booking.update({
+      where: { id: req.params.id },
+      data: { status: 'confirmed' },
+    });
+    res.json({ message: 'Refund request rejected — booking reinstated as confirmed.' });
+  }
+);
 
 app.get('/api/admin/schedules/:id/manifest', requireAuth, adminLimiter, validate(idParamSchema, 'params'), async (req, res) => {
   const bookings = await prisma.booking.findMany({
@@ -1034,12 +1185,30 @@ app.get('/api/admin/analytics/monthly-sales', requireAuth, adminLimiter, async (
   res.json(result);
 });
 
+// Full customer directory — every registered account, verified or not, so
+// admins can look up contact details (e.g. to send an invoice) without
+// digging through bookings. Password hashes and verification photos are
+// deliberately excluded; the Profile Verification tab already handles those.
+app.get('/api/admin/customers', requireAuth, adminLimiter, async (req, res) => {
+  const customers = await prisma.customer.findMany({
+    select: {
+      id: true, firstName: true, middleName: true, lastName: true, suffix: true,
+      email: true, contactNumber: true,
+      barangay: true, cityMunicipality: true, province: true, zipCode: true, region: true,
+      discountType: true, discountStatus: true, discountVerifiedUntil: true,
+      emailVerified: true, createdAt: true,
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+  res.json(customers);
+});
+
 app.get('/api/admin/customers/pending-discounts', requireAuth, adminLimiter, async (req, res) => {
   const customers = await prisma.customer.findMany({
     where: { discountStatus: 'pending' },
     select: {
       id: true, firstName: true, lastName: true, email: true, contactNumber: true,
-      discountType: true, discountIdPath: true, selfiePath: true, createdAt: true,
+      discountType: true, discountIdPath: true, discountIdBackPath: true, selfiePath: true, createdAt: true,
     },
   });
   // Admin.jsx's Profile Verification tab still reads a single `.name` —
@@ -1075,12 +1244,12 @@ app.post('/api/admin/customers/:id/reject-discount', requireAuth, adminLimiter, 
 });
 
 // ---------------------------------------------------------------------------
-// Admin-only file access (receipts, discount IDs)
+// Admin-only file access (discount IDs, verification selfies)
 // ---------------------------------------------------------------------------
 
 app.get('/api/admin/uploads/:folder/:filename', requireAuth, (req, res) => {
   const { folder, filename } = req.params;
-  if (!['receipts', 'discount-ids', 'selfies'].includes(folder)) {
+  if (!['discount-ids', 'selfies'].includes(folder)) {
     return res.status(400).json({ error: 'Invalid folder' });
   }
   const safeName = path.basename(filename);

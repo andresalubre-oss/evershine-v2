@@ -220,14 +220,43 @@ function IconChartBar(props) {
     </svg>
   )
 }
+function IconShield(props) {
+  return (
+    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4" />
+    </svg>
+  )
+}
+function IconRefund(props) {
+  return (
+    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h11a5 5 0 010 10H9" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7 6l-4 4 4 4" />
+    </svg>
+  )
+}
+function IconUsers(props) {
+  return (
+    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="9" cy="8" r="3.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2.5 20c1-3.5 3.5-5.5 6.5-5.5s5.5 2 6.5 5.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16 4.5a3.5 3.5 0 010 7" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 14.6c2.7.4 4.7 2.3 5.5 5.4" />
+    </svg>
+  )
+}
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: IconGrid },
   { id: 'ferries', label: 'Ferries & Schedules', icon: IconPin },
+  { id: 'customers', label: 'Customers', icon: IconUsers },
   { id: 'discounts', label: 'Profile Verification', icon: IconTag },
   { id: 'bookings', label: 'All Bookings', icon: IconList },
+  { id: 'refunds', label: 'Refund Requests', icon: IconRefund },
   { id: 'manifest', label: 'Manifest', icon: IconClipboard },
   { id: 'analytics', label: 'Analytics', icon: IconChartBar },
+  { id: 'security', label: 'Security', icon: IconShield },
 ]
 
 export default function Admin() {
@@ -265,8 +294,17 @@ export default function Admin() {
   const [discountsMessage, setDiscountsMessage] = useState('')
   const [expiryDates, setExpiryDates] = useState({}) // customerId -> 'YYYY-MM-DD'
 
+  const [customers, setCustomers] = useState([])
+  const [customersMessage, setCustomersMessage] = useState('')
+  const [customerSearch, setCustomerSearch] = useState('')
+
   const [allBookings, setAllBookings] = useState([])
   const [bookingsMessage, setBookingsMessage] = useState('')
+  const [bookingSearch, setBookingSearch] = useState('')
+
+  const [refundRequests, setRefundRequests] = useState([])
+  const [refundsMessage, setRefundsMessage] = useState('')
+  const [processingRefundId, setProcessingRefundId] = useState(null)
 
   const [manifestScheduleId, setManifestScheduleId] = useState('')
   const [manifestPassengers, setManifestPassengers] = useState([])
@@ -278,12 +316,25 @@ export default function Admin() {
   const [analyticsTo, setAnalyticsTo] = useState('')     // 'YYYY-MM', '' = no upper bound
   const [expandedStat, setExpandedStat] = useState(null) // which Analytics StatCard's detail panel is open
 
+  // --- Security tab (2FA) ---
+  const [adminInfo, setAdminInfo] = useState(null) // { id, email, name, twoFactorEnabled }
+  const [securityMessage, setSecurityMessage] = useState('')
+  const [securityError, setSecurityError] = useState(false)
+  const [setupData, setSetupData] = useState(null) // { qrCode, secret } while mid-setup, before enabling
+  const [enableCode, setEnableCode] = useState('')
+  const [enabling, setEnabling] = useState(false)
+  const [startingSetup, setStartingSetup] = useState(false)
+  const [showDisableForm, setShowDisableForm] = useState(false)
+  const [disablePassword, setDisablePassword] = useState('')
+  const [disabling, setDisabling] = useState(false)
+
   // Loaded eagerly on mount (not lazily per-tab) since the Overview stat
   // cards need all of these regardless of which tab is active.
   useEffect(() => {
     loadFerries()
     loadSchedules()
     loadPendingDiscounts()
+    loadRefundRequests()
     loadAnalytics()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -348,6 +399,16 @@ export default function Admin() {
     }
   }
 
+  async function loadCustomers() {
+    setCustomersMessage('')
+    try {
+      const data = await api.getAllCustomers()
+      setCustomers(data)
+    } catch (err) {
+      setCustomersMessage(err.message)
+    }
+  }
+
   async function loadPendingDiscounts() {
     setDiscountsMessage('')
     try {
@@ -376,6 +437,45 @@ export default function Admin() {
   async function rejectDiscount(id) {
     await api.rejectDiscount(id)
     loadPendingDiscounts()
+  }
+
+  async function loadRefundRequests() {
+    setRefundsMessage('')
+    try {
+      const data = await api.getRefundRequests()
+      setRefundRequests(data)
+    } catch (err) {
+      setRefundsMessage(err.message)
+    }
+  }
+
+  // Refunds are always sent manually outside the app (bank transfer, GCash,
+  // etc.) — this just records that an admin reviewed the request and
+  // confirms the money has actually gone out.
+  async function markRefunded(id) {
+    setRefundsMessage('')
+    setProcessingRefundId(id)
+    try {
+      await api.markRefunded(id)
+      await loadRefundRequests()
+    } catch (err) {
+      setRefundsMessage(err.message)
+    } finally {
+      setProcessingRefundId(null)
+    }
+  }
+
+  async function rejectRefund(id) {
+    setRefundsMessage('')
+    setProcessingRefundId(id)
+    try {
+      await api.rejectRefundRequest(id)
+      await loadRefundRequests()
+    } catch (err) {
+      setRefundsMessage(err.message)
+    } finally {
+      setProcessingRefundId(null)
+    }
   }
 
   async function loadAllBookings() {
@@ -415,6 +515,78 @@ export default function Admin() {
     if (activeTab === 'bookings' && allBookings.length === 0) loadAllBookings()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab])
+
+  useEffect(() => {
+    if (activeTab === 'customers' && customers.length === 0) loadCustomers()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab])
+
+  useEffect(() => {
+    if (activeTab === 'security' && !adminInfo) loadAdminInfo()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab])
+
+  async function loadAdminInfo() {
+    try {
+      const data = await api.getAdminMe()
+      setAdminInfo(data)
+    } catch (err) {
+      setSecurityMessage(err.message)
+      setSecurityError(true)
+    }
+  }
+
+  async function startTwoFactorSetup() {
+    setSecurityMessage('')
+    setSecurityError(false)
+    setStartingSetup(true)
+    try {
+      const data = await api.setup2fa()
+      setSetupData(data)
+      setEnableCode('')
+    } catch (err) {
+      setSecurityMessage(err.message)
+      setSecurityError(true)
+    } finally {
+      setStartingSetup(false)
+    }
+  }
+
+  async function confirmTwoFactorEnable() {
+    setSecurityMessage('')
+    setSecurityError(false)
+    setEnabling(true)
+    try {
+      await api.enable2fa(enableCode)
+      setSetupData(null)
+      setEnableCode('')
+      setSecurityMessage('Two-factor authentication is now enabled.')
+      await loadAdminInfo()
+    } catch (err) {
+      setSecurityMessage(err.message)
+      setSecurityError(true)
+    } finally {
+      setEnabling(false)
+    }
+  }
+
+  async function confirmTwoFactorDisable() {
+    setSecurityMessage('')
+    setSecurityError(false)
+    setDisabling(true)
+    try {
+      await api.disable2fa(disablePassword)
+      setShowDisableForm(false)
+      setDisablePassword('')
+      setSecurityMessage('Two-factor authentication is now disabled.')
+      await loadAdminInfo()
+    } catch (err) {
+      setSecurityMessage(err.message)
+      setSecurityError(true)
+    } finally {
+      setDisabling(false)
+    }
+  }
 
   const currentMonthKey = new Date().toISOString().slice(0, 7)
   const thisMonth = analytics.find((m) => m.month === currentMonthKey)
@@ -484,22 +656,36 @@ export default function Admin() {
             <div className="space-y-6">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <StatCard label="Pending Verification Requests" value={pendingDiscounts.length} icon={IconTag} accent="purple" />
+                <StatCard label="Refund Requests" value={refundRequests.length} icon={IconRefund} accent="blue" />
                 <StatCard label="This Month's Revenue" value={`₱${thisMonthRevenue.toLocaleString()}`} icon={IconChartBar} accent="teal" />
                 <StatCard label="This Month's Bookings" value={thisMonthCount} icon={IconList} accent="blue" />
               </div>
 
-              {pendingDiscounts.length > 0 && (
+              {(pendingDiscounts.length > 0 || refundRequests.length > 0) && (
                 <Card title="Needs Your Attention">
                   <div className="space-y-2">
-                    <button
-                      onClick={() => setActiveTab('discounts')}
-                      className="flex w-full items-center justify-between rounded-md border border-purple-200 bg-purple-50 px-4 py-3 text-left text-sm hover:bg-purple-100"
-                    >
-                      <span className="font-medium text-purple-800">
-                        {pendingDiscounts.length} verification request{pendingDiscounts.length === 1 ? '' : 's'} awaiting review
-                      </span>
-                      <span className="text-purple-700">Review &rarr;</span>
-                    </button>
+                    {pendingDiscounts.length > 0 && (
+                      <button
+                        onClick={() => setActiveTab('discounts')}
+                        className="flex w-full items-center justify-between rounded-md border border-purple-200 bg-purple-50 px-4 py-3 text-left text-sm hover:bg-purple-100"
+                      >
+                        <span className="font-medium text-purple-800">
+                          {pendingDiscounts.length} verification request{pendingDiscounts.length === 1 ? '' : 's'} awaiting review
+                        </span>
+                        <span className="text-purple-700">Review &rarr;</span>
+                      </button>
+                    )}
+                    {refundRequests.length > 0 && (
+                      <button
+                        onClick={() => setActiveTab('refunds')}
+                        className="flex w-full items-center justify-between rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-left text-sm hover:bg-blue-100"
+                      >
+                        <span className="font-medium text-blue-800">
+                          {refundRequests.length} refund request{refundRequests.length === 1 ? '' : 's'} awaiting review
+                        </span>
+                        <span className="text-blue-700">Review &rarr;</span>
+                      </button>
+                    )}
                   </div>
                 </Card>
               )}
@@ -635,19 +821,47 @@ export default function Admin() {
                             </p>
                           )}
 
-                          <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-[auto_1fr]">
-                            <div>
-                              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Uploaded ID</p>
-                              {c.discountIdPath ? (
-                                <AdminImage
-                                  path={c.discountIdPath}
-                                  alt="Discount ID"
-                                  expandable
-                                  className="mt-1 max-h-48 max-w-[220px] rounded-md border border-gray-200 object-contain"
-                                />
-                              ) : (
-                                <p className="mt-1 text-sm text-gray-500">No ID uploaded.</p>
-                              )}
+                          <div className="mt-4 grid grid-cols-1 gap-5">
+                            <div className="flex flex-wrap gap-4">
+                              <div>
+                                <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Live Selfie</p>
+                                {c.selfiePath ? (
+                                  <AdminImage
+                                    path={c.selfiePath}
+                                    alt="Live selfie"
+                                    expandable
+                                    className="mt-1 max-h-48 max-w-[160px] rounded-md border border-gray-200 object-contain"
+                                  />
+                                ) : (
+                                  <p className="mt-1 text-sm text-gray-500">No selfie captured.</p>
+                                )}
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium uppercase tracking-wide text-gray-500">ID (Front)</p>
+                                {c.discountIdPath ? (
+                                  <AdminImage
+                                    path={c.discountIdPath}
+                                    alt="ID front"
+                                    expandable
+                                    className="mt-1 max-h-48 max-w-[220px] rounded-md border border-gray-200 object-contain"
+                                  />
+                                ) : (
+                                  <p className="mt-1 text-sm text-gray-500">No ID uploaded.</p>
+                                )}
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium uppercase tracking-wide text-gray-500">ID (Back)</p>
+                                {c.discountIdBackPath ? (
+                                  <AdminImage
+                                    path={c.discountIdBackPath}
+                                    alt="ID back"
+                                    expandable
+                                    className="mt-1 max-h-48 max-w-[220px] rounded-md border border-gray-200 object-contain"
+                                  />
+                                ) : (
+                                  <p className="mt-1 text-sm text-gray-500">No back-of-ID uploaded.</p>
+                                )}
+                              </div>
                             </div>
 
                             <div className="min-w-0">
@@ -703,24 +917,274 @@ export default function Admin() {
             </div>
           )}
 
+          {activeTab === 'customers' && (
+            <div className="space-y-6">
+              <Card title="Customer Directory">
+                <p className="text-sm text-gray-600">
+                  Every registered account — verified or not — so you can look up contact details (e.g. to send an
+                  invoice) without digging through bookings.
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <button onClick={loadCustomers} className="rounded-md bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800">
+                    Refresh
+                  </button>
+                  <input
+                    type="text"
+                    value={customerSearch}
+                    onChange={(e) => setCustomerSearch(e.target.value)}
+                    placeholder="Search by name, email, or contact number..."
+                    className="min-w-0 flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  />
+                  <span className="whitespace-nowrap rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
+                    {customers.length} registered
+                  </span>
+                </div>
+                {customersMessage && <p className="mt-2 text-sm text-red-600">{customersMessage}</p>}
+
+                {(() => {
+                  const query = customerSearch.trim().toLowerCase()
+                  const filtered = !query
+                    ? customers
+                    : customers.filter((c) => {
+                        const name = fullName(c).toLowerCase()
+                        return (
+                          name.includes(query) ||
+                          c.email.toLowerCase().includes(query) ||
+                          (c.contactNumber || '').toLowerCase().includes(query)
+                        )
+                      })
+
+                  const discountBadgeStyles = {
+                    verified: 'bg-green-100 text-green-800',
+                    pending: 'bg-amber-100 text-amber-800',
+                    rejected: 'bg-red-100 text-red-800',
+                    expired: 'bg-red-100 text-red-800',
+                    none: 'bg-gray-100 text-gray-600',
+                  }
+
+                  function effectiveStatus(c) {
+                    if (c.discountStatus === 'verified' && c.discountVerifiedUntil && new Date(c.discountVerifiedUntil) < new Date()) {
+                      return 'expired'
+                    }
+                    return c.discountStatus
+                  }
+
+                  return filtered.length === 0 ? (
+                    <p className="mt-4 text-sm text-gray-500">
+                      {customers.length === 0 ? 'No registered customers yet.' : 'No customers match that search.'}
+                    </p>
+                  ) : (
+                    <DataTable headers={['Name', 'Contact', 'Address', 'Profile Status', 'Registered']}>
+                      {filtered.map((c) => {
+                        const status = effectiveStatus(c)
+                        const address = [c.barangay, c.cityMunicipality, c.province, c.zipCode, c.region]
+                          .filter(Boolean)
+                          .join(', ')
+                        return (
+                          <tr key={c.id} className="border-t border-gray-100 align-top hover:bg-gray-50">
+                            <td className="px-3 py-2 font-medium text-gray-800">{fullName(c)}</td>
+                            <td className="px-3 py-2">
+                              <p>{c.email}</p>
+                              <p className="text-gray-500">{c.contactNumber || '—'}</p>
+                            </td>
+                            <td className="px-3 py-2 max-w-[220px] text-gray-600">{address || '—'}</td>
+                            <td className="px-3 py-2">
+                              <span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium capitalize ${discountBadgeStyles[status] || 'bg-gray-100 text-gray-600'}`}>
+                                {status}
+                              </span>
+                              {status === 'verified' && c.discountType !== 'none' && (
+                                <p className="mt-0.5 whitespace-nowrap text-xs capitalize text-gray-500">{c.discountType} discount</p>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 whitespace-nowrap text-gray-600">
+                              {new Date(c.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </DataTable>
+                  )
+                })()}
+              </Card>
+            </div>
+          )}
+
           {activeTab === 'bookings' && (
             <div className="space-y-6">
               <Card title="All Bookings">
-                <button onClick={loadAllBookings} className="rounded-md bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800">
-                  Refresh
-                </button>
+                <p className="text-sm text-gray-600">
+                  Includes guest checkouts — bookings made without an account still show the contact email and
+                  number entered at checkout, so you can reach anyone who's booked, verified account or not.
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <button onClick={loadAllBookings} className="rounded-md bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800">
+                    Refresh
+                  </button>
+                  <input
+                    type="text"
+                    value={bookingSearch}
+                    onChange={(e) => setBookingSearch(e.target.value)}
+                    placeholder="Search by reference, email, contact number, or passenger..."
+                    className="min-w-0 flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  />
+                  <span className="whitespace-nowrap rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
+                    {allBookings.length} total
+                  </span>
+                </div>
                 {bookingsMessage && <p className="mt-2 text-sm text-red-600">{bookingsMessage}</p>}
-                <DataTable headers={['Reference', 'Trip', 'Status', 'Total Fare', 'Passengers']}>
-                  {allBookings.map((b) => (
-                    <tr key={b.id} className="border-t border-gray-100 hover:bg-gray-50">
-                      <td className="px-3 py-2">{b.referenceCode || '-'}</td>
-                      <td className="px-3 py-2">{b.schedule ? new Date(b.schedule.departureDatetime).toLocaleString() : ''}</td>
-                      <td className="px-3 py-2"><StatusBadge status={b.status} /></td>
-                      <td className="px-3 py-2">&#8369;{b.totalFare}</td>
-                      <td className="px-3 py-2">{b.passengers.map((p) => fullName(p)).join(', ')}</td>
-                    </tr>
-                  ))}
-                </DataTable>
+
+                {(() => {
+                  const query = bookingSearch.trim().toLowerCase()
+                  const filtered = !query
+                    ? allBookings
+                    : allBookings.filter((b) => {
+                        const passengerNames = b.passengers.map((p) => fullName(p)).join(' ').toLowerCase()
+                        return (
+                          (b.referenceCode || '').toLowerCase().includes(query) ||
+                          (b.contactEmail || '').toLowerCase().includes(query) ||
+                          (b.contactNumber || '').toLowerCase().includes(query) ||
+                          passengerNames.includes(query)
+                        )
+                      })
+
+                  return filtered.length === 0 ? (
+                    <p className="mt-4 text-sm text-gray-500">
+                      {allBookings.length === 0 ? 'No bookings yet.' : 'No bookings match that search.'}
+                    </p>
+                  ) : (
+                    <div className="mt-4 space-y-3">
+                      {filtered.map((b) => (
+                        <div key={b.id} className="rounded-lg border border-gray-200 p-4">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                              <p className="font-mono text-sm font-bold tracking-wide text-gray-800">{b.referenceCode || '-'}</p>
+                              {b.customerId ? (
+                                <span className="whitespace-nowrap rounded-full bg-teal-100 px-2 py-0.5 text-xs font-medium text-teal-700">
+                                  Registered
+                                </span>
+                              ) : (
+                                <span className="whitespace-nowrap rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                                  Guest
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <StatusBadge status={b.status} />
+                              <span className="font-semibold text-gray-800">&#8369;{b.totalFare}</span>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1 text-sm text-gray-600 sm:grid-cols-2">
+                            <p>
+                              <span className="text-gray-400">Contact:</span> {b.contactEmail}
+                              {b.contactNumber ? ` · ${b.contactNumber}` : ''}
+                            </p>
+                            <p>
+                              <span className="text-gray-400">Trip:</span>{' '}
+                              {b.schedule ? new Date(b.schedule.departureDatetime).toLocaleString() : '—'}
+                            </p>
+                            <p className="sm:col-span-2">
+                              <span className="text-gray-400">Passengers:</span>{' '}
+                              {b.passengers.map((p) => fullName(p)).join(', ')}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })()}
+              </Card>
+            </div>
+          )}
+
+          {activeTab === 'refunds' && (
+            <div className="space-y-6">
+              <Card title="Refund Requests">
+                <p className="text-sm text-gray-600">
+                  Refunds are never sent automatically. Review each customer's reason, then confirm here once
+                  you've manually sent the money — or reject the request to reinstate the booking.
+                </p>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                  <button onClick={loadRefundRequests} className="rounded-md bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800">
+                    Refresh
+                  </button>
+                  {refundRequests.length > 0 && (
+                    <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
+                      {refundRequests.length} pending
+                    </span>
+                  )}
+                </div>
+                {refundsMessage && <p className="mt-2 text-sm text-red-600">{refundsMessage}</p>}
+
+                {refundRequests.length === 0 ? (
+                  <p className="mt-4 text-sm text-gray-500">No refund requests awaiting review right now.</p>
+                ) : (
+                  <div className="mt-4 space-y-4">
+                    {refundRequests.map((b) => {
+                      const isProcessing = processingRefundId === b.id
+                      return (
+                        <div key={b.id} className="rounded-lg border border-gray-200 p-4 sm:p-5">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <p className="font-mono text-sm font-bold tracking-wide text-gray-800">{b.referenceCode}</p>
+                              <p className="mt-0.5 text-sm text-gray-500">
+                                {b.contactEmail}{b.contactNumber ? ` · ${b.contactNumber}` : ''}
+                              </p>
+                            </div>
+                            <span className="whitespace-nowrap rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
+                              ₱{Number(b.totalFare).toLocaleString()} to refund
+                            </span>
+                          </div>
+
+                          <div className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1 text-sm text-gray-600 sm:grid-cols-2">
+                            <p>
+                              <span className="text-gray-400">Departure:</span>{' '}
+                              {b.schedule ? new Date(b.schedule.departureDatetime).toLocaleString() : '—'}
+                            </p>
+                            <p>
+                              <span className="text-gray-400">Booked:</span>{' '}
+                              {new Date(b.createdAt).toLocaleString()}
+                            </p>
+                            <p className="sm:col-span-2">
+                              <span className="text-gray-400">Passengers:</span>{' '}
+                              {b.passengers.map((p) => fullName(p)).join(', ')}
+                            </p>
+                          </div>
+
+                          <div className="mt-3 rounded-md border border-gray-100 bg-gray-50 p-3">
+                            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Customer's Reason</p>
+                            <p className="mt-1 text-sm text-gray-700">{b.cancellationReason || '—'}</p>
+                          </div>
+
+                          <div className="mt-4 flex gap-2">
+                            <button
+                              onClick={() => {
+                                if (window.confirm(`Confirm you've manually sent the ₱${Number(b.totalFare).toLocaleString()} refund for ${b.referenceCode}?`)) {
+                                  markRefunded(b.id)
+                                }
+                              }}
+                              disabled={isProcessing}
+                              className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+                            >
+                              {isProcessing ? 'Working...' : "Mark as Refunded"}
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (window.confirm(`Reject this refund request and reinstate ${b.referenceCode} as confirmed?`)) {
+                                  rejectRefund(b.id)
+                                }
+                              }}
+                              disabled={isProcessing}
+                              className="rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </Card>
             </div>
           )}
@@ -918,6 +1382,128 @@ export default function Admin() {
                 </DataTable>
                 {filteredAnalytics.length === 0 && (
                   <p className="mt-3 text-sm text-gray-500">No sales data for this range yet.</p>
+                )}
+              </Card>
+            </div>
+          )}
+
+          {activeTab === 'security' && (
+            <div className="space-y-6">
+              <Card title="Two-Factor Authentication">
+                {!adminInfo ? (
+                  <p className="text-sm text-gray-500">Loading...</p>
+                ) : (
+                  <>
+                    <div
+                      className={`rounded-md border p-4 text-sm ${
+                        adminInfo.twoFactorEnabled
+                          ? 'border-teal-200 bg-teal-50 text-teal-800'
+                          : 'border-amber-200 bg-amber-50 text-amber-800'
+                      }`}
+                    >
+                      {adminInfo.twoFactorEnabled
+                        ? `Enabled for ${adminInfo.email}. You'll be asked for a code from your authenticator app every time you log in.`
+                        : `Not enabled for ${adminInfo.email}. Anyone with your password can log in — turning this on requires a code from an app like Google Authenticator too.`}
+                    </div>
+
+                    {securityMessage && (
+                      <p className={`mt-3 text-sm ${securityError ? 'text-red-600' : 'text-teal-700'}`}>{securityMessage}</p>
+                    )}
+
+                    {/* --- Not enabled, no setup in progress: show the "turn it on" button --- */}
+                    {!adminInfo.twoFactorEnabled && !setupData && (
+                      <button
+                        onClick={startTwoFactorSetup}
+                        disabled={startingSetup}
+                        className="mt-4 rounded-md bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800 disabled:opacity-50"
+                      >
+                        {startingSetup ? 'Starting setup...' : 'Set Up Two-Factor Authentication'}
+                      </button>
+                    )}
+
+                    {/* --- Setup in progress: show QR code + confirmation code field --- */}
+                    {!adminInfo.twoFactorEnabled && setupData && (
+                      <div className="mt-4 space-y-4 rounded-md border border-gray-200 p-4">
+                        <div>
+                          <p className="text-sm font-medium text-gray-700">
+                            1. Scan this QR code with Google Authenticator, Authy, or a similar app.
+                          </p>
+                          <img src={setupData.qrCode} alt="2FA setup QR code" className="mt-3 h-44 w-44 rounded-md border border-gray-200" />
+                          <p className="mt-2 text-xs text-gray-500">
+                            Can't scan it? Enter this code manually: <code className="rounded bg-gray-100 px-1.5 py-0.5">{setupData.secret}</code>
+                          </p>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">
+                            2. Enter the 6-digit code the app shows now
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={6}
+                            value={enableCode}
+                            onChange={(e) => setEnableCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                            placeholder="123456"
+                            className="mt-1.5 w-40 rounded-md border border-gray-300 px-3 py-2 text-center text-lg tracking-[0.3em]"
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={confirmTwoFactorEnable}
+                            disabled={enabling || enableCode.length !== 6}
+                            className="rounded-md bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800 disabled:opacity-50"
+                          >
+                            {enabling ? 'Confirming...' : 'Confirm & Enable'}
+                          </button>
+                          <button
+                            onClick={() => { setSetupData(null); setEnableCode('') }}
+                            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* --- Already enabled: offer to disable (requires password) --- */}
+                    {adminInfo.twoFactorEnabled && !showDisableForm && (
+                      <button
+                        onClick={() => setShowDisableForm(true)}
+                        className="mt-4 rounded-md border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
+                      >
+                        Disable Two-Factor Authentication
+                      </button>
+                    )}
+
+                    {adminInfo.twoFactorEnabled && showDisableForm && (
+                      <div className="mt-4 space-y-3 rounded-md border border-red-200 bg-red-50 p-4">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Confirm your password to disable 2FA
+                        </label>
+                        <input
+                          type="password"
+                          value={disablePassword}
+                          onChange={(e) => setDisablePassword(e.target.value)}
+                          className="w-full max-w-xs rounded-md border border-gray-300 px-3 py-2 text-sm"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={confirmTwoFactorDisable}
+                            disabled={disabling || !disablePassword}
+                            className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                          >
+                            {disabling ? 'Disabling...' : 'Confirm Disable'}
+                          </button>
+                          <button
+                            onClick={() => { setShowDisableForm(false); setDisablePassword('') }}
+                            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </Card>
             </div>

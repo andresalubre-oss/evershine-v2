@@ -41,6 +41,34 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
 
+  // Second step of admin login when the account has 2FA enabled — exchanges
+  // the short-lived pendingToken from /login plus a 6-digit TOTP code for a
+  // real session token.
+  verifyLogin2fa: (pendingToken, code) =>
+    request('/login/2fa', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pending_token: pendingToken, code }),
+    }),
+
+  getAdminMe: () => adminRequest('/admin/me'),
+
+  setup2fa: () => adminRequest('/admin/2fa/setup', { method: 'POST' }),
+
+  enable2fa: (code) =>
+    adminRequest('/admin/2fa/enable', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    }),
+
+  disable2fa: (password) =>
+    adminRequest('/admin/2fa/disable', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    }),
+
   getFerries: () => request('/ferries'),
 
   getSchedules: (direction, date) =>
@@ -81,8 +109,27 @@ export const api = {
 
   getMyBookings: () => customerRequest('/customer/bookings'),
 
+  verifyEmail: (token) => request(`/verify-email?token=${encodeURIComponent(token)}`),
+
+  resendVerification: () => customerRequest('/customer/resend-verification', { method: 'POST' }),
+
+  // The live selfie captured during Profile Verification doubles as the
+  // account's permanent profile photo. Returns null (not a thrown error)
+  // when the customer hasn't submitted one yet, so callers can fall back
+  // to an initials avatar without treating "no photo" as a failure.
+  getMyPhotoUrl: async () => {
+    const response = await fetch(`${BASE}/customer/me/photo`, {
+      headers: customerAuthHeaders(),
+    })
+    if (!response.ok) return null
+    const blob = await response.blob()
+    return URL.createObjectURL(blob)
+  },
+
   requestDiscount: (formData) =>
     customerRequest('/customer/discount-request', { method: 'POST', body: formData }),
+
+  getAllCustomers: () => adminRequest('/admin/customers'),
 
   getPendingDiscounts: () => adminRequest('/admin/customers/pending-discounts'),
 
@@ -94,9 +141,6 @@ export const api = {
     }),
 
   rejectDiscount: (id) => adminRequest(`/admin/customers/${id}/reject-discount`, { method: 'POST' }),
-
-  uploadReceipt: (formData) =>
-    request('/bookings/upload-receipt', { method: 'POST', body: formData }),
 
   generatePayment: (referenceCode, contactEmail) =>
     request('/bookings/generate-payment', {
@@ -110,17 +154,14 @@ export const api = {
       `/bookings/payment-status?reference_code=${encodeURIComponent(referenceCode)}&contact_email=${encodeURIComponent(contactEmail)}`
     ),
 
-  uploadDiscountId: (passengerId, formData) =>
-    request(`/bookings/passengers/${passengerId}/discount-id`, { method: 'POST', body: formData }),
-
   lookupBooking: (referenceCode, contactEmail) =>
     request(`/bookings/lookup?reference_code=${encodeURIComponent(referenceCode)}&contact_email=${encodeURIComponent(contactEmail)}`),
 
-  cancelBooking: (referenceCode, contactEmail) =>
+  cancelBooking: (referenceCode, contactEmail, reason) =>
     request('/bookings/cancel', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reference_code: referenceCode, contact_email: contactEmail }),
+      body: JSON.stringify({ reference_code: referenceCode, contact_email: contactEmail, reason }),
     }),
 
   addFerry: (payload) =>
@@ -139,21 +180,21 @@ export const api = {
 
   getAdminSchedules: () => adminRequest('/admin/schedules'),
 
-  getPendingBookings: () => adminRequest('/admin/bookings/pending'),
-
-  approveBooking: (id) => adminRequest(`/admin/bookings/${id}/approve`, { method: 'POST' }),
-
-  declineBooking: (id) => adminRequest(`/admin/bookings/${id}/decline`, { method: 'POST' }),
-
   getAllBookings: () => adminRequest('/admin/bookings'),
+
+  getRefundRequests: () => adminRequest('/admin/refund-requests'),
+
+  markRefunded: (id) => adminRequest(`/admin/refund-requests/${id}/mark-refunded`, { method: 'POST' }),
+
+  rejectRefundRequest: (id) => adminRequest(`/admin/refund-requests/${id}/reject`, { method: 'POST' }),
 
   getManifest: (scheduleId) => adminRequest(`/admin/schedules/${scheduleId}/manifest`),
 
   getMonthlySales: () => adminRequest('/admin/analytics/monthly-sales'),
 
-  // Receipts/discount IDs are behind an authenticated route (not a public
-  // static folder), so a plain <img src> can't load them directly — fetch
-  // as a blob and hand back an object URL instead.
+  // Verification selfies/ID photos are behind an authenticated route (not a
+  // public static folder), so a plain <img src> can't load them directly —
+  // fetch as a blob and hand back an object URL instead.
   getAdminFileUrl: async (relativePath) => {
     const response = await fetch(`${BASE}/admin/uploads/${relativePath}`, {
       headers: authHeaders(),

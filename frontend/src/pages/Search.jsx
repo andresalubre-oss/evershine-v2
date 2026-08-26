@@ -77,10 +77,6 @@ function TripCard({ schedule, fromLabel, toLabel, onBook }) {
   )
 }
 
-// The actual search controls (trip type, From/To + swap, dates, Search
-// button). Stays visible at all times in the hero — there's no separate
-// summary/edit mode, so nothing ever collapses or jumps around when the
-// user changes their mind (that was the source of an earlier bug).
 function SearchFormFields({
   tripType, setTripType, direction, ports, swapDirection,
   date, setDate, returnDate, setReturnDate,
@@ -88,7 +84,6 @@ function SearchFormFields({
 }) {
   return (
     <>
-      {/* Round Trip / One-way toggle */}
       <div className="inline-flex rounded-md border border-gray-200 bg-gray-50 p-1">
         <button
           type="button"
@@ -110,7 +105,7 @@ function SearchFormFields({
         </button>
       </div>
 
-      {/* From / To — read-only, since routes are fixed. Swap button flips direction. */}
+
       <div className="mt-5 flex items-center gap-2 sm:gap-3">
         <div className="min-w-0 flex-1 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 sm:px-4 sm:py-3">
           <span className="block text-xs text-gray-500">From</span>
@@ -150,7 +145,7 @@ function SearchFormFields({
         </div>
       </div>
 
-      {/* Dates + Search button */}
+   
       <div className="mt-4 flex flex-col gap-3 sm:flex-row">
         <div className="flex-1">
           {tripType === 'roundtrip' && (
@@ -201,8 +196,7 @@ function SearchFormFields({
   )
 }
 
-// Prev Day / date label / Next Day, sits above each results list so users
-// can browse nearby dates without reopening the search form.
+
 function DateNavHeader({ dateStr, onPrev, onNext }) {
   return (
     <div className="flex items-center justify-between rounded-md bg-gray-100 p-2">
@@ -226,7 +220,7 @@ function DateNavHeader({ dateStr, onPrev, onNext }) {
 export default function Search() {
   const navigate = useNavigate()
   const [direction, setDirection] = useState('PB_TO_LIMASAWA')
-  const [tripType, setTripType] = useState('oneway') // 'oneway' | 'roundtrip'
+  const [tripType, setTripType] = useState('oneway') 
   const [date, setDate] = useState(today)
   const [returnDate, setReturnDate] = useState(today)
   const [outboundResults, setOutboundResults] = useState(null)
@@ -315,9 +309,6 @@ export default function Search() {
     }
   }
 
-  // Each leg books independently (its own reference code and payment) —
-  // tripDirection is passed explicitly since the return leg's direction is
-  // the opposite of whatever `direction` currently holds.
   function bookTrip(schedule, tripDirection) {
     const params = new URLSearchParams({
       schedule_id: schedule.id,
@@ -330,7 +321,7 @@ export default function Search() {
 
   return (
     <div>
-      {/* SECTION 1 — full-bleed hero photo with overlay + floating search card */}
+    
       <div className="relative left-1/2 -mt-28 -ml-[50vw] w-screen bg-[url('/hero.jpg')] bg-cover [background-position:center_30%] bg-no-repeat">
         <div className="absolute inset-0 bg-black/40" />
 
@@ -367,7 +358,7 @@ export default function Search() {
         </div>
       </div>
 
-      {/* SECTION 2 — results, shown below the hero once a search has run */}
+
       {(outboundResults || returnResults) && (
         <div className="mx-auto max-w-5xl px-4">
           <BookingSteps currentStep="schedule" />
@@ -432,7 +423,7 @@ export default function Search() {
         </div>
       )}
 
-      {/* Utility link below the hero */}
+
       <p className="mt-10 text-center text-sm">
         <a href="/manage-booking" className="text-teal-700 hover:underline">
           Already booked? Manage your booking here
