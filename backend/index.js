@@ -801,6 +801,9 @@ app.post('/api/bookings', writeLimiter, attachCustomerIfPresent, validate(create
   if (!schedule) {
     return res.status(404).json({ error: 'Schedule not found' });
   }
+  if (schedule.departureDatetime < new Date()) {
+    return res.status(400).json({ error: 'This trip has already departed and can no longer be booked.' });
+  }
 
   // Server-side discount enforcement — never trust discount_type from the
   // client. It only survives if the booker is logged in with a verified

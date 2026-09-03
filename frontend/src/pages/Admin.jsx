@@ -305,6 +305,9 @@ export default function Admin() {
   const [refundRequests, setRefundRequests] = useState([])
   const [refundsMessage, setRefundsMessage] = useState('')
   const [processingRefundId, setProcessingRefundId] = useState(null)
+  // Which guided panel (if any) is open per booking: 'approve' | 'reject' | undefined
+  const [openRefundAction, setOpenRefundAction] = useState({})
+  const [refundConfirmChecked, setRefundConfirmChecked] = useState({})
 
   const [manifestScheduleId, setManifestScheduleId] = useState('')
   const [manifestPassengers, setManifestPassengers] = useState([])
@@ -452,11 +455,17 @@ export default function Admin() {
   // Refunds are always sent manually outside the app (bank transfer, GCash,
   // etc.) — this just records that an admin reviewed the request and
   // confirms the money has actually gone out.
+  function closeRefundPanel(id) {
+    setOpenRefundAction((prev) => ({ ...prev, [id]: undefined }))
+    setRefundConfirmChecked((prev) => ({ ...prev, [id]: false }))
+  }
+
   async function markRefunded(id) {
     setRefundsMessage('')
     setProcessingRefundId(id)
     try {
       await api.markRefunded(id)
+      closeRefundPanel(id)
       await loadRefundRequests()
     } catch (err) {
       setRefundsMessage(err.message)
@@ -470,6 +479,7 @@ export default function Admin() {
     setProcessingRefundId(id)
     try {
       await api.rejectRefundRequest(id)
+      closeRefundPanel(id)
       await loadRefundRequests()
     } catch (err) {
       setRefundsMessage(err.message)
@@ -1100,10 +1110,6 @@ export default function Admin() {
           {activeTab === 'refunds' && (
             <div className="space-y-6">
               <Card title="Refund Requests">
-                <p className="text-sm text-gray-600">
-                  Refunds are never sent automatically. Review each customer's reason, then confirm here once
-                  you've manually sent the money — or reject the request to reinstate the booking.
-                </p>
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                   <button onClick={loadRefundRequests} className="rounded-md bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800">
                     Refresh
@@ -1156,30 +1162,154 @@ export default function Admin() {
                             <p className="mt-1 text-sm text-gray-700">{b.cancellationReason || '—'}</p>
                           </div>
 
-                          <div className="mt-4 flex gap-2">
-                            <button
-                              onClick={() => {
-                                if (window.confirm(`Confirm you've manually sent the ₱${Number(b.totalFare).toLocaleString()} refund for ${b.referenceCode}?`)) {
-                                  markRefunded(b.id)
-                                }
-                              }}
-                              disabled={isProcessing}
-                              className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-300"
-                            >
-                              {isProcessing ? 'Working...' : "Mark as Refunded"}
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (window.confirm(`Reject this refund request and reinstate ${b.referenceCode} as confirmed?`)) {
-                                  rejectRefund(b.id)
-                                }
-                              }}
-                              disabled={isProcessing}
-                              className="rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              Reject
-                            </button>
-                          </div>
+                          {(() => {
+                            const openAction = openRefundAction[b.id]
+                            const checked = Boolean(refundConfirmChecked[b.id])
+                            const passengerName = b.passengers[0] ? fullName(b.passengers[0]) : 'there'
+                            const fareStr = Number(b.totalFare).toLocaleString()
+
+                            const approveMailto =
+                              `mailto:${b.contactEmail}?subject=${encodeURIComponent(`Confirming your refund details — ${b.referenceCode}`)}` +
+                              `&body=${encodeURIComponent(
+                                `Hi ${passengerName},\n\nWe're processing your refund of ₱${fareStr} for booking ${b.referenceCode}. Since your payment was made through a QR code, we don't automatically see which GCash, Maya, or bank account it came from — could you reply with the account name, number, and provider you'd like the refund sent to?\n\nThanks,\nEvershine Booking`
+                              )}`
+
+                            const rejectMailto =
+                              `mailto:${b.contactEmail}?subject=${encodeURIComponent(`Update on your cancellation request — ${b.referenceCode}`)}` +
+                              `&body=${encodeURIComponent(
+                                `Hi ${passengerName},\n\nWe've reviewed your cancellation request for booking ${b.referenceCode} and are unable to approve the refund at this time.\n\n[Add your reason here]\n\nIf you have questions, feel free to reply to this email.\n\nThanks,\nEvershine Booking`
+                              )}`
+
+                            return (
+                              <div className="mt-4">
+                                {!openAction && (
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => setOpenRefundAction((prev) => ({ ...prev, [b.id]: 'approve' }))}
+                                      disabled={isProcessing}
+                                      className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+                                    >
+                                      Approve &amp; Refund
+                                    </button>
+                                    <button
+                                      onClick={() => setOpenRefundAction((prev) => ({ ...prev, [b.id]: 'reject' }))}
+                                      disabled={isProcessing}
+                                      className="rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                      Reject
+                                    </button>
+                                  </div>
+                                )}
+
+                                {openAction === 'approve' && (
+                                  <div className="rounded-md border border-green-200 bg-green-50 p-4">
+                                    <p className="text-sm font-semibold text-green-800">Approve &amp; send refund</p>
+                                    <ol className="mt-2 space-y-2 text-sm text-gray-700">
+                                      <li>
+                                        <span className="font-medium">1. Confirm where to send it.</span> QR Ph payments
+                                        don't record which e-wallet or bank the customer paid with, so ask them directly
+                                        before sending anything.
+                                        <div className="mt-1 flex flex-wrap gap-2">
+                                          <a
+                                            href={approveMailto}
+                                            className="inline-block rounded-md border border-green-300 bg-white px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-100"
+                                          >
+                                            Email: {b.contactEmail}
+                                          </a>
+                                          {b.contactNumber && (
+                                            <span className="inline-flex items-center rounded-md border border-green-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700">
+                                              Or text: {b.contactNumber}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </li>
+                                      <li>
+                                        <span className="font-medium">2. Send ₱{fareStr}</span> to the account they
+                                        confirm, using your own GCash/Maya/bank transfer app.
+                                      </li>
+                                    </ol>
+                                    <label className="mt-3 flex items-start gap-2 text-sm text-gray-700">
+                                      <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={(e) =>
+                                          setRefundConfirmChecked((prev) => ({ ...prev, [b.id]: e.target.checked }))
+                                        }
+                                        className="mt-0.5"
+                                      />
+                                      I've sent the ₱{fareStr} refund to the customer's confirmed account.
+                                    </label>
+                                    <div className="mt-3 flex gap-2">
+                                      <button
+                                        onClick={() => markRefunded(b.id)}
+                                        disabled={!checked || isProcessing}
+                                        className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+                                      >
+                                        {isProcessing ? 'Working...' : 'Confirm & Mark as Refunded'}
+                                      </button>
+                                      <button
+                                        onClick={() => closeRefundPanel(b.id)}
+                                        disabled={isProcessing}
+                                        className="rounded-md px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {openAction === 'reject' && (
+                                  <div className="rounded-md border border-red-200 bg-red-50 p-4">
+                                    <p className="text-sm font-semibold text-red-800">Reject this request</p>
+                                    <p className="mt-2 text-sm text-gray-700">
+                                      Rejecting won't notify the customer automatically. Let them know yourself so
+                                      they're not left wondering.
+                                    </p>
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                      <a
+                                        href={rejectMailto}
+                                        className="inline-block rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100"
+                                      >
+                                        Email {b.contactEmail}
+                                      </a>
+                                      {b.contactNumber && (
+                                        <span className="inline-flex items-center rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700">
+                                          Also text: {b.contactNumber}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <label className="mt-3 flex items-start gap-2 text-sm text-gray-700">
+                                      <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={(e) =>
+                                          setRefundConfirmChecked((prev) => ({ ...prev, [b.id]: e.target.checked }))
+                                        }
+                                        className="mt-0.5"
+                                      />
+                                      I've emailed and texted the customer about this decision.
+                                    </label>
+                                    <div className="mt-3 flex gap-2">
+                                      <button
+                                        onClick={() => rejectRefund(b.id)}
+                                        disabled={!checked || isProcessing}
+                                        className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+                                      >
+                                        {isProcessing ? 'Working...' : 'Confirm Rejection'}
+                                      </button>
+                                      <button
+                                        onClick={() => closeRefundPanel(b.id)}
+                                        disabled={isProcessing}
+                                        className="rounded-md px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })()}
                         </div>
                       )
                     })}

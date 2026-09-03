@@ -1,5 +1,7 @@
 // Save as: frontend/src/components/SearchFormFields.jsx
 
+const today = new Date().toISOString().split('T')[0]
+
 // The actual search controls (trip type, From/To + swap, dates, Search
 // button). Used on the landing page and reused (with an onCancel) on the
 // search results page for modifying a search in place.
@@ -81,6 +83,7 @@ export default function SearchFormFields({
           <input
             type="date"
             value={date}
+            min={today}
             onChange={(e) => setDate(e.target.value)}
             className="w-full rounded-md border border-gray-300 px-3 py-2"
           />

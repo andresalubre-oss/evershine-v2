@@ -277,8 +277,15 @@ export default function Search() {
     }
   }
 
-  async function handleSearch() {
-    await runSearch()
+   function handleSearch() {
+    if (!date) { setError('Please choose a departure date.'); return }
+    if (tripType === 'roundtrip') {
+      if (!returnDate) { setError('Please choose a return date.'); return }
+      if (returnDate < date) { setError('Return date must be on or after the departure date.'); return }
+    }
+    const params = new URLSearchParams({ direction, tripType, date })
+    if (tripType === 'roundtrip') params.set('returnDate', returnDate)
+    navigate(`/search-results?${params.toString()}`)
   }
 
   async function changeDepartureDate(deltaDays) {
@@ -358,6 +365,28 @@ export default function Search() {
         </div>
       </div>
 
+<div className="relative left-1/2 -ml-[50vw] w-screen overflow-hidden bg-[url('/section2-hero-bg.png')] bg-cover bg-top bg-no-repeat">
+  <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-8 px-4 py-10 sm:grid-cols-2 sm:py-24">
+    <div className="text-center sm:text-left">
+      <img src="/EVERSHINE LOGO.png" alt="Evershine" className="mx-auto h-16 w-28 sm:mx-0 sm:h-25 sm:w-44" />
+      <h2 className="mt-2 text-2xl font-bold text-gray-800 sm:text-4xl">Where We Sail</h2>
+      <p className="mt-4 text-sm leading-relaxed text-gray-700 sm:text-base">
+        We connect <span className="font-semibold">Padre Burgos</span> to{' '}
+        <span className="font-semibold">Limasawa Island</span> — a short, scenic crossing
+        across Southern Leyte's coastal waters.
+      </p>
+      <p className="mt-4 text-sm leading-relaxed text-gray-700 sm:text-base">
+        Book your seat and set sail on one of Southern Leyte's most historic routes.
+      </p>
+    </div>
+    <div
+      className="h-102 w-full bg-[url('/section2-hero.png')] bg-cover bg-[position:75%_55%] bg-no-repeat sm:h-[500px]"
+      role="img"
+      aria-label="Map of the Padre Burgos to Limasawa ferry route"
+    />
+  </div>
+</div>
+
 
       {(outboundResults || returnResults) && (
         <div className="mx-auto max-w-5xl px-4">
@@ -430,6 +459,7 @@ export default function Search() {
         </a>
       </p>
     </div>
+    
   )
 }
   

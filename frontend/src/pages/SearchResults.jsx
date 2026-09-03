@@ -5,7 +5,7 @@
 // there navigates here with the search criteria in the URL, so this page
 // is bookmarkable/shareable and the landing page always stays clean.
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../api.js'
 import BookingSteps from '../components/BookingSteps.jsx'
@@ -15,6 +15,31 @@ import DateNavHeader from '../components/DateNavHeader.jsx'
 import { PORT_NAMES, oppositeDirection, shiftDate } from '../lib/portUtils.js'
 
 const today = new Date().toISOString().split('T')[0]
+
+function IconEdit(props) {
+  return (
+    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
+    </svg>
+  )
+}
+
+function IconSpinner(props) {
+  return (
+    <svg {...props} viewBox="0 0 24 24" fill="none">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
+  )
+}
+
+function IconAlert(props) {
+  return (
+    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86l-8.18 14.18A1 1 0 003 19.5h18a1 1 0 00.89-1.46L13.71 3.86a1 1 0 00-1.72 0z" />
+    </svg>
+  )
+}
 
 export default function SearchResults() {
   const navigate = useNavigate()
@@ -32,6 +57,9 @@ export default function SearchResults() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
+
+  const dateRef = useRef(date)
+  const returnDateRef = useRef(returnDate)
 
   const ports = PORT_NAMES[direction]
 
@@ -88,7 +116,8 @@ export default function SearchResults() {
   }
 
   async function changeDepartureDate(deltaDays) {
-    const newDate = shiftDate(date, deltaDays)
+    const newDate = shiftDate(dateRef.current, deltaDays)
+    dateRef.current = newDate
     setDate(newDate)
     setLoading(true)
     try {
@@ -102,7 +131,8 @@ export default function SearchResults() {
   }
 
   async function changeReturnDate(deltaDays) {
-    const newDate = shiftDate(returnDate, deltaDays)
+    const newDate = shiftDate(returnDateRef.current, deltaDays)
+    returnDateRef.current = newDate
     setReturnDate(newDate)
     setLoading(true)
     try {
@@ -169,17 +199,26 @@ export default function SearchResults() {
           </div>
           <button
             onClick={() => setEditing(true)}
-            className="rounded-md border border-teal-700 px-4 py-2 text-sm font-medium text-teal-700 hover:bg-teal-50"
+            className="inline-flex items-center gap-1.5 rounded-md border border-teal-700 px-4 py-2 text-sm font-medium text-teal-700 transition-colors hover:bg-teal-700 hover:text-white"
           >
+            <IconEdit className="h-4 w-4" />
             Modify Search
           </button>
         </div>
       )}
 
-      {!editing && error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+      {!editing && error && (
+        <div className="mt-4 flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <IconAlert className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
 
       {!editing && loading && !outboundResults && (
-        <p className="mt-6 text-sm text-gray-500">Searching...</p>
+        <p className="mt-6 flex items-center gap-2 text-sm text-gray-500">
+          <IconSpinner className="h-4 w-4 animate-spin text-teal-700" />
+          Searching...
+        </p>
       )}
 
       {!editing && outboundResults && (
@@ -188,7 +227,12 @@ export default function SearchResults() {
             Departure: {ports.from} &rarr; {ports.to}
           </h3>
           <div className="mt-2">
-            <DateNavHeader dateStr={date} onPrev={() => changeDepartureDate(-1)} onNext={() => changeDepartureDate(1)} />
+            <DateNavHeader
+              dateStr={date}
+              onPrev={() => changeDepartureDate(-1)}
+              onNext={() => changeDepartureDate(1)}
+              disabled={loading}
+            />
           </div>
           {outboundResults.length === 0 ? (
             <p className="mt-3 text-sm text-gray-500">No trips found for that date.</p>
@@ -214,7 +258,12 @@ export default function SearchResults() {
             Return: {ports.to} &rarr; {ports.from}
           </h3>
           <div className="mt-2">
-            <DateNavHeader dateStr={returnDate} onPrev={() => changeReturnDate(-1)} onNext={() => changeReturnDate(1)} />
+            <DateNavHeader
+              dateStr={returnDate}
+              onPrev={() => changeReturnDate(-1)}
+              onNext={() => changeReturnDate(1)}
+              disabled={loading}
+            />
           </div>
           {returnResults.length === 0 ? (
             <p className="mt-3 text-sm text-gray-500">No return trips found for that date.</p>

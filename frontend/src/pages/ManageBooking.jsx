@@ -298,8 +298,8 @@ export default function ManageBooking() {
                     Request a cancellation?
                   </p>
                   <p className="mt-1 text-sm text-red-700">
-                    This submits a cancellation request for manual review — it isn't instant. An admin verifies
-                    your reason and sends the refund themselves once approved.
+                    This submits a cancellation request for manual review it isn't instant. Our team will verify
+                    your reason and sends the refund once approved.
                   </p>
 
                   <label className="mt-3 block text-xs font-medium uppercase tracking-wide text-red-800">
@@ -342,7 +342,7 @@ export default function ManageBooking() {
                 <div className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-800">
                   <IconAlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
                   <span>
-                    This booking can no longer be cancelled — cancellations must be requested within 24 hours of
+                    This booking can no longer be cancelled cancellations must be requested within 24 hours of
                     booking, and that window has passed. See our{' '}
                     <Link to="/refund-cancellation" className="font-medium underline">
                       Refund &amp; Cancellation
