@@ -65,9 +65,6 @@ export default function RefundCancellation() {
           the refund themselves once it's approved. You'll see the status update on your booking (Manage Booking
           or your account's booking history) as it moves from under review to refunded.
         </p>
-        <p className="mt-2 text-xs text-gray-400">
-          Refund processing time is a placeholder pending your confirmed timeline — update this once finalized.
-        </p>
       </div>
 
       {/* Trip cancelled by us */}
