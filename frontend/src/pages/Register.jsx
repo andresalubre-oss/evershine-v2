@@ -22,6 +22,21 @@ function IconEyeOff(props) {
     </svg>
   )
 }
+function IconAlert(props) {
+  return (
+    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86l-8.18 14.18A1 1 0 003 19.5h18a1 1 0 00.89-1.46L13.71 3.86a1 1 0 00-1.72 0z" />
+    </svg>
+  )
+}
+function IconSpinner(props) {
+  return (
+    <svg {...props} viewBox="0 0 24 24" fill="none">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
+  )
+}
 
 function Field({ label, required, children }) {
   return (
@@ -30,6 +45,24 @@ function Field({ label, required, children }) {
         {label} {required ? <span className="text-red-500">*</span> : <span className="font-normal text-gray-400">(optional)</span>}
       </label>
       {children}
+    </div>
+  )
+}
+
+// Numbered badge + heading, used at the top of each form section so a long
+// form reads as a sequence of small steps instead of one undifferentiated
+// wall of fields — same numbered-circle pattern as the "How It Works"
+// section on the landing page, reused here for visual consistency.
+function SectionHeading({ number, title, hint }) {
+  return (
+    <div className="flex items-start gap-2.5">
+      <span className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-teal-700 text-xs font-bold text-white">
+        {number}
+      </span>
+      <div>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-700">{title}</h2>
+        {hint && <p className="mt-0.5 text-xs text-gray-500">{hint}</p>}
+      </div>
     </div>
   )
 }
@@ -118,11 +151,6 @@ export default function Register() {
   const [lastName, setLastName] = useState('')
   const [suffix, setSuffix] = useState('')
 
-  // Address — Region/Province/Municipality-City/Barangay cascade top-down
-  // (broad to narrow), matching how the PSGC API structures lookups. Each
-  // field stores the plain text that actually gets submitted; the "*Code"
-  // companions are only kept around to know which PSGC list to fetch next
-  // and aren't sent to the backend.
   const [region, setRegion] = useState('')
   const [regionCode, setRegionCode] = useState('')
   const [province, setProvince] = useState('')
@@ -240,9 +268,6 @@ export default function Register() {
     setRegionCode(o.code)
     resetBelowRegion()
     if (o.code === NCR_REGION_CODE) {
-      // NCR has no provinces — skip straight to its cities/municipalities,
-      // and just label the province field for the person instead of
-      // pretending there's a real province to pick.
       setProvince('Metro Manila')
       loadCities(o.code, { byRegion: true })
     } else {
@@ -318,6 +343,9 @@ export default function Register() {
     }
   }
 
+  const confirmPasswordMismatch = confirmPassword.length > 0 && password !== confirmPassword
+  const confirmPasswordMatches = confirmPassword.length > 0 && password === confirmPassword
+
   return (
     <div className="mx-auto max-w-2xl">
       <h1 className="text-2xl font-bold text-gray-800">Create an Account</h1>
@@ -331,13 +359,13 @@ export default function Register() {
       >
         {/* Personal Information */}
         <section>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Personal Information</h2>
+          <SectionHeading number={1} title="Personal Information" />
           <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="First Name" required>
-              <input type="text" required value={firstName} onChange={(e) => setFirstName(e.target.value)} className={inputClass} />
+              <input type="text" required placeholder="Juan" value={firstName} onChange={(e) => setFirstName(e.target.value)} className={inputClass} />
             </Field>
             <Field label="Last Name" required>
-              <input type="text" required value={lastName} onChange={(e) => setLastName(e.target.value)} className={inputClass} />
+              <input type="text" required placeholder="Dela Cruz" value={lastName} onChange={(e) => setLastName(e.target.value)} className={inputClass} />
             </Field>
             <Field label="Middle Name">
               <input type="text" value={middleName} onChange={(e) => setMiddleName(e.target.value)} className={inputClass} />
@@ -348,15 +376,13 @@ export default function Register() {
           </div>
         </section>
 
-        {/* Address — Region first, then Province, then Municipality/City,
-            then Barangay, each narrowing the next field's suggestions.
-            Zip Code stays a plain field: PH zip codes aren't reliably
-            one-to-one with a city/municipality (large cities like Quezon
-            City span dozens of codes), so auto-filling it would often be
-            wrong — better to have the person enter the one printed on
-            their own mail/ID. */}
+        {/* Address */}
         <section>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Address</h2>
+          <SectionHeading
+            number={2}
+            title="Address"
+            hint="Start typing to see suggestions from official PSA data — or type your own if it's not listed."
+          />
 
           <div className="mt-3 space-y-4">
             <AddressCombobox
@@ -407,7 +433,7 @@ export default function Register() {
                 emptyHint={cityCode ? 'No matches.' : 'Select a Municipality/City first, or type your own.'}
               />
               <Field label="Zip Code" required>
-                <input type="text" required value={zipCode} onChange={(e) => setZipCode(e.target.value)} className={inputClass} />
+                <input type="text" required placeholder="e.g. 6600" value={zipCode} onChange={(e) => setZipCode(e.target.value)} className={inputClass} />
               </Field>
             </div>
           </div>
@@ -415,13 +441,13 @@ export default function Register() {
 
         {/* Account */}
         <section>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Account</h2>
+          <SectionHeading number={3} title="Account" />
           <div className="mt-3 space-y-4">
             <Field label="Phone Number" required>
-              <input type="text" required value={contactNumber} onChange={(e) => setContactNumber(e.target.value)} className={inputClass} />
+              <input type="text" required placeholder="e.g. 09171234567" value={contactNumber} onChange={(e) => setContactNumber(e.target.value)} className={inputClass} />
             </Field>
             <Field label="Email" required>
-              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} />
+              <input type="email" required placeholder="juan.delacruz@email.com" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} />
             </Field>
             <Field label="Password" required>
               <div className="relative">
@@ -463,19 +489,32 @@ export default function Register() {
                   {showConfirmPassword ? <IconEyeOff className="h-5 w-5" /> : <IconEye className="h-5 w-5" />}
                 </button>
               </div>
+              {confirmPasswordMismatch && <p className="mt-1 text-xs text-red-600">Passwords do not match.</p>}
+              {confirmPasswordMatches && <p className="mt-1 text-xs text-green-600">Passwords match.</p>}
             </Field>
           </div>
         </section>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && (
+          <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <IconAlert className="mt-0.5 h-4 w-4 flex-shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full rounded-md bg-teal-700 px-5 py-2 font-medium text-white hover:bg-teal-800 disabled:opacity-50"
-        >
-          {submitting ? 'Creating account...' : 'Create Account'}
-        </button>
+        <div>
+          <button
+            type="submit"
+            disabled={submitting}
+            className="flex w-full items-center justify-center gap-2 rounded-md bg-teal-700 px-5 py-2 font-medium text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {submitting && <IconSpinner className="h-4 w-4 animate-spin" />}
+            {submitting ? 'Creating account...' : 'Create Account'}
+          </button>
+          <p className="mt-2 text-center text-xs text-gray-500">
+            Your address and ID details are used only to verify discount eligibility — never shared or sold.
+          </p>
+        </div>
 
         <p className="text-center text-sm text-gray-600">
           Already have an account?{' '}

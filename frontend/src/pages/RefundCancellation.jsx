@@ -65,6 +65,7 @@ export default function RefundCancellation() {
           the refund themselves once it's approved. You'll see the status update on your booking (Manage Booking
           or your account's booking history) as it moves from under review to refunded.
         </p>
+    
       </div>
 
       {/* Trip cancelled by us */}

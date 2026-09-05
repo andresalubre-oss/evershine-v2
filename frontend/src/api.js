@@ -53,12 +53,19 @@ export const api = {
 
   getAdminMe: () => adminRequest('/admin/me'),
 
-  setup2fa: () => adminRequest('/admin/2fa/setup', { method: 'POST' }),
+  setup2fa: (token) =>
+    adminRequest('/admin/2fa/setup', {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }),
 
-  enable2fa: (code) =>
+  enable2fa: (code, token) =>
     adminRequest('/admin/2fa/enable', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify({ code }),
     }),
 
@@ -68,6 +75,9 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password }),
     }),
+
+    
+  adminLogout: () => adminRequest('/admin/logout', { method: 'POST' }),
 
   getFerries: () => request('/ferries'),
 

@@ -55,7 +55,7 @@ export default function Layout() {
         <div className="flex items-center justify-between px-6 py-4">
           <Link to="/" className="text-xl font-bold" onClick={() => setMenuOpen(false)}>
             <div className="flex items-center gap-2">
-              <img src="/EVERSHINE LOGO.png" alt="Evershine" className="h-15 w-30" />
+              <img src="/evershine-logo.png" alt="Evershine" className="h-15 w-30" />
             </div>
           </Link>
 
@@ -234,7 +234,7 @@ export default function Layout() {
       </div>
       )}
 
-      <main className={`mx-auto w-full max-w-5xl flex-1 px-4 py-8 ${isAdminDashboard ? '' : 'pt-28'}`}>
+      <main className={isAdminDashboard ? 'flex-1' : 'mx-auto w-full max-w-5xl flex-1 px-4 py-8 pt-28'}>
         <Outlet />
       </main>
 

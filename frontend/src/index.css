@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 .leaflet-tile-pane img {
   width: 256px !important;
   height: 256px !important;

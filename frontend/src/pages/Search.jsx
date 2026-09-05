@@ -368,7 +368,7 @@ export default function Search() {
 <div className="relative left-1/2 -ml-[50vw] w-screen overflow-hidden bg-[url('/section2-hero-bg.png')] bg-cover bg-top bg-no-repeat">
   <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-8 px-4 py-10 sm:grid-cols-2 sm:py-24">
     <div className="text-center sm:text-left">
-      <img src="/EVERSHINE LOGO.png" alt="Evershine" className="mx-auto h-16 w-28 sm:mx-0 sm:h-25 sm:w-44" />
+      <img src="/evershine-logo.png" alt="Evershine" className="mx-auto h-16 w-28 sm:mx-0 sm:h-25 sm:w-44" />
       <h2 className="mt-2 text-2xl font-bold text-gray-800 sm:text-4xl">Where We Sail</h2>
       <p className="mt-4 text-sm leading-relaxed text-gray-700 sm:text-base">
         We connect <span className="font-semibold">Padre Burgos</span> to{' '}

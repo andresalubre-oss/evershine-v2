@@ -40,7 +40,7 @@ export default function Footer() {
     <footer className="mt-16 border-t border-gray-200 bg-white">
       <div className="mx-auto grid max-w-5xl grid-cols-1 gap-8 px-4 py-10 sm:grid-cols-3">
         <div>
-          <img src="/EVERSHINE LOGO.png" alt="Evershine" className="h-12 w-auto" />
+          <img src="/evershine-logo.png" alt="Evershine" className="h-12 w-auto" />
           <p className="mt-3 text-sm leading-relaxed text-gray-600">
             Relax, unwind, explore take you to Limasawa fast and easy.
           </p>

@@ -57,6 +57,7 @@ model Admin {
   // a code — login only demands the second factor once it's true.
   totpSecret       String?  @map("totp_secret")
   twoFactorEnabled Boolean  @default(false) @map("two_factor_enabled")
+    auditLogs        AdminAuditLog[]
 
   @@map("admins")
 }
@@ -189,4 +190,16 @@ model Payment {
   updatedAt       DateTime      @updatedAt
 
   @@map("payments")
+}
+
+model AdminAuditLog {
+  id        String   @id @default(uuid())
+  adminId   String?  @map("admin_id")
+  admin     Admin?   @relation(fields: [adminId], references: [id])
+  email     String
+  event     String
+  ipAddress String?  @map("ip_address")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("admin_audit_logs")
 }

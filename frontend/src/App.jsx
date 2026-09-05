@@ -7,6 +7,7 @@ import ManageBooking from './pages/ManageBooking.jsx'
 import Directions from './pages/Directions.jsx'
 import Login from './pages/Login.jsx'
 import Admin from './pages/Admin.jsx'
+import ManifestPrint from './pages/ManifestPrint.jsx'
 import Register from './pages/Register.jsx'
 import CustomerLogin from './pages/CustomerLogin.jsx'
 import Account from './pages/Account.jsx'
@@ -21,6 +22,10 @@ import TermsConditions from './pages/TermsConditions.jsx'
 export default function App() {
   return (
     <Routes>
+      {/* Standalone — no top nav/footer/sidebar chrome, since this is a printable
+          document opened in its own tab from the admin Manifest tab. */}
+      <Route path="/admin/manifest-print" element={<ManifestPrint />} />
+
       <Route element={<Layout />}>
         <Route path="/" element={<Search />} />
         <Route path="/search-results" element={<SearchResults />} />

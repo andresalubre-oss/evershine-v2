@@ -21,7 +21,7 @@ const QRCode = require('qrcode');
 authenticator.options = { window: 1 };
 
 const prisma = require('./lib/prisma');
-const requireAuth = require('./middleware/auth');
+const { requireAuth, requireAdminOrSetup } = require('./middleware/auth');
 const validate = require('./middleware/validate');
 const paymongo = require('./lib/paymongo');
 const { sendVerificationEmail } = require('./lib/email');
@@ -126,6 +126,15 @@ const loginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many login attempts. Please wait 15 minutes and try again.' },
+});
+
+const loginByAccountLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => (req.body?.email || '').trim().toLowerCase() || ipKeyGenerator(req.ip),
+  message: { error: 'Too many login attempts for this account. Please wait 15 minutes and try again.' },
 });
 
 const writeLimiter = rateLimit({
@@ -359,6 +368,26 @@ function signAdminPendingToken(admin) {
   );
 }
 
+function signAdminSetupToken(admin) {
+  return jwt.sign(
+    { id: admin.id, role: 'admin_2fa_setup_required' },
+    process.env.JWT_SECRET,
+    { expiresIn: '20m' }
+  );
+}
+
+// Best-effort logging — a logging failure should never break login itself,
+// so this swallows its own errors instead of throwing.
+async function logAdminEvent({ adminId = null, email, event, req }) {
+  try {
+    await prisma.adminAuditLog.create({
+      data: { adminId, email, event, ipAddress: req.ip },
+    });
+  } catch (err) {
+    console.error('Failed to write admin audit log:', err);
+  }
+}
+
 // A verified discount lapses once discountVerifiedUntil passes — we don't
 // mutate the stored status (so admins can still see it was once verified,
 // and can re-verify with a fresh date), we just report it as 'expired' to
@@ -439,16 +468,19 @@ function attachCustomerIfPresent(req, res, next) {
 // Auth
 // ---------------------------------------------------------------------------
 
-app.post('/api/login', loginLimiter, validate(loginSchema), async (req, res) => {
+app.post('/api/login', loginLimiter, loginByAccountLimiter, validate(loginSchema), async (req, res) => {
   const { email, password } = req.body;
 
   const admin = await prisma.admin.findUnique({ where: { email } });
-  if (!admin) {
+  
+   if (!admin) {
+    await logAdminEvent({ email, event: 'login_failed_unknown_email', req });
     return res.status(400).json({ error: 'Invalid email or password' });
   }
 
   const passwordMatches = await bcrypt.compare(password, admin.passwordHash);
-  if (!passwordMatches) {
+   if (!passwordMatches) {
+    await logAdminEvent({ adminId: admin.id, email, event: 'login_failed_wrong_password', req });
     return res.status(400).json({ error: 'Invalid email or password' });
   }
 
@@ -462,13 +494,14 @@ app.post('/api/login', loginLimiter, validate(loginSchema), async (req, res) => 
     });
   }
 
+   // 2FA is mandatory: an admin without it enabled never gets a real
+  // session token from a password alone — only a short-lived setup token
+  // that's good for nothing except the 2FA setup/enable routes below.
   res.json({
-    message: 'Login successful',
-    token: signAdminToken(admin),
-    admin: { id: admin.id, email: admin.email, name: admin.name, twoFactorEnabled: admin.twoFactorEnabled },
+    requiresTwoFactorSetup: true,
+    setupToken: signAdminSetupToken(admin),
   });
 });
-
 app.post('/api/login/2fa', loginLimiter, validate(twoFactorVerifySchema), async (req, res) => {
   const { pending_token, code } = req.body;
 
@@ -489,30 +522,18 @@ app.post('/api/login/2fa', loginLimiter, validate(twoFactorVerifySchema), async 
 
   const valid = authenticator.verify({ token: code, secret: admin.totpSecret });
   if (!valid) {
+    await logAdminEvent({ adminId: admin.id, email: admin.email, event: 'login_2fa_code_invalid', req });
     return res.status(400).json({ error: 'Invalid code. Please try again.' });
   }
 
+  await logAdminEvent({ adminId: admin.id, email: admin.email, event: 'login_success', req });
   res.json({
     message: 'Login successful',
     token: signAdminToken(admin),
     admin: { id: admin.id, email: admin.email, name: admin.name, twoFactorEnabled: admin.twoFactorEnabled },
   });
 });
-
-app.get('/api/whoami', requireAuth, async (req, res) => {
-  res.json({ message: 'You are logged in as:', admin: req.admin });
-});
-
-app.get('/api/admin/me', requireAuth, async (req, res) => {
-  const admin = await prisma.admin.findUnique({ where: { id: req.admin.id } });
-  if (!admin) return res.status(404).json({ error: 'Admin not found' });
-  res.json({ id: admin.id, email: admin.email, name: admin.name, twoFactorEnabled: admin.twoFactorEnabled });
-});
-
-// Step 1 of turning 2FA on: generate a fresh secret, store it (unconfirmed —
-// twoFactorEnabled stays false), and hand back a QR code for an authenticator
-// app plus the raw secret as a manual-entry fallback.
-app.post('/api/admin/2fa/setup', requireAuth, adminLimiter, async (req, res) => {
+app.post('/api/admin/2fa/setup', requireAdminOrSetup, adminLimiter, async (req, res) => {
   const admin = await prisma.admin.findUnique({ where: { id: req.admin.id } });
   if (!admin) return res.status(404).json({ error: 'Admin not found' });
 
@@ -524,10 +545,11 @@ app.post('/api/admin/2fa/setup', requireAuth, adminLimiter, async (req, res) => 
 
   res.json({ qrCode, secret });
 });
+  
 
 // Step 2: admin proves they actually scanned the QR / added the secret by
 // submitting a live code. Only then does 2FA actually start being enforced.
-app.post('/api/admin/2fa/enable', requireAuth, adminLimiter, validate(twoFactorEnableSchema), async (req, res) => {
+app.post('/api/admin/2fa/enable', requireAdminOrSetup, adminLimiter, validate(twoFactorEnableSchema), async (req, res) => {
   const { code } = req.body;
   const admin = await prisma.admin.findUnique({ where: { id: req.admin.id } });
   if (!admin?.totpSecret) {
@@ -538,7 +560,8 @@ app.post('/api/admin/2fa/enable', requireAuth, adminLimiter, validate(twoFactorE
     return res.status(400).json({ error: 'Invalid code. Please try again.' });
   }
   await prisma.admin.update({ where: { id: admin.id }, data: { twoFactorEnabled: true } });
-  res.json({ message: 'Two-factor authentication is now enabled.' });
+  await logAdminEvent({ adminId: admin.id, email: admin.email, event: '2fa_enabled', req });
+  res.json({ message: 'Two-factor authentication is now enabled.', token: signAdminToken(admin) });
 });
 
 // Requires the current password (not just an existing session) so leaving a
@@ -557,7 +580,13 @@ app.post('/api/admin/2fa/disable', requireAuth, adminLimiter, validate(twoFactor
     where: { id: admin.id },
     data: { twoFactorEnabled: false, totpSecret: null },
   });
+  await logAdminEvent({ adminId: admin.id, email: admin.email, event: '2fa_disabled', req });
   res.json({ message: 'Two-factor authentication is now disabled.' });
+});
+
+app.post('/api/admin/logout', requireAuth, adminLimiter, async (req, res) => {
+  await logAdminEvent({ adminId: req.admin.id, email: req.admin.email, event: 'logout', req });
+  res.json({ message: 'Logged out.' });
 });
 
 // ---------------------------------------------------------------------------
