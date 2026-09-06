@@ -42,7 +42,7 @@ const SUGGESTED = [
   'How much baggage can I bring?',
 ]
 
-export default function ChatWidget() {
+export default function ChatWidget({ liftedByBanner = false }) {
   const location = useLocation()
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState([{ from: 'bot', text: GREETING }])
@@ -71,13 +71,22 @@ export default function ChatWidget() {
   }
 
   // Booking.jsx's summary bar is only pinned to the bottom of the screen on
-  // a wide viewport (sm: and up) — on mobile it scrolls with the page like
+  // a wide viewport (sm: and up), on mobile it scrolls with the page like
   // everything else. So the chat bubble only needs to float higher there
-  // too, on sm: and up; on mobile it can stay at the usual spot.
+  // too, on sm: and up; on mobile it can stay at the usual spot. The cookie
+  // consent banner also sits flush along the bottom of the screen while
+  // it's showing, so the bubble lifts above it too in that case, on every
+  // viewport size, since the banner spans the full width.
   const isBookingPage = location.pathname === '/booking'
+  let bottomClass = 'bottom-5'
+  if (liftedByBanner) {
+    bottomClass = isBookingPage ? 'bottom-24 sm:bottom-40' : 'bottom-24'
+  } else if (isBookingPage) {
+    bottomClass = 'bottom-5 sm:bottom-24'
+  }
 
   return (
-    <div className={`fixed bottom-5 right-5 z-50 ${isBookingPage ? 'sm:bottom-24' : ''}`}>
+    <div className={`fixed right-5 z-50 ${bottomClass}`}>
       {open && (
         <div className="mb-3 flex h-[28rem] w-80 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
           <div className="flex flex-shrink-0 items-center justify-between bg-teal-700 px-4 py-3 text-white">

@@ -318,6 +318,10 @@ export default function Register() {
       setError('Passwords do not match.')
       return
     }
+    if (!/^09\d{9}$/.test(contactNumber)) {
+      setError('Enter a valid Philippine mobile number (11 digits, starting with 09, e.g. 09171234567).')
+      return
+    }
     setSubmitting(true)
     try {
       const data = await api.register({
@@ -345,6 +349,18 @@ export default function Register() {
 
   const confirmPasswordMismatch = confirmPassword.length > 0 && password !== confirmPassword
   const confirmPasswordMatches = confirmPassword.length > 0 && password === confirmPassword
+
+  const phoneNumberValid = /^09\d{9}$/.test(contactNumber)
+  const phoneNumberInvalid = contactNumber.length === 11 && !phoneNumberValid
+  const phoneNumberRemaining = contactNumber.length > 0 && contactNumber.length < 11 ? 11 - contactNumber.length : 0
+
+  const zipCodeValid = zipCode.length === 4
+  const zipCodeRemaining = zipCode.length > 0 && zipCode.length < 4 ? 4 - zipCode.length : 0
+
+  const passwordValid = password.length >= 8
+  const passwordRemaining = password.length > 0 && password.length < 8 ? 8 - password.length : 0
+
+  const emailInvalid = email.length > 0 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -433,7 +449,22 @@ export default function Register() {
                 emptyHint={cityCode ? 'No matches.' : 'Select a Municipality/City first, or type your own.'}
               />
               <Field label="Zip Code" required>
-                <input type="text" required placeholder="6600" value={zipCode} onChange={(e) => setZipCode(e.target.value)} className={inputClass} />
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  required
+                  placeholder="6600"
+                  value={zipCode}
+                  onChange={(e) => setZipCode(e.target.value.replace(/\D/g, ''))}
+                  maxLength={4}
+                  className={inputClass}
+                />
+                {zipCodeRemaining > 0 && (
+                  <p className="mt-1 text-xs text-red-600">
+                    {zipCodeRemaining} more digit{zipCodeRemaining === 1 ? '' : 's'} needed.
+                  </p>
+                )}
+                {zipCodeValid && <p className="mt-1 text-xs text-green-600">Valid zip code.</p>}
               </Field>
             </div>
           </div>
@@ -444,10 +475,31 @@ export default function Register() {
           <SectionHeading number={3} title="Account" />
           <div className="mt-3 space-y-4">
             <Field label="Phone Number" required>
-              <input type="text" required placeholder="09171234567" value={contactNumber} onChange={(e) => setContactNumber(e.target.value)} className={inputClass} />
+              <input
+                type="text"
+                inputMode="numeric"
+                required
+                placeholder="09171234567"
+                value={contactNumber}
+                onChange={(e) => setContactNumber(e.target.value.replace(/\D/g, ''))}
+                maxLength={11}
+                pattern="09[0-9]{9}"
+                title="Philippine mobile number: 11 digits, starting with 09."
+                className={inputClass}
+              />
+              {phoneNumberRemaining > 0 && (
+                <p className="mt-1 text-xs text-red-600">
+                  {phoneNumberRemaining} more digit{phoneNumberRemaining === 1 ? '' : 's'} needed.
+                </p>
+              )}
+              {phoneNumberInvalid && (
+                <p className="mt-1 text-xs text-red-600">Must be 11 digits starting with 09.</p>
+              )}
+              {phoneNumberValid && <p className="mt-1 text-xs text-green-600">Valid mobile number.</p>}
             </Field>
             <Field label="Email" required>
               <input type="email" required placeholder="juan.delacruz@email.com" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} />
+              {emailInvalid && <p className="mt-1 text-xs text-red-600">Enter a valid email address.</p>}
             </Field>
             <Field label="Password" required>
               <div className="relative">
@@ -468,7 +520,14 @@ export default function Register() {
                   {showPassword ? <IconEyeOff className="h-5 w-5" /> : <IconEye className="h-5 w-5" />}
                 </button>
               </div>
-              <p className="mt-1 text-xs text-gray-500">At least 8 characters.</p>
+              {passwordRemaining > 0 ? (
+                <p className="mt-1 text-xs text-red-600">
+                  {passwordRemaining} more character{passwordRemaining === 1 ? '' : 's'} needed.
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-gray-500">At least 8 characters.</p>
+              )}
+              {passwordValid && <p className="mt-1 text-xs text-green-600">Looks good.</p>}
             </Field>
             <Field label="Confirm Password" required>
               <div className="relative">
@@ -512,7 +571,7 @@ export default function Register() {
             {submitting ? 'Creating account...' : 'Create Account'}
           </button>
           <p className="mt-2 text-center text-xs text-gray-500">
-            Your address and ID details are used only to verify discount eligibility — never shared or sold.
+            Your address and ID details are used only to verify discount eligibility never shared or sold.
           </p>
         </div>
 

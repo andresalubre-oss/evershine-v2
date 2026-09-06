@@ -140,6 +140,14 @@ export default function Booking() {
   const fare = searchParams.get('fare')
   const datetime = searchParams.get('datetime')
   const direction = searchParams.get('direction') === 'LIMASAWA_TO_PB' ? 'LIMASAWA_TO_PB' : 'PB_TO_LIMASAWA'
+  // Set by the admin per schedule (Admin dashboard > Add Schedule), carried
+  // through the URL the same way `fare` already is. Falls back to 20% if
+  // missing (e.g. an old bookmarked link from before this existed) so the
+  // preview never breaks. Display only, the server always recalculates the
+  // real charge from the schedule row itself at booking time.
+  const seniorDiscountPercent = Number(searchParams.get('senior_discount') ?? 20)
+  const pwdDiscountPercent = Number(searchParams.get('pwd_discount') ?? 20)
+  const studentDiscountPercent = Number(searchParams.get('student_discount') ?? 20)
 
   const navigate = useNavigate()
   const location = useLocation()
@@ -597,7 +605,13 @@ export default function Booking() {
 
   function estimateFare(p) {
     const base = Number(fare)
-    return p.discount_type !== 'none' ? base * 0.8 : base
+    const percentByType = {
+      senior: seniorDiscountPercent,
+      pwd: pwdDiscountPercent,
+      student: studentDiscountPercent,
+    }
+    const percent = percentByType[p.discount_type]
+    return percent != null ? base * (1 - percent / 100) : base
   }
   const estimatedTotal = passengers.reduce((sum, p) => sum + estimateFare(p), 0)
 
@@ -1197,9 +1211,9 @@ export default function Booking() {
                       <option value="none">None</option>
                       {canUseDiscount && (
                         <option value={customer.discountType}>
-                          {customer.discountType === 'senior' && 'Senior Citizen'}
-                          {customer.discountType === 'pwd' && 'PWD'}
-                          {customer.discountType === 'student' && 'Student'}
+                          {customer.discountType === 'senior' && `Senior Citizen (${seniorDiscountPercent}% off)`}
+                          {customer.discountType === 'pwd' && `PWD (${pwdDiscountPercent}% off)`}
+                          {customer.discountType === 'student' && `Student (${studentDiscountPercent}% off)`}
                           {' (verified)'}
                         </option>
                       )}

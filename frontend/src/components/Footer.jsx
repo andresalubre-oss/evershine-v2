@@ -86,7 +86,13 @@ export default function Footer() {
           <Link to="/privacy-policy" className="hover:text-teal-700 hover:underline">Privacy Policy</Link>
           <span className="text-gray-300">|</span>
           <Link to="/terms-conditions" className="hover:text-teal-700 hover:underline">Terms &amp; Conditions</Link>
+          <span className="text-gray-300">|</span>
+          <Link to="/cookie-policy" className="hover:text-teal-700 hover:underline">Cookie Policy</Link>
         </p>
+      </div>
+      <div className="border-t border-gray-100 py-4">
+         <p className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs text-gray-500">
+           All rights reserved The College of Maasin, BSIT Department, 4th Year Group 9</p>
       </div>
       <div className="border-t border-gray-100 py-4">
          <p className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs text-gray-500">

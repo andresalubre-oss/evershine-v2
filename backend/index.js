@@ -367,6 +367,12 @@ const addScheduleSchema = z.object({
   direction: z.enum(['PB_TO_LIMASAWA', 'LIMASAWA_TO_PB']),
   departure_datetime: z.string().min(1).max(30),
   base_fare: z.coerce.number().positive().max(100000),
+  // Set by the admin alongside the fare itself. Optional on the wire so
+  // existing callers (and the default schema value) still work; each
+  // defaults to 20% to match the flat rate this replaces.
+  senior_discount_percent: z.coerce.number().min(0).max(100).default(20),
+  pwd_discount_percent: z.coerce.number().min(0).max(100).default(20),
+  student_discount_percent: z.coerce.number().min(0).max(100).default(20),
 }).strict();
 
 const idParamSchema = z.object({ id: z.string().uuid() }).strict();
@@ -375,10 +381,19 @@ const idParamSchema = z.object({ id: z.string().uuid() }).strict();
 // Helpers
 // ---------------------------------------------------------------------------
 
-function calculateFare(baseFare, discountType) {
-  const base = Number(baseFare);
-  if (discountType && discountType !== 'none') {
-    return base * 0.8;
+// Discount rate now comes from the schedule itself (set by the admin when
+// the fare was declared) rather than a single flat rate for every type, so
+// this needs the schedule row, not just its base fare.
+function calculateFare(schedule, discountType) {
+  const base = Number(schedule.baseFare);
+  const percentByType = {
+    senior: schedule.seniorDiscountPercent,
+    pwd: schedule.pwdDiscountPercent,
+    student: schedule.studentDiscountPercent,
+  };
+  const percent = percentByType[discountType];
+  if (percent != null) {
+    return base * (1 - Number(percent) / 100);
   }
   return base;
 }
@@ -1034,7 +1049,7 @@ app.post('/api/bookings', writeLimiter, attachCustomerIfPresent, validate(create
   const referenceCode = generateReferenceCode();
   const passengersWithFare = sanitizedPassengers.map((p) => ({
     ...p,
-    fare: calculateFare(schedule.baseFare, p.discount_type),
+    fare: calculateFare(schedule, p.discount_type),
   }));
   const totalFare = passengersWithFare.reduce((sum, p) => sum + p.fare, 0);
 
@@ -1293,13 +1308,19 @@ app.post('/api/admin/ferries', requireAuth, adminLimiter, validate(addFerrySchem
 });
 
 app.post('/api/admin/schedules', requireAuth, adminLimiter, validate(addScheduleSchema), async (req, res) => {
-  const { ferry_id, direction, departure_datetime, base_fare } = req.body;
+  const {
+    ferry_id, direction, departure_datetime, base_fare,
+    senior_discount_percent, pwd_discount_percent, student_discount_percent,
+  } = req.body;
   const schedule = await prisma.schedule.create({
     data: {
       ferryId: ferry_id,
       direction,
       departureDatetime: new Date(departure_datetime),
       baseFare: base_fare,
+      seniorDiscountPercent: senior_discount_percent,
+      pwdDiscountPercent: pwd_discount_percent,
+      studentDiscountPercent: student_discount_percent,
     },
   });
   res.json({ message: 'Schedule created', schedule });

@@ -3,6 +3,7 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import ChatWidget from './ChatWidget.jsx'
+import CookieConsent, { COOKIE_CONSENT_STORAGE_KEY } from './CookieConsent.jsx'
 import Footer from './Footer.jsx'
 
 function IconUser(props) {
@@ -51,6 +52,7 @@ export default function Layout() {
   const [travelInfoOpen, setTravelInfoOpen] = useState(false)
   const [accountMenuOpen, setAccountMenuOpen] = useState(false)
   const [photoUrl, setPhotoUrl] = useState(null)
+  const [showCookieConsent, setShowCookieConsent] = useState(false)
 
   function handleLogout() {
     setAccountMenuOpen(false)
@@ -59,9 +61,29 @@ export default function Layout() {
     navigate('/')
   }
 
+  // Shown once to first-time visitors, then remembered in localStorage so
+  // it doesn't reappear on later visits from the same browser.
   useEffect(() => {
+    const hasAgreed = localStorage.getItem(COOKIE_CONSENT_STORAGE_KEY) === 'agreed'
+    if (!hasAgreed) setShowCookieConsent(true)
+  }, [])
+
+  function handleAgreeToCookies() {
+    localStorage.setItem(COOKIE_CONSENT_STORAGE_KEY, 'agreed')
+    setShowCookieConsent(false)
+  }
+
+  useEffect(() => {
+    // A single fixed threshold (e.g. "solid past 10px") flips back and
+    // forth on every tiny scroll jitter right at that line, which is what
+    // reads as the nav text (Travel Info especially, since it's the widest
+    // element with the most visible color change) blinking on every
+    // scroll. Two thresholds with a gap between them (go solid past 80px,
+    // only go back transparent once above 20px) means a few pixels of
+    // jitter can't cross both boundaries, so the bar settles into one
+    // state instead of flickering.
     function handleScroll() {
-      setScrolled(window.scrollY > 10)
+      setScrolled((prev) => (prev ? window.scrollY > 20 : window.scrollY > 80))
     }
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
@@ -121,19 +143,32 @@ export default function Layout() {
     <div className="flex min-h-screen flex-col bg-gray-50">
       {!isAdminDashboard && (
       <div
-        className={`fixed inset-x-0 top-0 z-50 transition-colors duration-300 ${
+        className={`fixed inset-x-0 top-0 z-50 transition-all duration-500 ease-in-out ${
           navIsSolid ? 'bg-white text-black shadow-md' : 'bg-transparent text-white shadow-none'
         }`}
       >
-        <div className="flex items-center justify-between px-6 py-4">
+        {/* Over the transparent hero photo, the logo (and to a lesser
+            extent the nav text) can disappear into busy backgrounds
+            (foliage, dark water). A soft white gradient across the whole
+            bar gives everything in it a light backdrop to sit on; it
+            fades out once the bar goes solid white on scroll, since it
+            would be redundant there. Kept always mounted (opacity-only
+            toggle) instead of conditionally rendered, so it fades instead
+            of popping in and out. */}
+        <div
+          className={`pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-white/60 to-transparent transition-opacity duration-500 ease-in-out ${
+            navIsSolid ? 'opacity-0' : 'opacity-100'
+          }`}
+        />
+        <div className="flex items-center justify-between px-6 py-5">
           <Link to="/" className="text-xl font-bold" onClick={() => setMenuOpen(false)}>
             <div className="flex items-center gap-2">
-              <img src="/evershine-logo.png" alt="Evershine" className="h-15 w-30" />
+              <img src="/evershine-logo.png" alt="Evershine" className="h-16 w-32" />
             </div>
           </Link>
 
           {/* Desktop nav — hidden by default, shown from md: (768px) up */}
-          <nav className="hidden md:flex md:items-center gap-10 text-sm">
+          <nav className="hidden md:flex md:items-center gap-10 text-base">
             {navLinks.map((link) =>
               link.children ? (
                 // ---- Dropdown item (Travel Info) ----
@@ -145,11 +180,11 @@ export default function Layout() {
                 >
                   <button
                     onClick={() => setTravelInfoOpen(!travelInfoOpen)}
-                    className="flex items-center gap-1 border-b-2 border-transparent pb-1 text-lg font-medium transition-colors hover:border-teal-700"
+                    className="flex items-center gap-1 border-b-2 border-transparent pb-1 text-xl font-medium transition-colors duration-500 ease-in-out hover:border-teal-950"
                   >
                     {link.label}
                     <svg
-                      className={`h-4 w-4 transition-transform ${travelInfoOpen ? 'rotate-180' : ''}`}
+                      className={`h-5 w-5 transition-transform ${travelInfoOpen ? 'rotate-180' : ''}`}
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -159,13 +194,13 @@ export default function Layout() {
                   </button>
 
                   {travelInfoOpen && (
-                    <div className="absolute left-0 top-full w-40 rounded-md border border-gray-200 bg-white py-2 shadow-lg">
+                    <div className="absolute left-0 top-full w-44 rounded-md border border-gray-200 bg-white py-2 shadow-lg">
                       {link.children.map((child) => (
                         <Link
                           key={child.to}
                           to={child.to}
                           onClick={() => setTravelInfoOpen(false)}
-                          className="block px-4 py-2 text-sm text-black hover:bg-gray-100"
+                          className="block px-4 py-2.5 text-base text-black hover:bg-gray-100"
                         >
                           {child.label}
                         </Link>
@@ -178,7 +213,7 @@ export default function Layout() {
                 <Link
                   key={link.to}
                   to={link.to}
-                  className="border-b-2 border-transparent pb-1 text-lg font-medium transition-colors hover:border-teal-700"
+                  className="border-b-2 border-transparent pb-1 text-xl font-medium transition-colors duration-500 ease-in-out hover:border-teal-950"
                 >
                   {link.label}
                 </Link>
@@ -196,27 +231,33 @@ export default function Layout() {
               >
                 <button
                   onClick={() => setAccountMenuOpen((v) => !v)}
-                  className="flex items-center gap-2.5 rounded-md px-1 py-1 hover:bg-gray-50"
+                  className="flex items-center gap-2.5 border-b-2 border-transparent px-1 pb-1 transition-colors duration-500 ease-in-out hover:border-teal-950"
                 >
                   <AccountAvatar photoUrl={photoUrl} name={customer.name} />
                   <span className="text-left leading-tight">
-                    <span className="block text-base font-semibold">Account</span>
-                    <span className="block text-xs font-normal text-gray-500">Mabuhay, {customer.name.split(' ')[0]}</span>
+                    <span className="block text-lg font-semibold">Account</span>
+                    <span
+                      className={`block text-sm font-normal transition-colors duration-500 ease-in-out ${
+                        navIsSolid ? 'text-gray-500' : 'text-white/80'
+                      }`}
+                    >
+                      Mabuhay, {customer.name.split(' ')[0]}
+                    </span>
                   </span>
                 </button>
 
                 {accountMenuOpen && (
-                  <div className="absolute right-0 top-full w-44 rounded-md border border-gray-200 bg-white py-2 shadow-lg">
+                  <div className="absolute right-0 top-full w-48 rounded-md border border-gray-200 bg-white py-2 shadow-lg">
                     <Link
                       to="/account"
                       onClick={() => setAccountMenuOpen(false)}
-                      className="block px-4 py-2 text-sm text-black hover:bg-gray-100"
+                      className="block px-4 py-2.5 text-base text-black hover:bg-gray-100"
                     >
                       My Account
                     </Link>
                     <button
                       onClick={handleLogout}
-                      className="block w-full px-4 py-2 text-left text-sm text-black hover:bg-gray-100"
+                      className="block w-full px-4 py-2.5 text-left text-base text-black hover:bg-gray-100"
                     >
                       Log Out
                     </button>
@@ -225,15 +266,18 @@ export default function Layout() {
               </div>
             ) : (
               <>
-                <Link to="/account/login" className="flex items-center gap-2 rounded-md px-1 hover:bg-gray-50">
-                  <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-600">
-                    <IconUser className="h-5 w-5" />
+                <Link
+                  to="/account/login"
+                  className="flex items-center gap-2 border-b-2 border-transparent px-1 pb-1 transition-colors duration-500 ease-in-out hover:border-teal-950"
+                >
+                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-600">
+                    <IconUser className="h-6 w-6" />
                   </span>
-                  <span className="text-lg font-medium">Log In</span>
+                  <span className="text-xl font-medium">Log In</span>
                 </Link>
                 <Link
                   to="/register"
-                  className="whitespace-nowrap rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal-800"
+                  className="whitespace-nowrap rounded-md bg-teal-700 px-6 py-2.5 text-base font-semibold text-white transition-colors duration-500 ease-in-out hover:bg-teal-800"
                 >
                   Register
                 </Link>
@@ -244,15 +288,15 @@ export default function Layout() {
           {/* Hamburger button — only visible below md: (768px) */}
           <button
             onClick={() => setMenuOpen(!menuOpen)}
-            className="flex h-10 w-10 items-center justify-center rounded-md hover:bg-gray-100 md:hidden"
+            className="flex h-11 w-11 items-center justify-center rounded-md transition-colors duration-500 ease-in-out hover:bg-gray-100 md:hidden"
             aria-label="Toggle menu"
           >
             {menuOpen ? (
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             ) : (
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             )}
@@ -343,7 +387,10 @@ export default function Layout() {
       </main>
 
       {!isAdminDashboard && <Footer />}
-      {!isAdminDashboard && <ChatWidget />}
+      {!isAdminDashboard && <ChatWidget liftedByBanner={showCookieConsent} />}
+      {!isAdminDashboard && (
+        <CookieConsent visible={showCookieConsent} onAgree={handleAgreeToCookies} />
+      )}
     </div>
   )
 }

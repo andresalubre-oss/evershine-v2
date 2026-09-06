@@ -154,6 +154,14 @@ export default function SearchResults() {
       fare: schedule.baseFare,
       datetime: schedule.departureDatetime,
       direction: tripDirection,
+      // Set by the admin per schedule alongside the fare itself (Admin
+      // dashboard > Add Schedule). Carried through here so Booking.jsx can
+      // show an accurate discounted-price preview; the server always
+      // recalculates the real charge from the schedule row itself, so this
+      // is only ever used for display, never trusted as-is.
+      senior_discount: schedule.seniorDiscountPercent,
+      pwd_discount: schedule.pwdDiscountPercent,
+      student_discount: schedule.studentDiscountPercent,
     })
     navigate(`/booking?${params.toString()}`)
   }

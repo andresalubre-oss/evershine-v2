@@ -20,7 +20,7 @@ const PORT_NAMES = {
 // differently. Add/remove entries here to change what rotates through —
 // nothing else needs to change.
 const HERO_SLIDES = [
-  { image: '/hero-2.jpg', position: 'center 30%' },
+  { image: '/hero-8.png', position: 'center 30%' },
   { image: '/hero-6.jpg', position: 'center 70%' },
 ]
 const HERO_SLIDE_INTERVAL_MS = 5000
@@ -59,7 +59,7 @@ const LIMASAWA_HIGHLIGHTS = [
     position: 'center 70%',
   },
   {
-    name: 'Magellan Cross',
+    name: "Magellan's Cross",
     description: "Magellan's Cross in Limasawa is a 20-foot (6.09-meter) commemorative cross located on a hilltop in Barangay Magallanes, Southern Leyte, marking the site where Ferdinand Magellan's expedition planted a cross in 1521.",
     image: '/magellan-cross.jpg',
   },
@@ -590,8 +590,8 @@ export default function Search() {
             />
           ))}
         </div>
-
-        <div className="relative mx-auto max-w-5xl px-4 pt-28 sm:pt-0">
+        
+     <div className="relative mx-auto max-w-5xl px-4 pt-28 sm:pt-0 sm:-mt-50">
           <h1 className="text-5xl font-bold text-white text-center drop-shadow-xl sm:text-7xl">
             Travel to <span className="italic">Limasawa Island</span> with Ease!
           </h1>
@@ -606,11 +606,11 @@ export default function Search() {
             (matching the headline above) instead of capping at max-w-3xl —
             that cap left the card hugging the left edge with a large empty
             gap beside it, since nothing centered the narrower box. */}
-   <div className="relative z-10 mt-6 px-4 pb-10 sm:absolute sm:inset-x-0 sm:bottom-0 sm:mt-0 sm:translate-y-1/2 sm:pb-0">
+   <div className="relative z-10 mt-6 px-4 pb-10 sm:absolute sm:inset-x-0 sm:bottom-0 sm:mt-0 sm:translate-y-1/4 sm:pb-0">
           <div className="mx-auto w-full max-w-5xl">
             <div className="w-full rounded-lg border border-gray-200 bg-white p-4 shadow-xl sm:p-6">
-              <h2 className="text-3xl font-bold text-gray-800 sm:text-4xl">Where's your next adventure?</h2>
-              <p className="mt-1 text-lg text-gray-600">Let's make your next trip one to remember.</p>
+              <h2 className="text-3xl font-bold text-gray-800 sm:text-4xl">Book your tickets now!</h2>
+              <p className="mt-1 text-lg text-gray-600">Explore the crystal clear waters of Limasawa and book your ticket out of the paradise.</p>
 
               <div className="mt-4">
                 <SearchFormFields

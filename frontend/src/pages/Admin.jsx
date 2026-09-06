@@ -412,6 +412,12 @@ export default function Admin() {
   const [scheduleDate, setScheduleDate] = useState('')
   const [scheduleTime, setScheduleTime] = useState('')
   const [scheduleFare, setScheduleFare] = useState('')
+  // Set alongside the fare itself, so a discount rate is always declared at
+  // the same time as the price it applies to. Defaults match the flat 20%
+  // rate this replaces, so leaving them untouched keeps prior behavior.
+  const [scheduleSeniorDiscount, setScheduleSeniorDiscount] = useState('20')
+  const [schedulePwdDiscount, setSchedulePwdDiscount] = useState('20')
+  const [scheduleStudentDiscount, setScheduleStudentDiscount] = useState('20')
   const [scheduleMessage, setScheduleMessage] = useState('')
   const [scheduleError, setScheduleError] = useState(false)
   const [schedules, setSchedules] = useState([])
@@ -505,7 +511,10 @@ export default function Admin() {
   async function addSchedule() {
     setScheduleMessage('')
     setScheduleError(false)
-    if (!scheduleFerryId || !scheduleDate || !scheduleTime || !scheduleFare) {
+    if (
+      !scheduleFerryId || !scheduleDate || !scheduleTime || !scheduleFare
+      || scheduleSeniorDiscount === '' || schedulePwdDiscount === '' || scheduleStudentDiscount === ''
+    ) {
       setScheduleMessage('Please fill in all fields.')
       setScheduleError(true)
       return
@@ -517,6 +526,9 @@ export default function Admin() {
         direction: scheduleDirection,
         departure_datetime,
         base_fare: parseFloat(scheduleFare),
+        senior_discount_percent: parseFloat(scheduleSeniorDiscount),
+        pwd_discount_percent: parseFloat(schedulePwdDiscount),
+        student_discount_percent: parseFloat(scheduleStudentDiscount),
       })
       setScheduleMessage(`Schedule added for ${departure_datetime}.`)
       loadSchedules()
@@ -1383,6 +1395,46 @@ export default function Admin() {
                           className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
                         />
                       </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 dark:text-slate-400">
+                          Discounts (% off this fare)
+                        </label>
+                        <div className="mt-1 grid grid-cols-3 gap-3">
+                          <div>
+                            <label className="block text-xs text-gray-500 dark:text-slate-500">Senior Citizen</label>
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={scheduleSeniorDiscount}
+                              onChange={(e) => setScheduleSeniorDiscount(e.target.value)}
+                              className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 dark:text-slate-500">PWD</label>
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={schedulePwdDiscount}
+                              onChange={(e) => setSchedulePwdDiscount(e.target.value)}
+                              className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 dark:text-slate-500">Student</label>
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={scheduleStudentDiscount}
+                              onChange={(e) => setScheduleStudentDiscount(e.target.value)}
+                              className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                            />
+                          </div>
+                        </div>
+                      </div>
                       <button onClick={addSchedule} className="rounded-md bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800">
                         Add Schedule
                       </button>
@@ -1421,7 +1473,7 @@ export default function Admin() {
                 {schedules.length === 0 ? (
                   <p className="mt-4 text-sm text-gray-500 dark:text-slate-500">No sailings scheduled yet.</p>
                 ) : (
-                  <DataTable headers={['Date/Time', 'Direction', 'Fare', 'Ferry', 'Status']}>
+                  <DataTable headers={['Date/Time', 'Direction', 'Fare', 'Discounts', 'Ferry', 'Status']}>
                     {schedules.map((s) => {
                       const isPast = new Date(s.departureDatetime) < now
                       return (
@@ -1437,6 +1489,9 @@ export default function Admin() {
                           </td>
                           <td className="px-3 py-1.5 text-gray-700 dark:text-slate-300">{directionLabel[s.direction] || s.direction}</td>
                           <td className="px-3 py-1.5 font-medium text-gray-800 dark:text-slate-100">{formatPeso(s.baseFare)}</td>
+                          <td className="px-3 py-1.5 text-xs text-gray-600 dark:text-slate-400">
+                            Senior {s.seniorDiscountPercent}% &middot; PWD {s.pwdDiscountPercent}% &middot; Student {s.studentDiscountPercent}%
+                          </td>
                           <td className="px-3 py-1.5 text-gray-600 dark:text-slate-400">{s.ferry ? `${s.ferry.name} (cap. ${s.ferry.seatCapacity})` : '—'}</td>
                           <td className="px-3 py-1.5">
                             <span

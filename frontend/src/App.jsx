@@ -21,6 +21,7 @@ import FAQs from './pages/FAQs.jsx'
 import RefundCancellation from './pages/RefundCancellation.jsx'
 import PrivacyPolicy from './pages/PrivacyPolicy.jsx'
 import TermsConditions from './pages/TermsConditions.jsx'
+import CookiePolicy from './pages/CookiePolicy.jsx'
 import ContactUs from './pages/ContactUs.jsx'
 
 // React Router doesn't reset scroll position on navigation (unlike a plain
@@ -65,6 +66,7 @@ export default function App() {
         <Route path="/contact-us" element={<ContactUs />} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/terms-conditions" element={<TermsConditions />} />
+        <Route path="/cookie-policy" element={<CookiePolicy />} />
       </Route>
       </Routes>
     </>

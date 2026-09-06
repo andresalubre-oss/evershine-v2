@@ -110,14 +110,21 @@ model Ferry {
 }
 
 model Schedule {
-  id                String    @id @default(uuid())
-  ferryId           String    @map("ferry_id")
-  ferry             Ferry     @relation(fields: [ferryId], references: [id])
-  direction         Direction
-  departureDatetime DateTime  @map("departure_datetime")
-  baseFare          Decimal   @map("base_fare") @db.Decimal(10, 2)
-  createdAt         DateTime  @default(now()) @map("created_at")
-  bookings          Booking[]
+  id                     String    @id @default(uuid())
+  ferryId                String    @map("ferry_id")
+  ferry                  Ferry     @relation(fields: [ferryId], references: [id])
+  direction              Direction
+  departureDatetime      DateTime  @map("departure_datetime")
+  baseFare               Decimal   @map("base_fare") @db.Decimal(10, 2)
+  // Set by the admin alongside the fare itself, at schedule creation. Stored
+  // per schedule (not as a global constant) so a fare change can also carry
+  // a discount change, and older schedules keep whatever rate was in effect
+  // when they were created. Percent off the base fare, e.g. 20.00 = 20% off.
+  seniorDiscountPercent  Decimal   @default(20.00) @map("senior_discount_percent") @db.Decimal(5, 2)
+  pwdDiscountPercent     Decimal   @default(20.00) @map("pwd_discount_percent") @db.Decimal(5, 2)
+  studentDiscountPercent Decimal   @default(20.00) @map("student_discount_percent") @db.Decimal(5, 2)
+  createdAt              DateTime  @default(now()) @map("created_at")
+  bookings               Booking[]
 
   @@map("schedules")
 }
