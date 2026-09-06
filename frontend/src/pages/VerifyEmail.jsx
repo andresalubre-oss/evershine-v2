@@ -3,12 +3,14 @@
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../api.js'
+import { useAuth } from '../context/AuthContext.jsx'
 
 export default function VerifyEmail() {
   const [searchParams] = useSearchParams()
   const token = searchParams.get('token') || ''
   const [status, setStatus] = useState('checking') // 'checking' | 'success' | 'error'
   const [error, setError] = useState('')
+  const { refreshMe } = useAuth()
 
   useEffect(() => {
     if (!token) {
@@ -18,7 +20,15 @@ export default function VerifyEmail() {
     }
     let cancelled = false
     api.verifyEmail(token)
-      .then(() => { if (!cancelled) setStatus('success') })
+      .then(async () => {
+        if (cancelled) return
+        // Without this, the customer object cached in AuthContext (loaded
+        // once when the app started) would still show emailVerified: false
+        // for the rest of the session — e.g. still blocking them from
+        // booking — even though the server-side flag just flipped to true.
+        await refreshMe()
+        if (!cancelled) setStatus('success')
+      })
       .catch((err) => {
         if (!cancelled) {
           setStatus('error')
@@ -26,7 +36,7 @@ export default function VerifyEmail() {
         }
       })
     return () => { cancelled = true }
-  }, [token])
+  }, [token, refreshMe])
 
   return (
     <div className="mx-auto max-w-md">

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Link, Outlet, useLocation } from 'react-router-dom'
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { api } from '../api.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import ChatWidget from './ChatWidget.jsx'
 import Footer from './Footer.jsx'
@@ -13,15 +14,50 @@ function IconUser(props) {
   )
 }
 
+function initialsOf(name) {
+  return name.split(' ').filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join('') || '?'
+}
+
+// The nav's Account link shows the customer's real profile photo (the live
+// selfie from Profile Verification — same one shown on the Account
+// dashboard) once they're logged in, instead of a generic person icon.
+// Falls back to a solid initials badge if they haven't submitted one yet.
+function AccountAvatar({ photoUrl, name }) {
+  if (photoUrl) {
+    return (
+      <img
+        src={photoUrl}
+        alt="Your profile photo"
+        className="h-9 w-9 flex-shrink-0 rounded-full border border-gray-200 object-cover"
+      />
+    )
+  }
+  return (
+    <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border border-teal-700 bg-teal-700 text-xs font-bold text-white">
+      {initialsOf(name)}
+    </span>
+  )
+}
+
 export default function Layout() {
-  const { customer } = useAuth()
+  const { customer, logout } = useAuth()
   const location = useLocation()
+  const navigate = useNavigate()
   // The admin dashboard has its own sidebar/Log Out — the customer-facing
   // nav (Book, Refund & Cancellation, Travel Info, etc.) doesn't belong there.
   const isAdminDashboard = location.pathname === '/admin'
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [travelInfoOpen, setTravelInfoOpen] = useState(false)
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false)
+  const [photoUrl, setPhotoUrl] = useState(null)
+
+  function handleLogout() {
+    setAccountMenuOpen(false)
+    setMenuOpen(false)
+    logout()
+    navigate('/')
+  }
 
   useEffect(() => {
     function handleScroll() {
@@ -30,6 +66,28 @@ export default function Layout() {
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
+
+  // Fetched once per login (and re-fetched if the logged-in customer
+  // changes) — same source as the Account dashboard's hero photo.
+  useEffect(() => {
+    if (!customer) {
+      setPhotoUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev)
+        return null
+      })
+      return
+    }
+    let cancelled = false
+    api.getMyPhotoUrl().then((url) => {
+      if (cancelled) return
+      setPhotoUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev)
+        return url
+      })
+    })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customer?.id])
 
   // Items with a `children` array render as a dropdown instead of a plain link.
   // The account/login link is handled separately below (not in this array)
@@ -46,12 +104,27 @@ export default function Layout() {
       ],
     },
     { to: '/manage-booking', label: 'Manage Booking' },
+    { to: '/contact-us', label: 'Contact Us' },
   ]
+
+  // Transparent over the hero photo while at the very top of the Book page
+  // (the only page with a photo directly under the nav), then a solid white
+  // bar with dark text once scrolled. Every other page keeps the solid bar
+  // at all times, since there's nothing but plain page background behind it
+  // there. The mobile dropdown panel also doesn't have its own opaque
+  // background, so opening it forces the solid look too, otherwise its
+  // links would render as white text with nothing behind them.
+  const isBookPage = location.pathname === '/'
+  const navIsSolid = !isBookPage || scrolled || menuOpen
 
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">
       {!isAdminDashboard && (
-      <div className="fixed inset-x-0 top-0 z-50 bg-white text-black shadow-md">
+      <div
+        className={`fixed inset-x-0 top-0 z-50 transition-colors duration-300 ${
+          navIsSolid ? 'bg-white text-black shadow-md' : 'bg-transparent text-white shadow-none'
+        }`}
+      >
         <div className="flex items-center justify-between px-6 py-4">
           <Link to="/" className="text-xl font-bold" onClick={() => setMenuOpen(false)}>
             <div className="flex items-center gap-2">
@@ -112,18 +185,44 @@ export default function Layout() {
               )
             )}
 
-            {/* Account — profile icon + "Account" with a "Mabuhay, {name}" greeting
-                underneath when logged in; a plain icon + "Log In" otherwise. */}
+            {/* Account — profile photo + "Account" with a "Mabuhay, {name}" greeting
+                underneath when logged in, opening a dropdown with the account link
+                and Log Out; a plain icon + "Log In" otherwise. */}
             {customer ? (
-              <Link to="/account" className="flex items-center gap-2.5 rounded-md px-1 hover:bg-gray-50">
-                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-teal-50 text-teal-700">
-                  <IconUser className="h-5 w-5" />
-                </span>
-                <span className="text-left leading-tight">
-                  <span className="block text-base font-semibold">Account</span>
-                  <span className="block text-xs font-normal text-gray-500">Mabuhay, {customer.name.split(' ')[0]}</span>
-                </span>
-              </Link>
+              <div
+                className="relative -mb-3 pb-3"
+                onMouseEnter={() => setAccountMenuOpen(true)}
+                onMouseLeave={() => setAccountMenuOpen(false)}
+              >
+                <button
+                  onClick={() => setAccountMenuOpen((v) => !v)}
+                  className="flex items-center gap-2.5 rounded-md px-1 py-1 hover:bg-gray-50"
+                >
+                  <AccountAvatar photoUrl={photoUrl} name={customer.name} />
+                  <span className="text-left leading-tight">
+                    <span className="block text-base font-semibold">Account</span>
+                    <span className="block text-xs font-normal text-gray-500">Mabuhay, {customer.name.split(' ')[0]}</span>
+                  </span>
+                </button>
+
+                {accountMenuOpen && (
+                  <div className="absolute right-0 top-full w-44 rounded-md border border-gray-200 bg-white py-2 shadow-lg">
+                    <Link
+                      to="/account"
+                      onClick={() => setAccountMenuOpen(false)}
+                      className="block px-4 py-2 text-sm text-black hover:bg-gray-100"
+                    >
+                      My Account
+                    </Link>
+                    <button
+                      onClick={handleLogout}
+                      className="block w-full px-4 py-2 text-left text-sm text-black hover:bg-gray-100"
+                    >
+                      Log Out
+                    </button>
+                  </div>
+                )}
+              </div>
             ) : (
               <>
                 <Link to="/account/login" className="flex items-center gap-2 rounded-md px-1 hover:bg-gray-50">
@@ -193,21 +292,26 @@ export default function Layout() {
               )
             )}
 
-            {/* Account — same icon treatment as desktop, stacked into the mobile list. */}
+            {/* Account — same photo treatment as desktop, plus a Log Out item
+                stacked right below it (the mobile panel is already a fully
+                expanded list, so there's no need for a separate dropdown here). */}
             {customer ? (
-              <Link
-                to="/account"
-                onClick={() => setMenuOpen(false)}
-                className="flex items-center gap-2.5 rounded-md px-3 py-2 hover:bg-gray-100"
-              >
-                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-teal-50 text-teal-700">
-                  <IconUser className="h-5 w-5" />
-                </span>
-                <span className="text-left leading-tight">
-                  <span className="block font-semibold">Account</span>
-                  <span className="block text-xs font-normal text-gray-500">Mabuhay, {customer.name.split(' ')[0]}</span>
-                </span>
-              </Link>
+              <>
+                <Link
+                  to="/account"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center gap-2.5 rounded-md px-3 py-2 hover:bg-gray-100"
+                >
+                  <AccountAvatar photoUrl={photoUrl} name={customer.name} />
+                  <span className="text-left leading-tight">
+                    <span className="block font-semibold">Account</span>
+                    <span className="block text-xs font-normal text-gray-500">Mabuhay, {customer.name.split(' ')[0]}</span>
+                  </span>
+                </Link>
+                <button onClick={handleLogout} className="rounded-md px-3 py-2 text-left font-medium hover:bg-gray-100">
+                  Log Out
+                </button>
+              </>
             ) : (
               <>
                 <Link

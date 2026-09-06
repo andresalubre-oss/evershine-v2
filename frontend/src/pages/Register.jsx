@@ -371,7 +371,7 @@ export default function Register() {
               <input type="text" value={middleName} onChange={(e) => setMiddleName(e.target.value)} className={inputClass} />
             </Field>
             <Field label="Suffix">
-              <input type="text" placeholder="e.g. Jr., III" value={suffix} onChange={(e) => setSuffix(e.target.value)} className={inputClass} />
+              <input type="text" placeholder="Jr., III" value={suffix} onChange={(e) => setSuffix(e.target.value)} className={inputClass} />
             </Field>
           </div>
         </section>
@@ -433,7 +433,7 @@ export default function Register() {
                 emptyHint={cityCode ? 'No matches.' : 'Select a Municipality/City first, or type your own.'}
               />
               <Field label="Zip Code" required>
-                <input type="text" required placeholder="e.g. 6600" value={zipCode} onChange={(e) => setZipCode(e.target.value)} className={inputClass} />
+                <input type="text" required placeholder="6600" value={zipCode} onChange={(e) => setZipCode(e.target.value)} className={inputClass} />
               </Field>
             </div>
           </div>
@@ -444,7 +444,7 @@ export default function Register() {
           <SectionHeading number={3} title="Account" />
           <div className="mt-3 space-y-4">
             <Field label="Phone Number" required>
-              <input type="text" required placeholder="e.g. 09171234567" value={contactNumber} onChange={(e) => setContactNumber(e.target.value)} className={inputClass} />
+              <input type="text" required placeholder="09171234567" value={contactNumber} onChange={(e) => setContactNumber(e.target.value)} className={inputClass} />
             </Field>
             <Field label="Email" required>
               <input type="email" required placeholder="juan.delacruz@email.com" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} />

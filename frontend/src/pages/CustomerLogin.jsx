@@ -39,6 +39,11 @@ function IconSpinner(props) {
   )
 }
 
+// Background photo for the full-bleed hero behind the login card. Swap this
+// for any other photo already in frontend/public/ — nothing else needs to
+// change.
+const HERO_IMAGE = '/hero-6.jpg'
+
 export default function CustomerLogin() {
   const navigate = useNavigate()
   const { login } = useAuth()
@@ -64,68 +69,83 @@ export default function CustomerLogin() {
   }
 
   return (
-    <div className="mx-auto max-w-md">
-      <h1 className="text-2xl font-bold text-gray-800">Log In</h1>
-      <p className="mt-1 text-sm text-gray-600">Log in to manage your bookings and discounts.</p>
+    // Full-bleed photo hero — same left-1/2/-mt-28/-ml-[50vw]/w-screen trick
+    // used on the Book page to break out of the centered <main> column and
+    // cancel Layout's pt-28 nav clearance, then re-add breathing room via
+    // this section's own py. The login card sits centered in the middle of
+    // the photo (flex items-center), not straddling its bottom edge like the
+    // Book page's search card.
+    <div
+      className="relative left-1/2 -mt-28 -ml-[50vw] flex w-screen items-center justify-center bg-cover bg-center px-4 py-28 sm:py-36"
+      style={{ backgroundImage: `url(${HERO_IMAGE})` }}
+    >
+      <div className="absolute inset-0 bg-black/20" />
 
-      <form
-        onSubmit={handleSubmit}
-        className="mt-6 space-y-4 rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
-      >
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Email</label>
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Password</label>
-          <div className="relative">
-            <input
-              type={showPassword ? 'text' : 'password'}
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 pr-10"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword((v) => !v)}
-              className="absolute inset-y-0 right-0 mt-1 flex items-center px-3 text-gray-400 hover:text-gray-600"
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
-            >
-              {showPassword ? <IconEyeOff className="h-5 w-5" /> : <IconEye className="h-5 w-5" />}
-            </button>
-          </div>
-        </div>
-
-        {error && (
-          <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            <IconAlert className="mt-0.5 h-4 w-4 flex-shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
-
-        <button
-          type="submit"
-          disabled={submitting}
-          className="flex w-full items-center justify-center gap-2 rounded-md bg-teal-700 px-5 py-2 font-medium text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {submitting && <IconSpinner className="h-4 w-4 animate-spin" />}
-          {submitting ? 'Logging in...' : 'Log In'}
-        </button>
-
-        <p className="text-center text-sm text-gray-600">
-          Don't have an account?{' '}
-          <Link to="/register" className="text-teal-700 hover:underline">
-            Register
-          </Link>
+      <div className="relative w-full max-w-lg">
+        <h1 className="text-3xl font-bold text-white drop-shadow sm:text-4xl">Log In</h1>
+        <p className="mt-2 text-base text-white/90 drop-shadow sm:text-lg">
+         Manage your bookings and discounts.
         </p>
-      </form>
+
+        <form
+          onSubmit={handleSubmit}
+          className="mt-6 space-y-5 rounded-lg border border-gray-200 bg-white p-6 shadow-xl sm:p-8"
+        >
+          <div>
+            <label className="block text-base font-medium text-gray-700">Email</label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="mt-1.5 w-full rounded-md border border-gray-300 px-3 py-2.5 text-base"
+            />
+          </div>
+          <div>
+            <label className="block text-base font-medium text-gray-700">Password</label>
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="mt-1.5 w-full rounded-md border border-gray-300 px-3 py-2.5 pr-10 text-base"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute inset-y-0 right-0 mt-1.5 flex items-center px-3 text-gray-400 hover:text-gray-600"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <IconEyeOff className="h-5 w-5" /> : <IconEye className="h-5 w-5" />}
+              </button>
+            </div>
+          </div>
+
+          {error && (
+            <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-base text-red-700">
+              <IconAlert className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="flex w-full items-center justify-center gap-2 rounded-md bg-teal-700 px-6 py-3 text-base font-medium text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {submitting && <IconSpinner className="h-4 w-4 animate-spin" />}
+            {submitting ? 'Logging in...' : 'Log In'}
+          </button>
+
+          <p className="text-center text-base text-gray-600">
+            Don't have an account?{' '}
+            <Link to="/register" className="text-teal-700 hover:underline">
+              Register
+            </Link>
+          </p>
+        </form>
+      </div>
     </div>
   )
 }

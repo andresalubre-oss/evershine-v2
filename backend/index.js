@@ -24,7 +24,7 @@ const prisma = require('./lib/prisma');
 const { requireAuth, requireAdminOrSetup } = require('./middleware/auth');
 const validate = require('./middleware/validate');
 const paymongo = require('./lib/paymongo');
-const { sendVerificationEmail } = require('./lib/email');
+const { sendVerificationEmail, sendGuestVerificationCode, sendContactMessage } = require('./lib/email');
 
 const app = express();
 app.disable('x-powered-by');
@@ -154,6 +154,28 @@ const adminLimiter = rateLimit({
   message: { error: 'Too many requests. Please slow down and try again shortly.' },
 });
 
+// Keyed by the target email (not just IP) so someone can't get around the
+// limit by switching networks, and so one IP can't be used to spam a bunch
+// of different strangers' inboxes with codes either.
+const guestCodeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => (req.body?.email || '').trim().toLowerCase() || ipKeyGenerator(req.ip),
+  message: { error: 'Too many verification codes requested for this email. Please wait 15 minutes and try again.' },
+});
+
+// Keyed by IP only (there's no account/email to scope it to) — just there
+// to stop the public Contact Us form from being used to spam an inbox.
+const contactLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many messages sent. Please wait a while and try again.' },
+});
+
 app.use('/api', publicLimiter);
 
 // ---------------------------------------------------------------------------
@@ -239,8 +261,19 @@ const discountRequestSchema = z.object({
   discount_type: z.enum(['senior', 'pwd', 'student']),
 }).strict();
 
+// Mirrors registerSchema's name/address fields — a customer can revise
+// anything they filled in at signup, from the same Account dashboard where
+// they can now also see all of it displayed back to them.
 const updateProfileSchema = z.object({
-  name: z.string().trim().min(1).max(100),
+  first_name: z.string().trim().min(1).max(100),
+  middle_name: z.string().trim().max(100).optional().or(z.literal('')),
+  last_name: z.string().trim().min(1).max(100),
+  suffix: z.string().trim().max(20).optional().or(z.literal('')),
+  barangay: z.string().trim().min(1).max(150),
+  city_municipality: z.string().trim().min(1).max(150),
+  province: z.string().trim().min(1).max(150),
+  zip_code: z.string().trim().min(1).max(20),
+  region: z.string().trim().min(1).max(150),
   contact_number: z.string().trim().max(30).optional().or(z.literal('')),
 }).strict();
 
@@ -280,6 +313,25 @@ const createBookingSchema = z.object({
   contact_email: z.string().trim().email().max(255),
   contact_number: z.string().trim().max(30),
   passengers: z.array(passengerSchema).min(1).max(10),
+  // Only present for guest checkout (no logged-in customer) — proves
+  // contact_email was verified via a one-time code. Checked in the route
+  // itself, not here; the schema just needs to allow the field through.
+  guest_verification_token: z.string().trim().min(1).max(2000).optional(),
+}).strict();
+
+const guestSendCodeSchema = z.object({
+  email: z.string().trim().email().max(255),
+}).strict();
+
+const contactMessageSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  email: z.string().trim().email().max(255),
+  message: z.string().trim().min(1, 'Please enter a message.').max(2000),
+}).strict();
+
+const guestVerifyCodeSchema = z.object({
+  email: z.string().trim().email().max(255),
+  code: z.string().trim().regex(/^\d{6}$/, 'Code must be 6 digits'),
 }).strict();
 
 const refCodeField = z.string().trim().regex(/^EB[A-Z0-9]{6}$/, 'Invalid reference code format');
@@ -422,11 +474,21 @@ function publicCustomer(customer) {
     discountStatus: isDiscountExpired(customer) ? 'expired' : customer.discountStatus,
     discountVerifiedUntil: customer.discountVerifiedUntil,
     emailVerified: customer.emailVerified,
+    // Exposed so the Account dashboard can show "Member since" — this is
+    // read-only account metadata, not something the customer can edit.
+    createdAt: customer.createdAt,
   };
 }
 
 function generateEmailVerificationToken() {
   return crypto.randomBytes(32).toString('hex');
+}
+
+// crypto.randomInt is cryptographically random (unlike Math.random) but
+// still gives a plain 6-digit number a guest can type back in, unlike the
+// long hex token above which is only ever clicked as part of a link.
+function generateSixDigitCode() {
+  return crypto.randomInt(0, 1000000).toString().padStart(6, '0');
 }
 
 // Requires a valid customer token — used for routes only a logged-in
@@ -589,6 +651,19 @@ app.post('/api/admin/logout', requireAuth, adminLimiter, async (req, res) => {
   res.json({ message: 'Logged out.' });
 });
 
+// Powers the admin dashboard sidebar (name/email shown at the bottom). This
+// route didn't exist before even though the frontend was already calling
+// it — every request 404'd, silently, so the sidebar never actually showed
+// the signed-in admin's name/email.
+app.get('/api/admin/me', requireAuth, adminLimiter, async (req, res) => {
+  const admin = await prisma.admin.findUnique({
+    where: { id: req.admin.id },
+    select: { id: true, email: true, name: true, twoFactorEnabled: true },
+  });
+  if (!admin) return res.status(404).json({ error: 'Admin not found' });
+  res.json(admin);
+});
+
 // ---------------------------------------------------------------------------
 // Customer accounts — registration, login, profile, discount verification.
 //
@@ -722,21 +797,24 @@ app.get('/api/customer/me/photo', requireCustomerAuth, async (req, res) => {
 });
 
 app.patch('/api/customer/me', requireCustomerAuth, writeLimiter, validate(updateProfileSchema), async (req, res) => {
-  const { name, contact_number } = req.body;
-  // The Account dashboard's Edit Profile form still edits one "Name" field
-  // (that page hasn't been revised to the structured name yet), so this
-  // splits it best-effort on the first space. Revisit once that page is
-  // rebuilt to edit firstName/middleName/lastName/suffix directly.
-  const trimmed = name.trim();
-  const spaceIndex = trimmed.indexOf(' ');
-  const firstName = spaceIndex === -1 ? trimmed : trimmed.slice(0, spaceIndex);
-  const lastName = spaceIndex === -1 ? trimmed : trimmed.slice(spaceIndex + 1).trim() || trimmed;
+  const {
+    first_name, middle_name, last_name, suffix,
+    barangay, city_municipality, province, zip_code, region,
+    contact_number,
+  } = req.body;
 
   const customer = await prisma.customer.update({
     where: { id: req.customerId },
     data: {
-      firstName,
-      lastName,
+      firstName: first_name,
+      middleName: middle_name || null,
+      lastName: last_name,
+      suffix: suffix || null,
+      barangay,
+      cityMunicipality: city_municipality,
+      province,
+      zipCode: zip_code,
+      region,
       contactNumber: contact_number || undefined, // contactNumber is required — skip the update if left blank
     },
   });
@@ -821,10 +899,80 @@ app.get('/api/schedules', validate(schedulesQuerySchema, 'query'), async (req, r
 
 // ---------------------------------------------------------------------------
 // Guest bookings (no login required, no seat selection)
+//
+// Guest checkout has no account, so there's no persistent "verified" flag to
+// check the way logged-in customers have. Instead the email is verified
+// live, right before booking: a 6-digit code is emailed to it, and
+// confirming that code back returns a short-lived JWT scoped to that exact
+// address, which the frontend then attaches to the actual booking request.
 // ---------------------------------------------------------------------------
 
+app.post('/api/guest/send-code', guestCodeLimiter, validate(guestSendCodeSchema), async (req, res) => {
+  const { email } = req.body;
+  const code = generateSixDigitCode();
+  const codeHash = await bcrypt.hash(code, 10);
+
+  // Old, unverified codes for this email are irrelevant once a new one is
+  // issued — only the latest should be checkable.
+  await prisma.guestEmailVerification.deleteMany({ where: { email, verified: false } });
+  await prisma.guestEmailVerification.create({
+    data: { email, codeHash, expiresAt: new Date(Date.now() + 10 * 60 * 1000) },
+  });
+
+  try {
+    await sendGuestVerificationCode(email, code);
+  } catch (err) {
+    console.error('Failed to send guest verification code:', err);
+    return res.status(502).json({ error: "Couldn't send the verification email. Please try again shortly." });
+  }
+
+  res.json({ message: 'Verification code sent — check your inbox.' });
+});
+
+app.post('/api/guest/verify-code', guestCodeLimiter, validate(guestVerifyCodeSchema), async (req, res) => {
+  const { email, code } = req.body;
+
+  const record = await prisma.guestEmailVerification.findFirst({
+    where: { email, verified: false },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (!record || record.expiresAt < new Date()) {
+    return res.status(400).json({ error: 'This code has expired. Request a new one.' });
+  }
+  if (record.attempts >= 5) {
+    return res.status(400).json({ error: 'Too many incorrect attempts. Request a new code.' });
+  }
+
+  const matches = await bcrypt.compare(code, record.codeHash);
+  if (!matches) {
+    await prisma.guestEmailVerification.update({ where: { id: record.id }, data: { attempts: { increment: 1 } } });
+    return res.status(400).json({ error: 'Incorrect code. Please try again.' });
+  }
+
+  await prisma.guestEmailVerification.update({ where: { id: record.id }, data: { verified: true } });
+
+  // Short-lived and scoped to exactly this email — POST /api/bookings checks
+  // both the role and that the email matches before trusting it.
+  const token = jwt.sign({ email, role: 'guest_verified' }, process.env.JWT_SECRET, { expiresIn: '30m' });
+  res.json({ message: 'Email verified.', token });
+});
+
+// Contact Us page submission — delivered straight to support's inbox via
+// Resend (reply-to set to the visitor's own address), so visitors never have
+// to leave the site or open their own email app to reach us.
+app.post('/api/contact', contactLimiter, validate(contactMessageSchema), async (req, res) => {
+  const { name, email, message } = req.body;
+  try {
+    await sendContactMessage({ name, email, message });
+  } catch (err) {
+    console.error('Failed to send contact message:', err);
+    return res.status(502).json({ error: "Couldn't send your message. Please try again shortly." });
+  }
+  res.json({ message: "Message sent — we'll get back to you soon." });
+});
+
 app.post('/api/bookings', writeLimiter, attachCustomerIfPresent, validate(createBookingSchema), async (req, res) => {
-  const { schedule_id, contact_email, contact_number, passengers } = req.body;
+  const { schedule_id, contact_email, contact_number, passengers, guest_verification_token } = req.body;
 
   const schedule = await prisma.schedule.findUnique({ where: { id: schedule_id } });
   if (!schedule) {
@@ -834,14 +982,48 @@ app.post('/api/bookings', writeLimiter, attachCustomerIfPresent, validate(create
     return res.status(400).json({ error: 'This trip has already departed and can no longer be booked.' });
   }
 
-  // Server-side discount enforcement — never trust discount_type from the
-  // client. It only survives if the booker is logged in with a verified
-  // profile, and only for the discount type that profile was verified for.
+  // Email verification enforcement — a logged-in customer's account works
+  // immediately even before its email is verified, and guest checkout has no
+  // account at all, so neither path required proving you actually own the
+  // email address. A made-up address worked just as well as a real one
+  // either way. This is the actual enforcement point for both, plus the
+  // usual server-side discount enforcement for logged-in bookers (never
+  // trust discount_type from the client — it only survives if the booker is
+  // logged in with a verified profile, for the discount type that profile
+  // was verified for).
   let allowedDiscountType = null;
   if (req.customerId) {
+    // Logged in: block on the account's own emailVerified flag (set once,
+    // via the link sent at registration).
     const customer = await prisma.customer.findUnique({ where: { id: req.customerId } });
+    if (customer && !customer.emailVerified) {
+      return res.status(403).json({
+        error: 'Please verify your email before booking. Check your inbox for the verification link, or resend it from your account page.',
+        code: 'EMAIL_NOT_VERIFIED',
+      });
+    }
     if (customer && customer.discountStatus === 'verified' && !isDiscountExpired(customer)) {
       allowedDiscountType = customer.discountType;
+    }
+  } else {
+    // Guest: block unless they completed the one-time-code flow for this
+    // exact email and are presenting the token it issued. Re-verifies the
+    // token here rather than trusting a prior /guest/verify-code response
+    // blindly — the token could be stale, for a different email, or forged.
+    let guestPayload = null;
+    try {
+      guestPayload = guest_verification_token && jwt.verify(guest_verification_token, process.env.JWT_SECRET);
+    } catch {
+      guestPayload = null;
+    }
+    const verified = guestPayload
+      && guestPayload.role === 'guest_verified'
+      && guestPayload.email.toLowerCase() === contact_email.toLowerCase();
+    if (!verified) {
+      return res.status(403).json({
+        error: 'Please verify your email before booking as a guest.',
+        code: 'EMAIL_NOT_VERIFIED',
+      });
     }
   }
   const sanitizedPassengers = passengers.map((p) => ({

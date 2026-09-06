@@ -1,7 +1,7 @@
 // Save as: frontend/src/pages/Account.jsx
 
 import { useState, useEffect, useRef } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate, Link } from 'react-router-dom'
 import { api } from '../api.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import { PORT_NAMES } from '../lib/portUtils.js'
@@ -25,93 +25,6 @@ function StatusBadge({ status }) {
 
 function formatPeso(amount) {
   return `₱${Number(amount).toLocaleString('en-US', { maximumFractionDigits: 0 })}`
-}
-
-function initialsOf(name) {
-  return name.split(' ').filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join('') || '?'
-}
-
-// --- Icons (simple, dependency-free inline SVGs — same approach as Admin.jsx) --
-
-function IconCompass(props) {
-  return (
-    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="12" cy="12" r="9" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15.5 8.5l-2.2 5.2-5.2 2.2 2.2-5.2z" />
-    </svg>
-  )
-}
-function IconSearch(props) {
-  return (
-    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="11" cy="11" r="7" />
-      <path strokeLinecap="round" d="M21 21l-4.35-4.35" />
-    </svg>
-  )
-}
-function IconUser(props) {
-  return (
-    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="12" cy="8" r="4" />
-      <path strokeLinecap="round" d="M4 21c1.5-4.5 5-6 8-6s6.5 1.5 8 6" />
-    </svg>
-  )
-}
-function IconTag(props) {
-  return (
-    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4 4h7l9 9-7 7-9-9V4z" />
-      <circle cx="8.5" cy="8.5" r="1.3" fill="currentColor" stroke="none" />
-    </svg>
-  )
-}
-function IconTicket(props) {
-  return (
-    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4 8a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 000 4v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2a2 2 0 000-4V8z" />
-      <path strokeLinecap="round" d="M14 6v12" strokeDasharray="2 3" />
-    </svg>
-  )
-}
-function IconUpload(props) {
-  return (
-    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 16V4m0 0L7 9m5-5l5 5" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
-    </svg>
-  )
-}
-function IconImage(props) {
-  return (
-    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <rect x="3" y="4" width="18" height="16" rx="2" />
-      <circle cx="9" cy="10" r="1.5" fill="currentColor" stroke="none" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M21 16l-5.5-5.5a1.5 1.5 0 00-2.12 0L4 19" />
-    </svg>
-  )
-}
-function IconX(props) {
-  return (
-    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M18 6L6 18M6 6l12 12" />
-    </svg>
-  )
-}
-function IconAlertTriangle(props) {
-  return (
-    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M10.3 3.9L1.9 18a1.5 1.5 0 001.3 2.3h17.6a1.5 1.5 0 001.3-2.3L13.7 3.9a1.5 1.5 0 00-2.6 0z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4M12 16.5v.01" />
-    </svg>
-  )
-}
-function IconCamera(props) {
-  return (
-    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4 8a2 2 0 012-2h1.5l1-1.5h7l1 1.5H18a2 2 0 012 2v9a2 2 0 01-2 2H6a2 2 0 01-2-2V8z" />
-      <circle cx="12" cy="13" r="3.5" />
-    </svg>
-  )
 }
 
 // Live camera-only capture (no gallery upload) — used for the mandatory
@@ -194,11 +107,11 @@ function SelfieCapture({ file, onChange }) {
 
   if (file && previewUrl) {
     return (
-      <div className="mt-1.5 overflow-hidden rounded-md border border-gray-200">
+      <div className="mt-1.5 overflow-hidden rounded-md border border-gray-300">
         <img src={previewUrl} alt="Captured selfie" className="aspect-[4/3] w-full object-cover" />
-        <div className="flex items-center justify-between bg-gray-50 px-3 py-2">
-          <span className="text-xs font-medium text-teal-700">Selfie captured</span>
-          <button type="button" onClick={retake} className="text-xs font-medium text-gray-600 hover:underline">
+        <div className="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-3 py-2">
+          <span className="text-xs font-medium text-gray-700">Selfie captured</span>
+          <button type="button" onClick={retake} className="text-xs font-medium text-teal-700 hover:underline">
             Retake
           </button>
         </div>
@@ -207,156 +120,130 @@ function SelfieCapture({ file, onChange }) {
   }
 
   return (
-    <div className="mt-1.5 overflow-hidden rounded-md border-2 border-dashed border-gray-300">
+    <div className="mt-1.5 overflow-hidden rounded-md border border-dashed border-gray-300">
       {active ? (
         <div className="relative bg-black">
           <video ref={videoRef} muted playsInline className="aspect-[4/3] w-full scale-x-[-1] object-cover" />
-          <button
-            type="button"
-            onClick={capture}
-            className="absolute inset-x-0 bottom-3 mx-auto flex w-max items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-gray-800 shadow-lg hover:bg-gray-100"
-          >
-            <span className="h-3 w-3 rounded-full bg-red-600" /> Capture
-          </button>
+          <div className="border-t border-gray-700 bg-black p-2 text-center">
+            <button
+              type="button"
+              onClick={capture}
+              className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-100"
+            >
+              Capture Photo
+            </button>
+          </div>
         </div>
       ) : (
         <button
           type="button"
           onClick={startCamera}
-          className="flex w-full flex-col items-center justify-center gap-1.5 px-4 py-6 text-center transition-colors hover:border-teal-400 hover:bg-teal-50/40"
+          className="flex w-full flex-col items-center justify-center gap-1.5 px-4 py-6 text-center transition-colors hover:border-teal-400 hover:bg-teal-50"
         >
-          <IconCamera className="h-6 w-6 text-gray-400" />
           <span className="text-sm font-medium text-teal-700">Turn on camera to take a live selfie</span>
-          <span className="text-xs text-gray-400">Required for verification — camera only, no gallery uploads</span>
+          <span className="text-xs text-gray-500">Required for verification — camera only, no gallery uploads</span>
         </button>
       )}
       <canvas ref={canvasRef} className="hidden" />
-      {error && <p className="px-3 pb-3 pt-2 text-xs text-red-600">{error}</p>}
+      {error && <p className="border-t border-gray-200 px-3 pb-3 pt-2 text-xs text-red-600">{error}</p>}
     </div>
   )
 }
 
-// Small heading treatment reused across every card so the page reads as one
-// coherent system instead of five differently-styled boxes.
-function CardHeading({ icon: Icon, accent = 'teal', children, action }) {
-  const styles = {
-    teal: 'bg-teal-50 text-teal-700',
-    purple: 'bg-purple-50 text-purple-700',
-    blue: 'bg-blue-50 text-blue-700',
-  }
+// Plain typographic heading reused across every card so the page reads as
+// one coherent system instead of five differently-styled boxes.
+function CardHeading({ children, action }) {
   return (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-3">
-        <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full ${styles[accent]}`}>
-          <Icon className="h-[18px] w-[18px]" />
-        </span>
-        <h2 className="text-base font-semibold text-gray-800">{children}</h2>
-      </div>
+    <div className="flex items-center justify-between border-b-2 border-gray-100 pb-3">
+      <h2 className="text-base font-semibold text-gray-800">{children}</h2>
       {action}
     </div>
   )
 }
 
-// Editable name/contact number — email stays fixed since it's the login identifier.
-function ProfileCard({ customer, onSaved }) {
-  const [editing, setEditing] = useState(false)
-  const [name, setName] = useState(customer.name)
-  const [contactNumber, setContactNumber] = useState(customer.contactNumber || '')
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
+// customer.name (from the backend) is first + last only, kept as a fallback
+// for older cached data. The full legal name — with middle name and suffix
+// — is composed here from the separate structured fields for display.
+function fullLegalName(customer) {
+  return [customer.firstName, customer.middleName, customer.lastName, customer.suffix].filter(Boolean).join(' ')
+}
 
-  function startEditing() {
-    setName(customer.name)
-    setContactNumber(customer.contactNumber || '')
-    setError('')
-    setEditing(true)
-  }
+function fullAddress(customer) {
+  const parts = [customer.barangay, customer.cityMunicipality, customer.province, customer.region].filter(Boolean)
+  const line = parts.join(', ')
+  return customer.zipCode ? `${line} ${customer.zipCode}` : line
+}
 
-  async function save() {
-    if (!name.trim()) {
-      setError('Name is required.')
-      return
-    }
-    setError('')
-    setSaving(true)
-    try {
-      await api.updateProfile({ name: name.trim(), contact_number: contactNumber.trim() })
-      await onSaved()
-      setEditing(false)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setSaving(false)
-    }
-  }
+function formatDate(value) {
+  if (!value) return null
+  return new Date(value).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+}
 
+// Read-only summary of everything on the account — editing happens on its
+// own dedicated page (EditProfile.jsx) rather than inline here, since the
+// full name + address form is long enough to deserve its own screen instead
+// of expanding awkwardly inside this card.
+function ProfileCard({ customer }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+    <div className="rounded-xl border border-l-4 border-gray-200 border-l-teal-700 bg-white p-6">
       <CardHeading
-        icon={IconUser}
         action={
-          !editing && (
-            <button onClick={startEditing} className="text-sm font-semibold text-teal-700 hover:underline">
-              Edit
-            </button>
-          )
+          <Link to="/account/edit" className="text-sm font-semibold text-teal-700 hover:underline">
+            Edit
+          </Link>
         }
       >
         Profile
       </CardHeading>
 
-      {editing ? (
-        <div className="mt-5 space-y-4">
-          <div>
-            <label className="block text-xs font-medium uppercase tracking-wide text-gray-500">Name</label>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="mt-1.5 w-full rounded-md border border-gray-300 px-3 py-2.5 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium uppercase tracking-wide text-gray-500">Contact Number</label>
-            <input
-              value={contactNumber}
-              onChange={(e) => setContactNumber(e.target.value)}
-              placeholder="e.g. 0917 123 4567"
-              className="mt-1.5 w-full rounded-md border border-gray-300 px-3 py-2.5 text-sm"
-            />
-          </div>
-          <p className="text-xs text-gray-400">Email ({customer.email}) can't be changed here.</p>
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          <div className="flex gap-2 pt-1">
-            <button
-              onClick={save}
-              disabled={saving}
-              className="rounded-md bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800 disabled:opacity-50"
-            >
-              {saving ? 'Saving...' : 'Save'}
-            </button>
-            <button onClick={() => setEditing(false)} className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">
-              Cancel
-            </button>
-          </div>
+      <div className="mt-5 space-y-4">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Full Name</p>
+          <p className="mt-0.5 text-sm font-medium text-gray-800">{fullLegalName(customer) || customer.name}</p>
         </div>
-      ) : (
-        <div className="mt-5 space-y-4">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Name</p>
-            <p className="mt-0.5 text-sm font-medium text-gray-800">{customer.name}</p>
-          </div>
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Email</p>
-            <p className="mt-0.5 text-sm font-medium text-gray-800">{customer.email}</p>
-          </div>
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Contact</p>
-            <p className="mt-0.5 text-sm font-medium text-gray-800">
-              {customer.contactNumber || <span className="font-normal text-gray-400">Not set</span>}
-            </p>
-          </div>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Email</p>
+          <p className="mt-0.5 text-sm font-medium text-gray-800">
+            {customer.email}{' '}
+            <span className={`ml-1 text-xs font-normal ${customer.emailVerified ? 'text-teal-700' : 'text-amber-700'}`}>
+              ({customer.emailVerified ? 'Verified' : 'Not verified'})
+            </span>
+          </p>
         </div>
-      )}
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Contact Number</p>
+          <p className="mt-0.5 text-sm font-medium text-gray-800">
+            {customer.contactNumber || <span className="font-normal text-gray-400">Not set</span>}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Address</p>
+          <p className="mt-0.5 text-sm font-medium text-gray-800">
+            {fullAddress(customer) || <span className="font-normal text-gray-400">Not set</span>}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Discount Eligibility</p>
+          <p className="mt-0.5 text-sm font-medium capitalize text-gray-800">
+            {customer.discountType === 'none' ? (
+              <span className="font-normal capitalize text-gray-400">None on file</span>
+            ) : (
+              <>
+                {customer.discountType} &middot; <span className="capitalize">{customer.discountStatus.replace('_', ' ')}</span>
+                {customer.discountStatus === 'verified' && customer.discountVerifiedUntil && (
+                  <span className="font-normal normal-case text-gray-500"> (valid until {formatDate(customer.discountVerifiedUntil)})</span>
+                )}
+              </>
+            )}
+          </p>
+        </div>
+        {formatDate(customer.createdAt) && (
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Member Since</p>
+            <p className="mt-0.5 text-sm font-medium text-gray-800">{formatDate(customer.createdAt)}</p>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -370,10 +257,7 @@ function IdUploadField({ label, hint, file, onChange }) {
       <label className="mt-4 block text-xs font-medium uppercase tracking-wide text-gray-500">{label}</label>
       {hint && <p className="mt-0.5 text-xs text-gray-400">{hint}</p>}
       {file ? (
-        <div className="mt-1.5 flex items-center gap-3 rounded-md border border-gray-200 bg-gray-50 p-3">
-          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-teal-50 text-teal-700">
-            <IconImage className="h-5 w-5" />
-          </span>
+        <div className="mt-1.5 flex items-center gap-3 rounded-md border border-gray-300 bg-gray-50 p-3">
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-gray-800">{file.name}</p>
             <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(0)} KB</p>
@@ -381,17 +265,15 @@ function IdUploadField({ label, hint, file, onChange }) {
           <button
             type="button"
             onClick={() => onChange(null)}
-            aria-label={`Remove ${label.toLowerCase()}`}
-            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-gray-400 hover:bg-gray-200 hover:text-gray-600"
+            className="flex-shrink-0 text-xs font-medium text-gray-600 hover:text-red-600 hover:underline"
           >
-            <IconX className="h-4 w-4" />
+            Remove
           </button>
         </div>
       ) : (
-        <label className="mt-1.5 flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-md border-2 border-dashed border-gray-300 px-4 py-6 text-center transition-colors hover:border-teal-400 hover:bg-teal-50/40">
-          <IconUpload className="h-6 w-6 text-gray-400" />
+        <label className="mt-1.5 flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-md border border-dashed border-gray-300 px-4 py-6 text-center transition-colors hover:border-teal-400 hover:bg-teal-50">
           <span className="text-sm font-medium text-teal-700">Click to upload {label.toLowerCase()}</span>
-          <span className="text-xs text-gray-400">JPG or PNG</span>
+          <span className="text-xs text-gray-500">JPG or PNG</span>
           <input
             type="file"
             accept="image/*"
@@ -465,10 +347,8 @@ function ProfileVerificationCard({ customer, onUpdated }) {
   }
 
   return (
-    <div id="profile-verification" className="scroll-mt-24 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-      <CardHeading icon={IconTag} accent="purple">
-        Profile Verification
-      </CardHeading>
+    <div id="profile-verification" className="scroll-mt-24 rounded-xl border border-l-4 border-gray-200 border-l-amber-600 bg-white p-6">
+      <CardHeading>Profile Verification</CardHeading>
 
       <div className={`mt-4 rounded-lg border p-4 text-sm ${statusStyles[customer.discountStatus] || statusStyles.none}`}>
         {customer.discountStatus === 'verified' && (
@@ -551,18 +431,15 @@ function BookingHistoryCard() {
   }, [])
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-      <CardHeading icon={IconTicket} accent="blue">
-        My Bookings
-      </CardHeading>
+    <div className="rounded-xl border border-l-4 border-gray-200 border-l-blue-600 bg-white p-6">
+      <CardHeading>My Bookings</CardHeading>
 
       {loading && <p className="mt-5 text-sm text-gray-500">Loading your bookings...</p>}
       {error && <p className="mt-5 text-sm text-red-600">{error}</p>}
 
       {!loading && !error && bookings.length === 0 && (
-        <div className="mt-5 flex flex-col items-center rounded-lg border border-dashed border-gray-200 py-10 text-center">
-          <IconTicket className="h-8 w-8 text-gray-300" />
-          <p className="mt-3 text-sm text-gray-500">No bookings yet under this account.</p>
+        <div className="mt-5 rounded-lg border border-dashed border-gray-300 py-10 text-center">
+          <p className="text-sm text-gray-500">No bookings yet under this account.</p>
           <p className="mt-1 text-xs text-gray-400">Bookings you make while logged in will show up here.</p>
         </div>
       )}
@@ -572,7 +449,11 @@ function BookingHistoryCard() {
           {bookings.map((b) => {
             const ports = PORT_NAMES[b.schedule?.direction] || { from: '', to: '' }
             return (
-              <div key={b.id} className="rounded-lg border border-gray-200 p-4 transition-colors hover:border-teal-200 hover:bg-teal-50/30">
+              <Link
+                key={b.id}
+                to={`/manage-booking?reference_code=${encodeURIComponent(b.referenceCode)}&contact_email=${encodeURIComponent(b.contactEmail)}`}
+                className="block rounded-lg border border-gray-200 p-4 transition-colors hover:border-teal-300 hover:bg-teal-50"
+              >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="font-semibold text-gray-800">
@@ -593,7 +474,10 @@ function BookingHistoryCard() {
                   <span>{b.passengers?.length || 0} passenger{b.passengers?.length === 1 ? '' : 's'}</span>
                   <span className="ml-auto text-base font-semibold text-gray-800">{formatPeso(b.totalFare)}</span>
                 </div>
-              </div>
+                <div className="mt-3 border-t border-gray-100 pt-2.5 text-right text-sm font-medium text-teal-700">
+                  View details &rarr;
+                </div>
+              </Link>
             )
           })}
         </div>
@@ -603,17 +487,9 @@ function BookingHistoryCard() {
 }
 
 export default function Account() {
-  const { customer, loading, logout, refreshMe } = useAuth()
+  const { customer, loading, refreshMe } = useAuth()
   const navigate = useNavigate()
 
-  // The live selfie from Profile Verification doubles as the account's
-  // permanent profile photo. Fetched separately from `customer` (it's a
-  // file, not a JSON field) and re-fetched after a new verification is
-  // submitted, so a fresh photo replaces the old one right away. Hooks must
-  // run unconditionally on every render, so this — and its effect — sits
-  // above the `loading`/`!customer` early returns below, guarding on
-  // `customer` internally instead of being skipped by them.
-  const [photoUrl, setPhotoUrl] = useState(null)
   const [resendingVerification, setResendingVerification] = useState(false)
   const [resendMessage, setResendMessage] = useState('')
 
@@ -630,80 +506,27 @@ export default function Account() {
     }
   }
 
-  async function reloadPhoto() {
-    const url = await api.getMyPhotoUrl()
-    setPhotoUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev)
-      return url
-    })
-  }
-
-  useEffect(() => {
-    if (!customer) return
-    let cancelled = false
-    api.getMyPhotoUrl().then((url) => { if (!cancelled) setPhotoUrl(url) })
-    return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customer?.id])
-
   if (loading) return <p className="text-gray-500">Loading...</p>
   if (!customer) return <Navigate to="/account/login" replace />
 
-  function handleLogout() {
-    logout()
-    navigate('/')
-  }
-
   async function handleVerificationUpdated() {
     await refreshMe()
-    await reloadPhoto()
   }
 
   return (
     <div>
-      {/* Hero banner — gives the dashboard a real visual anchor instead of
-          starting straight into gray boxes. */}
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-gradient-to-r from-teal-700 to-teal-600 p-6 text-white shadow-sm sm:p-8">
-        <div className="flex items-center gap-4">
-          {photoUrl ? (
-            <img
-              src={photoUrl}
-              alt="Your profile photo"
-              className="h-14 w-14 flex-shrink-0 rounded-full object-cover ring-2 ring-white/30"
-            />
-          ) : (
-            <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-white/15 text-lg font-bold ring-2 ring-white/30">
-              {initialsOf(customer.name)}
-            </div>
-          )}
-          <div>
-            <h1 className="text-xl font-bold sm:text-2xl">Welcome back, {customer.name.split(' ')[0]}</h1>
-            <p className="text-sm text-teal-50">{customer.email}</p>
-          </div>
-        </div>
-        <button
-          onClick={handleLogout}
-          className="rounded-md border border-white/40 bg-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/20"
-        >
-          Log out
-        </button>
-      </div>
-
       {/* Unverified-email notice — separate from Profile Verification below.
           This just confirms the customer controls their inbox; it doesn't
           block login or booking. */}
       {!customer.emailVerified && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <div className="flex items-center gap-2.5">
-            <IconAlertTriangle className="h-5 w-5 flex-shrink-0 text-amber-600" />
-            <span>Please verify your email address. Check your inbox at {customer.email} for a link.</span>
-          </div>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <span><strong>Action needed:</strong> Please verify your email address. Check your inbox at {customer.email} for a link.</span>
           <div className="flex flex-shrink-0 items-center gap-2">
-            {resendMessage && <span className="text-xs text-amber-700">{resendMessage}</span>}
+            {resendMessage && <span className="text-xs text-amber-800">{resendMessage}</span>}
             <button
               onClick={handleResendVerification}
               disabled={resendingVerification}
-              className="whitespace-nowrap rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
+              className="whitespace-nowrap rounded-md border border-amber-700 bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800 disabled:opacity-50"
             >
               {resendingVerification ? 'Sending...' : 'Resend Email'}
             </button>
@@ -716,59 +539,53 @@ export default function Account() {
           Silent for 'pending' (already submitted, nothing to do) and
           'verified' (nothing to warn about). */}
       {['none', 'rejected', 'expired'].includes(customer.discountStatus) && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <div className="flex items-center gap-2.5">
-            <IconAlertTriangle className="h-5 w-5 flex-shrink-0 text-amber-600" />
-            <span>
-              {customer.discountStatus === 'rejected'
-                ? "Your Profile Verification wasn't approved. Submit again to become eligible for a discount."
-                : customer.discountStatus === 'expired'
-                ? 'Your Profile Verification has expired. Renew it to keep your discount eligibility.'
-                : "Your profile isn't verified yet. Verify it to unlock Senior, PWD, or Student discounts."}
-            </span>
-          </div>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <span>
+            <strong>Action needed:</strong>{' '}
+            {customer.discountStatus === 'rejected'
+              ? "Your Profile Verification wasn't approved. Submit again to become eligible for a discount."
+              : customer.discountStatus === 'expired'
+              ? 'Your Profile Verification has expired. Renew it to keep your discount eligibility.'
+              : "Your profile isn't verified yet. Verify it to unlock Senior, PWD, or Student discounts."}
+          </span>
           <a
             href="#profile-verification"
-            className="flex-shrink-0 whitespace-nowrap rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700"
+            className="flex-shrink-0 whitespace-nowrap rounded-md border border-amber-700 bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800"
           >
             Verify Now
           </a>
         </div>
       )}
 
-      {/* Quick actions */}
+      {/* Quick actions — both styled identically (solid teal) so neither
+          reads as the "active" or default choice; a plain solid fill on
+          both avoids the earlier problem where only one looked selected. */}
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <button
           onClick={() => navigate('/')}
-          className="flex items-center gap-4 rounded-xl border border-teal-200 bg-teal-50 p-5 text-left transition-colors hover:bg-teal-100"
+          className="flex items-center justify-between rounded-xl border border-teal-700 bg-teal-700 p-5 text-left text-white transition-colors hover:bg-teal-800"
         >
-          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-teal-600 text-white">
-            <IconCompass className="h-5 w-5" />
-          </span>
           <div className="min-w-0">
-            <p className="font-semibold text-teal-800">Book a New Trip</p>
-            <p className="text-xs text-teal-700">Search sailings to Limasawa or Padre Burgos</p>
+            <p className="font-semibold">Book a New Trip</p>
+            <p className="mt-0.5 text-xs text-teal-100">Search sailings to Limasawa or Padre Burgos</p>
           </div>
-          <span className="ml-auto text-lg text-teal-600">&rarr;</span>
+          <span className="ml-4 flex-shrink-0 text-lg">&rarr;</span>
         </button>
         <button
           onClick={() => navigate('/manage-booking')}
-          className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 text-left shadow-sm transition-colors hover:bg-gray-50"
+          className="flex items-center justify-between rounded-xl border border-teal-700 bg-teal-700 p-5 text-left text-white transition-colors hover:bg-teal-800"
         >
-          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-600">
-            <IconSearch className="h-5 w-5" />
-          </span>
           <div className="min-w-0">
-            <p className="font-semibold text-gray-800">Manage a Booking</p>
-            <p className="text-xs text-gray-500">Look up any booking by reference code</p>
+            <p className="font-semibold">Manage a Booking</p>
+            <p className="mt-0.5 text-xs text-teal-100">Look up any booking by reference code</p>
           </div>
-          <span className="ml-auto text-lg text-gray-400">&rarr;</span>
+          <span className="ml-4 flex-shrink-0 text-lg">&rarr;</span>
         </button>
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-1">
-          <ProfileCard customer={customer} onSaved={refreshMe} />
+          <ProfileCard customer={customer} />
           <ProfileVerificationCard customer={customer} onUpdated={handleVerificationUpdated} />
         </div>
         <div className="lg:col-span-2">

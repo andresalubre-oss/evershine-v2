@@ -14,7 +14,13 @@ async function request(path, options = {}) {
   const response = await fetch(`${BASE}${path}`, options)
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
-    throw new Error(data.error || 'Something went wrong.')
+    const err = new Error(data.error || 'Something went wrong.')
+    // Some errors (e.g. booking blocked by an unverified email) carry a
+    // machine-readable `code` so a page can react specifically — like
+    // showing a "Resend verification email" button — instead of just
+    // displaying the message text.
+    err.code = data.code
+    throw err
   }
   return data
 }
@@ -86,12 +92,38 @@ export const api = {
 
   // Attaches the customer's token if they're logged in (so the backend can
   // check whether their profile is discount-verified), but works fine
-  // without one too — guests can still book.
+  // without one too — guests can still book, as long as `payload` includes
+  // a valid guest_verification_token from verifyGuestCode below.
   createBooking: (payload) =>
     request('/bookings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...customerAuthHeaders() },
       body: JSON.stringify(payload),
+    }),
+
+  // Guest checkout's email verification — no account, so this is a live,
+  // one-time code rather than a background flag like customers get.
+  sendGuestCode: (email) =>
+    request('/guest/send-code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    }),
+
+  verifyGuestCode: (email, code) =>
+    request('/guest/verify-code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, code }),
+    }),
+
+  // Contact Us page — delivered server-side via Resend, so submitting stays
+  // on the page instead of kicking the visitor out to their email app.
+  sendContactMessage: (name, email, message) =>
+    request('/contact', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, message }),
     }),
 
   register: (payload) =>

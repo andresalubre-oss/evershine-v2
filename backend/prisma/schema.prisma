@@ -192,6 +192,26 @@ model Payment {
   @@map("payments")
 }
 
+// Guest checkout has no account, so there's nothing persistent to mark
+// "verified" the way Customer.emailVerified works. Instead this holds a
+// short-lived one-time code sent to whatever email a guest enters at
+// checkout, proving they actually control that inbox before a booking under
+// it is allowed to go through. Rows are effectively disposable — expired or
+// used ones just accumulate until cleaned up; there's no need to keep them
+// long-term.
+model GuestEmailVerification {
+  id        String   @id @default(uuid())
+  email     String
+  codeHash  String   @map("code_hash")
+  attempts  Int      @default(0)
+  verified  Boolean  @default(false)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([email])
+  @@map("guest_email_verifications")
+}
+
 model AdminAuditLog {
   id        String   @id @default(uuid())
   adminId   String?  @map("admin_id")

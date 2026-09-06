@@ -99,7 +99,7 @@ export default function ManifestPrint() {
       {/* Document header */}
       <div className="flex items-start justify-between gap-4 border-b-2 border-gray-900 pb-4">
         <div className="flex items-center gap-2.5">
-          <img src="/EVERSHINE LOGO.png" alt="Evershine" className="h-11 w-auto" />
+          <img src="/evershine-logo.png" alt="Evershine" className="h-11 w-auto" />
           <div>
             <p className="text-base font-bold leading-tight">Evershine Booking</p>
             <p className="text-xs leading-tight text-gray-500">Padre Burgos &harr; Limasawa</p>

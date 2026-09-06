@@ -1,11 +1,12 @@
-// Save as: frontend/src/pages/TicketPolicies.jsx
+const AD_BANNER_IMAGE = '/welcome-ticket.png'
 
 const CLAUSES = [
   {
+    
     title: 'Validity of Your Ticket',
     body: `A booking is valid only for the specific sailing, date, and passengers named on it. It cannot be
       transferred to another person or used on a different trip. If a ticket is lost, we're unable to reissue
-      or refund it — keep your reference code and confirmation email safe. Requests to revalidate or refund a
+      or refund it keep your reference code and confirmation email safe. Requests to revalidate or refund a
       ticket must be made within 6 months of the original booking date.`,
   },
   {
@@ -23,7 +24,7 @@ const CLAUSES = [
   {
     title: 'Baggage Allowance',
     body: `Each passenger may bring hand-carried baggage limited to personal items only. As a guide, keep bags
-      to around 10 kg and a size that comfortably fits in the overhead or under-seat storage — oversized cargo,
+      to around 10 kg and a size that comfortably fits in the overhead or under-seat storage oversized cargo,
       construction materials, or bulk commercial goods should be arranged with the terminal ahead of time and
       may involve extra handling. Our liability for loss or damage to hand-carried or checked baggage is limited
       to the amount set under applicable Philippine maritime transport regulations, unless a higher value was
@@ -38,7 +39,7 @@ const CLAUSES = [
   {
     title: 'Right to Refuse Boarding',
     body: `For the safety of everyone aboard, we may decline boarding to passengers who appear seriously ill,
-      show signs of a contagious condition, or — depending on sea conditions and vessel type — passengers who
+      show signs of a contagious condition, or depending on sea conditions and vessel type passengers who
       are visibly pregnant. Where possible, staff will explain the reason and help you rebook.`,
   },
   {
@@ -55,8 +56,8 @@ const CLAUSES = [
   {
     title: 'Delays & Trip Cancellations',
     body: `We are not liable for meals, accommodation, or other costs a passenger incurs because of a delayed or
-      cancelled sailing. When a trip cannot push through — most often due to weather advisories from PAGASA or
-      the Philippine Coast Guard — we will offer either a seat on the next available sailing to the same
+      cancelled sailing. When a trip cannot push through most often due to weather advisories from PAGASA or
+      the Philippine Coast Guard we will offer either a seat on the next available sailing to the same
       destination or a refund of the ticket's value.`,
   },
   {
@@ -78,27 +79,36 @@ const CLAUSES = [
 
 export default function TicketPolicies() {
   return (
-    <div className="mx-auto max-w-3xl">
-      <h1 className="text-2xl font-bold text-gray-800">Ticket Policies</h1>
-      <p className="mt-1 text-sm text-gray-600">
+    <div className="mx-auto max-w-5xl">
+      {AD_BANNER_IMAGE && (
+  <div className="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
+    <img
+      src={AD_BANNER_IMAGE}
+      alt="Promotion"
+      className="aspect-[3/1] w-full object-cover"
+    />
+  </div>
+)}
+      <h1 className="text-4xl font-bold text-gray-800">Ticket Policies</h1>
+      <p className="mt-1 text-lg text-gray-600">
         These are the terms and conditions that apply to every ticket booked through Evershine Booking for
         travel between Padre Burgos and Limasawa.
       </p>
 
       <div className="mt-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
-        <ol className="space-y-6">
+        <ol className="space-y-7">
           {CLAUSES.map((clause, i) => (
-            <li key={clause.title} className="border-t border-gray-100 pt-6 first:border-t-0 first:pt-0">
-              <h2 className="text-sm font-semibold text-gray-800">
+            <li key={clause.title} className="border-t border-gray-100 pt-7 first:border-t-0 first:pt-0">
+              <h2 className="text-lg font-semibold text-gray-800">
                 {i + 1}. {clause.title}
               </h2>
-              <p className="mt-1.5 text-sm leading-relaxed text-gray-600">{clause.body}</p>
+              <p className="mt-2 text-lg leading-relaxed text-gray-600">{clause.body}</p>
             </li>
           ))}
         </ol>
       </div>
 
-      <p className="mt-4 text-xs text-gray-400">
+      <p className="mt-4 text-base text-gray-400">
         This page summarizes our ticket terms for general reference. Figures such as baggage weight and liability
         limits should be reviewed against current Philippine maritime transport regulations before publishing.
       </p>

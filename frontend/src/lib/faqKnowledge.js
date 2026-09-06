@@ -11,7 +11,7 @@ export const FAQS = [
     q: 'What do I need to present when boarding?',
     a: `Bring your booking reference code (from your confirmation email) along with a valid government-issued ID
       matching the name on your ticket. If a Senior, PWD, or Student discount is applied, also bring the physical
-      ID you used for Profile Verification — terminal staff may ask to see it.`,
+      ID you used for Profile Verification, since terminal staff may ask to see it.`,
     keywords: ['boarding', 'requirements', 'bring', 'id'],
   },
   {
@@ -21,15 +21,15 @@ export const FAQS = [
     keywords: ['transfer', 'give', 'someone else', 'change name'],
   },
   {
-    q: 'What if I miss my boarding — can I get a refund?',
+    q: 'What if I miss my boarding, can I get a refund?',
     a: `Once check-in has closed or you've missed your sailing, the seat is generally forfeited and isn't
-      eligible for a refund. Cancelling ahead of time through Manage Booking gives you more options — see our
+      eligible for a refund. Cancelling ahead of time through Manage Booking gives you more options; see our
       Refund & Cancellation page for the specific cutoffs.`,
     keywords: ['missed', 'no show', 'late', 'forfeit'],
   },
   {
     q: 'What happens if Evershine cancels or delays the trip?',
-    a: `If we cancel a sailing — most often due to a weather advisory from PAGASA or the Philippine Coast Guard —
+    a: `If we cancel a sailing, most often due to a weather advisory from PAGASA or the Philippine Coast Guard,
       you'll be offered a full refund or a free rebooking to the next available trip. We'll reach out using the
       contact details on your booking.`,
     keywords: ['weather', 'delay', 'cancelled by evershine', 'trip cancelled', 'suspended'],
@@ -37,7 +37,7 @@ export const FAQS = [
   {
     q: 'Do I get a full refund if you cancel the voyage?',
     a: `Yes. If the cancellation is on our end, you're entitled to the full value of your ticket back, or a free
-      seat on the next available sailing — whichever you prefer.`,
+      seat on the next available sailing, whichever you prefer.`,
     keywords: ['full refund', 'company cancelled'],
   },
   {
@@ -54,7 +54,7 @@ export const FAQS = [
   },
   {
     q: 'What is the cancellation policy? Can I cancel my booking?',
-    a: `You can request a cancellation from Manage Booking within 24 hours of making the booking — this window is
+    a: `You can request a cancellation from Manage Booking within 24 hours of making the booking; this window is
       based on when you booked, not how far away departure is. Refunds aren't automatic: your request goes to an
       admin for manual review, and the refund is sent once your reason is verified. See our Refund & Cancellation
       page for the full details.`,
@@ -64,7 +64,7 @@ export const FAQS = [
     q: 'How do I cancel or look up my booking?',
     a: `Go to Manage Booking and enter your reference code plus the email you used at checkout. From there you
       can view your booking details and submit a cancellation request if you're still within 24 hours of when
-      you booked — an admin will review it and process the refund manually.`,
+      you booked; an admin will review it and process the refund manually.`,
     keywords: ['manage booking', 'look up', 'find my booking', 'reference code'],
   },
   {
@@ -87,7 +87,7 @@ export const FAQS = [
   },
   {
     q: 'Are pregnant passengers allowed to board?',
-    a: `In most cases, yes — but given the open-water crossing, we recommend checking with your doctor beforehand
+    a: `In most cases, yes, but given the open-water crossing, we recommend checking with your doctor beforehand
       if you're in your third trimester or have a high-risk pregnancy, and letting terminal staff know when you
       check in.`,
     keywords: ['pregnant', 'pregnancy'],
@@ -95,7 +95,7 @@ export const FAQS = [
   {
     q: 'Can I bring plants, fish, vegetables, or similar items?',
     a: `Generally yes, as long as they're properly packed and don't pose a spill or odor risk to other
-      passengers — these may be subject to a quick inspection at check-in. Live animals require prior
+      passengers; these may be subject to a quick inspection at check-in. Live animals require prior
       arrangement.`,
     keywords: ['plants', 'fish', 'vegetables', 'produce'],
   },
@@ -113,14 +113,14 @@ export const FAQS = [
   },
   {
     q: 'Do I need an account to book a trip?',
-    a: `No — you can book as a guest with just a valid email and contact number. Creating an account just makes
+    a: `No, you can book as a guest with just a valid email and contact number. Creating an account just makes
       it easier to see your booking history and apply for Senior, PWD, or Student discounts.`,
     keywords: ['need an account', 'require account', 'guest checkout'],
   },
   {
     q: 'How do I create an account or register?',
     a: `Click "Register" in the top menu, fill in your name, address, email, phone number, and a password, then
-      submit — you're logged in right away. You can start booking or verifying your profile immediately after.`,
+      submit; you're logged in right away. You can start booking or verifying your profile immediately after.`,
     keywords: ['create account', 'make account', 'make an account', 'sign up', 'how to register', 'new account'],
   },
   {

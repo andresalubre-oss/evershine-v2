@@ -6,6 +6,7 @@
 // message pointing to Travel Info / Contact if nothing scores well enough.
 
 import { useState, useRef, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import { findBestAnswer } from '../lib/faqKnowledge.js'
 
 function IconChat(props) {
@@ -42,6 +43,7 @@ const SUGGESTED = [
 ]
 
 export default function ChatWidget() {
+  const location = useLocation()
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState([{ from: 'bot', text: GREETING }])
   const [input, setInput] = useState('')
@@ -68,8 +70,14 @@ export default function ChatWidget() {
     ask(input)
   }
 
+  // Booking.jsx's summary bar is only pinned to the bottom of the screen on
+  // a wide viewport (sm: and up) — on mobile it scrolls with the page like
+  // everything else. So the chat bubble only needs to float higher there
+  // too, on sm: and up; on mobile it can stay at the usual spot.
+  const isBookingPage = location.pathname === '/booking'
+
   return (
-    <div className="fixed bottom-5 right-5 z-50">
+    <div className={`fixed bottom-5 right-5 z-50 ${isBookingPage ? 'sm:bottom-24' : ''}`}>
       {open && (
         <div className="mb-3 flex h-[28rem] w-80 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
           <div className="flex flex-shrink-0 items-center justify-between bg-teal-700 px-4 py-3 text-white">

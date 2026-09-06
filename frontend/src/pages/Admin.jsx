@@ -30,35 +30,30 @@ function Card({ title, children, className = '' }) {
   )
 }
 
-// Compact, data-dense KPI tile: a colored accent bar instead of a large icon
+// Compact, data-dense KPI tile: a teal accent bar instead of a large icon
 // circle, a small icon for quick scanning, and an optional `hint` line for
-// context (trend vs. last month, a secondary count, etc). A plain <div> when
-// there's nothing to click through to, or a real <button> (with a
-// highlighted ring when `active`) when `onClick` is provided so a tab like
-// Analytics can use these as toggles for a details panel.
-function StatCard({ label, value, icon: Icon, accent = 'teal', onClick, active = false, hint }) {
-  const accentBar = {
-    teal: 'bg-teal-600',
-    amber: 'bg-amber-500',
-    blue: 'bg-blue-600',
-    purple: 'bg-purple-600',
-  }
-  const iconTone = {
-    teal: 'text-teal-600',
-    amber: 'text-amber-600',
-    blue: 'text-blue-600',
-    purple: 'text-purple-600',
-  }
+// context (trend vs. last month, a secondary count, etc). The bar uses
+// `self-stretch` (not a fixed height) so it always matches the card's own
+// content height exactly, even when a label wraps to two lines — otherwise
+// bars end up visibly different lengths/positions from card to card. Every
+// card uses the same teal accent rather than a different color per card, to
+// keep the row visually consistent. A plain <div> when there's nothing to
+// click through to, or a real <button> (solid teal fill when `active` — same
+// treatment as the Customer Directory's filter tiles, no ring/glow; a plain
+// background tint on hover otherwise, no colored border) when `onClick` is
+// provided so a tab like Analytics can use these as toggles for a details
+// panel.
+function StatCard({ label, value, icon: Icon, onClick, active = false, hint }) {
   const content = (
-    <div className="flex w-full items-start gap-3">
-      <div className={`mt-0.5 h-9 w-1 flex-shrink-0 rounded-full ${accentBar[accent]}`} />
+    <div className="flex w-full gap-3">
+      <div className={`w-1 flex-shrink-0 self-stretch rounded-full ${active ? 'bg-white/50' : 'bg-teal-600'}`} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-[11px] font-semibold uppercase leading-tight tracking-wide text-gray-500 dark:text-slate-500">{label}</p>
-          {Icon && <Icon className={`h-4 w-4 flex-shrink-0 ${iconTone[accent]}`} />}
+          <p className={`text-[11px] font-semibold uppercase leading-tight tracking-wide ${active ? 'text-teal-50' : 'text-gray-500 dark:text-slate-500'}`}>{label}</p>
+          {Icon && <Icon className={`h-4 w-4 flex-shrink-0 ${active ? 'text-teal-50' : 'text-teal-600'}`} />}
         </div>
-        <p className="mt-1 text-2xl font-bold leading-none text-gray-900 dark:text-white">{value}</p>
-        {hint && <p className="mt-1.5 truncate text-xs text-gray-500 dark:text-slate-500">{hint}</p>}
+        <p className={`mt-1 text-2xl font-bold leading-none ${active ? 'text-white' : 'text-gray-900 dark:text-white'}`}>{value}</p>
+        {hint && <p className={`mt-1.5 truncate text-xs ${active ? 'text-teal-50/80' : 'text-gray-500 dark:text-slate-500'}`}>{hint}</p>}
       </div>
     </div>
   )
@@ -69,8 +64,10 @@ function StatCard({ label, value, icon: Icon, accent = 'teal', onClick, active =
     <button
       type="button"
       onClick={onClick}
-      className={`w-full rounded-lg border bg-white dark:bg-slate-900 p-3.5 text-left shadow-sm transition-colors ${
-        active ? 'border-teal-600 ring-1 ring-teal-600' : 'border-gray-200 dark:border-slate-800 hover:border-teal-300 dark:hover:border-teal-500'
+      className={`w-full rounded-lg border p-3.5 text-left shadow-sm transition-colors ${
+        active
+          ? 'border-teal-700 bg-teal-700'
+          : 'border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-gray-50 dark:hover:bg-slate-800/60'
       }`}
     >
       {content}
@@ -339,6 +336,24 @@ export default function Admin() {
     localStorage.setItem('adminSidebarCollapsed', sidebarCollapsed ? '1' : '0')
   }, [sidebarCollapsed])
 
+  // Mobile tab strip has more tabs than fit on a phone screen at once, so it
+  // scrolls horizontally — but a bare `overflow-x-auto` isn't discoverable
+  // (nothing hints there's more to the right, and if a swipe gets missed
+  // there's no other way to get to it). These track scroll position so we
+  // can show/hide explicit left/right buttons instead of relying on swipe.
+  const mobileNavRef = useRef(null)
+  const [mobileNavAtStart, setMobileNavAtStart] = useState(true)
+  const [mobileNavAtEnd, setMobileNavAtEnd] = useState(false)
+  function updateMobileNavScroll() {
+    const el = mobileNavRef.current
+    if (!el) return
+    setMobileNavAtStart(el.scrollLeft <= 4)
+    setMobileNavAtEnd(el.scrollLeft + el.clientWidth >= el.scrollWidth - 4)
+  }
+  useEffect(() => {
+    updateMobileNavScroll()
+  }, [])
+
   // Opt-in dark mode for the dashboard only — off by default so the site's
   // regular light branding is unaffected, remembered per-admin via
   // localStorage. The `.dark` class is applied to this page's own root div
@@ -438,6 +453,7 @@ export default function Admin() {
   const [analyticsTo, setAnalyticsTo] = useState('')     // 'YYYY-MM', '' = no upper bound
   const [expandedStat, setExpandedStat] = useState(null) // which Analytics StatCard's detail panel is open
   const [expandedOverviewStat, setExpandedOverviewStat] = useState(null) // which Overview StatCard's detail panel is open
+  const [showAllActivity, setShowAllActivity] = useState(false) // Recent Activity: false = first 5 only, true = everything
 
   // Two-factor auth is mandatory and managed by IT directly (not
   // self-service from this dashboard) — `adminInfo` is still loaded for the
@@ -711,8 +727,6 @@ export default function Admin() {
     discounts: pendingDiscounts.length,
     refunds: refundRequests.length,
   }
-  const adminInitial = (adminInfo?.name || adminInfo?.email || 'A').trim().charAt(0).toUpperCase()
-
   // Built from records already loaded for other tabs (no extra API calls) —
   // real recent events instead of a placeholder activity feed.
   const activityDotColor = {
@@ -739,7 +753,10 @@ export default function Admin() {
   ]
     .filter((item) => item.date)
     .sort((a, b) => new Date(b.date) - new Date(a.date))
-    .slice(0, 6)
+    // No cap here anymore — the Recent Activity card below shows the first 5
+    // and reveals the rest behind a "Show more" toggle, so this can safely
+    // hold hundreds/thousands of entries without the list overwhelming the
+    // page.
 
   // Extra context surfaced when an Overview StatCard is expanded — all
   // derived from data already loaded for other tabs, no extra API calls.
@@ -811,7 +828,7 @@ export default function Admin() {
           its own compact top bar + horizontal tab strip instead, since a
           fixed full-height rail doesn't work well on a narrow screen. */}
       <aside
-        className={`hidden bg-gradient-to-b from-slate-900 to-slate-950 shadow-xl transition-[width] duration-200 print:hidden sm:fixed sm:inset-y-0 sm:left-0 sm:flex sm:flex-col ${
+        className={`hidden bg-teal-950 shadow-xl transition-[width] duration-200 print:hidden sm:fixed sm:inset-y-0 sm:left-0 sm:flex sm:flex-col ${
           sidebarCollapsed ? 'sm:w-16' : 'sm:w-60'
         }`}
       >
@@ -822,17 +839,9 @@ export default function Admin() {
                   square mark — zoomed/cropped via background-position so just the
                   palm icon fills this square badge instead of squishing the whole
                   thing. White backing keeps it legible against the dark sidebar. */}
-              <div
-                className="h-9 w-9 flex-shrink-0 rounded-lg bg-white shadow-sm"
-                style={{
-                  backgroundImage: "url('/admin-evershine-logo.png')",
-                  backgroundSize: '300% auto',
-                  backgroundPosition: 'left center',
-                  backgroundRepeat: 'no-repeat',
-                }}
-                role="img"
-                aria-label="Evershine"
-              />
+             <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-white shadow-sm">
+  <img src="/admin-evershine-logo.png" alt="Evershine" className="h-7 w-7 object-contain" />
+</div>
               {!sidebarCollapsed && (
                 <div className="min-w-0">
                   <p className="text-[10px] font-semibold uppercase leading-tight tracking-wider text-teal-400">Evershine Booking</p>
@@ -843,7 +852,7 @@ export default function Admin() {
             <div className={`flex items-center gap-1 ${sidebarCollapsed ? 'flex-col' : ''}`}>
               <button
                 onClick={() => setDarkMode((v) => !v)}
-                className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-slate-800 hover:text-white"
+                className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-slate-300 hover:bg-teal-900 hover:text-white"
                 aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
                 title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
               >
@@ -851,7 +860,7 @@ export default function Admin() {
               </button>
               <button
                 onClick={() => setSidebarCollapsed((v) => !v)}
-                className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-slate-800 hover:text-white"
+                className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-slate-300 hover:bg-teal-900 hover:text-white"
                 aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                 title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
               >
@@ -868,11 +877,11 @@ export default function Admin() {
           {TAB_GROUPS.map((group, gi) => (
             <div key={gi}>
               {group.label && !sidebarCollapsed && (
-                <p className="px-3 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                <p className="px-3 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                   {group.label}
                 </p>
               )}
-              {group.label && sidebarCollapsed && <div className="my-2 border-t border-slate-800" />}
+              {group.label && sidebarCollapsed && <div className="my-2 border-t border-teal-900" />}
               {group.ids.map((id) => {
                 const tab = TABS.find((t) => t.id === id)
                 const Icon = tab.icon
@@ -885,16 +894,16 @@ export default function Admin() {
                     title={sidebarCollapsed ? tab.label : undefined}
                     className={`group flex w-full items-center gap-2.5 rounded-md py-2 text-left text-sm font-medium transition-colors ${
                       sidebarCollapsed ? 'justify-center px-0' : 'px-2.5'
-                    } ${active ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800/70 hover:text-white'}`}
+                    } ${active ? 'bg-teal-900 text-white' : 'text-slate-300 hover:bg-teal-900/60 hover:text-white'}`}
                   >
                     <span
                       className={`relative flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md transition-colors ${
-                        active ? 'bg-teal-600 text-white' : 'bg-slate-800/70 text-slate-400 group-hover:text-slate-200'
+                        active ? 'bg-teal-600 text-white' : 'bg-teal-900/50 text-slate-400 group-hover:text-slate-200'
                       }`}
                     >
                       <Icon className="h-4 w-4" />
                       {badge > 0 && (
-                        <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-bold leading-none text-white ring-2 ring-slate-900">
+                        <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-bold leading-none text-white ring-2 ring-teal-950">
                           {badge}
                         </span>
                       )}
@@ -907,26 +916,18 @@ export default function Admin() {
           ))}
         </nav>
 
-        <div className={`border-t border-slate-800 py-4 ${sidebarCollapsed ? 'px-2' : 'px-4'}`}>
-          <div className={`flex items-center gap-2.5 ${sidebarCollapsed ? 'justify-center' : ''}`}>
-            <div
-              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-slate-800 text-xs font-semibold text-teal-300"
-              title={sidebarCollapsed ? adminInfo?.email : undefined}
-            >
-              {adminInitial}
+        <div className={`border-t border-teal-900 py-4 ${sidebarCollapsed ? 'px-2' : 'px-4'}`}>
+          {!sidebarCollapsed && (
+            <div className="rounded-md bg-teal-900/40 px-3 py-2.5" title={adminInfo?.email}>
+              <p className="truncate text-sm font-semibold text-white">{adminInfo?.name || 'Administrator'}</p>
+              <p className="mt-0.5 truncate text-xs text-slate-400">{adminInfo?.email || 'Loading…'}</p>
             </div>
-            {!sidebarCollapsed && adminInfo && (
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-white">{adminInfo.email}</p>
-                <p className="text-xs text-slate-400">Administrator</p>
-              </div>
-            )}
-          </div>
+          )}
           <button
             onClick={logout}
-            title={sidebarCollapsed ? 'Log Out' : undefined}
-            className={`mt-3 flex items-center justify-center gap-2 rounded-md border border-slate-700 py-2 text-sm font-medium text-slate-200 hover:bg-slate-800 ${
-              sidebarCollapsed ? 'mx-auto w-9 px-0' : 'w-full px-3'
+            title={sidebarCollapsed ? (adminInfo?.email ? `Log Out (${adminInfo.email})` : 'Log Out') : undefined}
+            className={`flex items-center justify-center gap-2 rounded-md border border-teal-800 py-2 text-sm font-medium text-slate-200 hover:bg-teal-900 ${
+              sidebarCollapsed ? 'mx-auto mt-2 w-9 px-0' : 'mt-3 w-full px-3'
             }`}
           >
             <IconLogout className="h-4 w-4 flex-shrink-0" />
@@ -966,33 +967,62 @@ export default function Admin() {
         </div>
 
         {/* Mobile-only horizontal tab strip — same tabs as the sidebar nav,
-            just laid out for a narrow screen. */}
-        <nav className="flex gap-1 overflow-x-auto border-b border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 print:hidden sm:hidden">
-          {TABS.map((tab) => {
-            const Icon = tab.icon
-            const active = activeTab === tab.id
-            const badge = tabBadges[tab.id] || 0
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex flex-shrink-0 items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                  active ? 'bg-teal-700 text-white' : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800'
-                }`}
-              >
-                <Icon className="h-4 w-4 flex-shrink-0" />
-                <span className="whitespace-nowrap">{tab.label}</span>
-                {badge > 0 && (
-                  <span className={`flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[9px] font-bold leading-none ${
-                    active ? 'bg-white dark:bg-slate-900/25 text-white' : 'bg-amber-500 text-white'
-                  }`}>
-                    {badge}
-                  </span>
-                )}
-              </button>
-            )
-          })}
-        </nav>
+            just laid out for a narrow screen. Swiping works, but since that's
+            easy to miss, explicit left/right buttons (shown only when
+            there's actually more to scroll to) give a guaranteed way to
+            reach every tab. */}
+        <div className="relative flex items-stretch border-b border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 print:hidden sm:hidden">
+          {!mobileNavAtStart && (
+            <button
+              type="button"
+              onClick={() => mobileNavRef.current?.scrollBy({ left: -150, behavior: 'smooth' })}
+              aria-label="Scroll tabs left"
+              className="flex flex-shrink-0 items-center justify-center border-r border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-1.5 text-gray-500 dark:text-slate-400"
+            >
+              <IconChevron className="h-4 w-4" />
+            </button>
+          )}
+          <nav
+            ref={mobileNavRef}
+            onScroll={updateMobileNavScroll}
+            className="flex flex-1 gap-1 overflow-x-auto px-3 py-2"
+          >
+            {TABS.map((tab) => {
+              const Icon = tab.icon
+              const active = activeTab === tab.id
+              const badge = tabBadges[tab.id] || 0
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex flex-shrink-0 items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                    active ? 'bg-teal-700 text-white' : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <Icon className="h-4 w-4 flex-shrink-0" />
+                  <span className="whitespace-nowrap">{tab.label}</span>
+                  {badge > 0 && (
+                    <span className={`flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[9px] font-bold leading-none ${
+                      active ? 'bg-white dark:bg-slate-900/25 text-white' : 'bg-amber-500 text-white'
+                    }`}>
+                      {badge}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </nav>
+          {!mobileNavAtEnd && (
+            <button
+              type="button"
+              onClick={() => mobileNavRef.current?.scrollBy({ left: 150, behavior: 'smooth' })}
+              aria-label="Scroll tabs right"
+              className="flex flex-shrink-0 items-center justify-center border-l border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-1.5 text-gray-500 dark:text-slate-400"
+            >
+              <IconChevron className="h-4 w-4 rotate-180" />
+            </button>
+          )}
+        </div>
 
         {/* Desktop-only slim title bar for the active section. Identity +
             Log Out now live in the sidebar, so this just orients the admin. */}
@@ -1058,7 +1088,7 @@ export default function Admin() {
               </div>
 
               {expandedOverviewStat && (
-                <Card className="border-teal-200 bg-teal-50/50 dark:border-teal-800 dark:bg-teal-900/20">
+                <Card className="bg-teal-50 dark:bg-teal-900/20">
                   {expandedOverviewStat === 'pending' && (
                     <p className="text-sm text-gray-700 dark:text-slate-300">
                       {pendingDiscounts.length === 0 ? (
@@ -1166,19 +1196,30 @@ export default function Admin() {
                 {recentActivity.length === 0 ? (
                   <p className="text-sm text-gray-500 dark:text-slate-500">Nothing to show yet.</p>
                 ) : (
-                  <ul className="divide-y divide-gray-100 dark:divide-slate-800">
-                    {recentActivity.map((item, i) => (
-                      <li key={i} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
-                        <div className="flex min-w-0 items-center gap-2.5">
-                          <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${activityDotColor[item.type]}`} />
-                          <span className="truncate text-sm text-gray-700 dark:text-slate-300">{item.text}</span>
-                        </div>
-                        <span className="flex-shrink-0 text-xs text-gray-400 dark:text-slate-500">
-                          {formatRelativeTime(item.date)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
+                  <>
+                    <ul className="divide-y divide-gray-100 dark:divide-slate-800">
+                      {(showAllActivity ? recentActivity : recentActivity.slice(0, 5)).map((item, i) => (
+                        <li key={i} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+                          <div className="flex min-w-0 items-center gap-2.5">
+                            <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${activityDotColor[item.type]}`} />
+                            <span className="truncate text-sm text-gray-700 dark:text-slate-300">{item.text}</span>
+                          </div>
+                          <span className="flex-shrink-0 text-xs text-gray-400 dark:text-slate-500">
+                            {formatRelativeTime(item.date)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                    {recentActivity.length > 5 && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAllActivity((v) => !v)}
+                        className="mt-3 w-full rounded-md border border-gray-200 dark:border-slate-800 py-2 text-center text-sm font-medium text-teal-700 dark:text-teal-300 hover:bg-gray-50 dark:hover:bg-slate-800/60"
+                      >
+                        {showAllActivity ? 'Show less' : `Show ${recentActivity.length - 5} more`}
+                      </button>
+                    )}
+                  </>
                 )}
               </Card>
 
@@ -1626,7 +1667,7 @@ export default function Admin() {
                                 )}
                               </div>
 
-                              <div className="mt-4 flex gap-2">
+                              <div className="mt-4 flex flex-wrap gap-2">
                                 <button
                                   onClick={() => verifyDiscount(c.id)}
                                   disabled={!chosenDate}
@@ -2135,7 +2176,7 @@ export default function Admin() {
                               </p>
                               <p className="mt-1 text-xs font-medium text-teal-700 dark:text-teal-300">{isOpen ? 'Hide details' : 'View details'}</p>
                             </div>
-                            <div className="text-right">
+                            <div className="text-left sm:text-right">
                               <span className="whitespace-nowrap rounded-full bg-blue-100 dark:bg-blue-500/15 px-3 py-1 text-xs font-semibold text-blue-700 dark:text-blue-300">
                                 {formatPeso(b.totalFare)} to refund
                               </span>
@@ -2196,7 +2237,7 @@ export default function Admin() {
                             return (
                               <div className="mt-4">
                                 {!openAction && (
-                                  <div className="flex gap-2">
+                                  <div className="flex flex-wrap gap-2">
                                     <button
                                       onClick={() => setOpenRefundAction((prev) => ({ ...prev, [b.id]: 'approve' }))}
                                       disabled={isProcessing}
@@ -2263,7 +2304,7 @@ export default function Admin() {
                                       />
                                       I've sent the ₱{fareStr} refund to the customer's confirmed account.
                                     </label>
-                                    <div className="mt-3 flex gap-2">
+                                    <div className="mt-3 flex flex-wrap gap-2">
                                       <button
                                         onClick={() => markRefunded(b.id)}
                                         disabled={!checked || isProcessing}
@@ -2323,7 +2364,7 @@ export default function Admin() {
                                       />
                                       I've emailed and texted the customer about this decision.
                                     </label>
-                                    <div className="mt-3 flex gap-2">
+                                    <div className="mt-3 flex flex-wrap gap-2">
                                       <button
                                         onClick={() => rejectRefund(b.id)}
                                         disabled={!checked || isProcessing}
@@ -2379,7 +2420,7 @@ export default function Admin() {
                       </option>
                     ))}
                   </select>
-                  <div className="mt-3 flex gap-2">
+                  <div className="mt-3 flex flex-wrap gap-2">
                     <button onClick={loadManifest} className="rounded-md bg-teal-700 px-3.5 py-2 text-sm font-medium text-white hover:bg-teal-800">
                       Generate Manifest
                     </button>
@@ -2484,7 +2525,7 @@ export default function Admin() {
               </div>
 
               {expandedStat && (
-                <Card className="border-teal-200 bg-teal-50/50 dark:border-teal-800 dark:bg-teal-900/20">
+                <Card className="bg-teal-50 dark:bg-teal-900/20">
                   {expandedStat === 'revenue' && (
                     <p className="text-sm text-gray-700 dark:text-slate-300">
                       <b>{formatPeso(totalRevenue)}</b> in confirmed booking fares across <b>{analyticsRangeLabel}</b>
