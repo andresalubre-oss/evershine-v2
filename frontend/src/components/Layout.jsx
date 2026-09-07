@@ -143,7 +143,18 @@ export default function Layout() {
     <div className="flex min-h-screen flex-col bg-gray-50">
       {!isAdminDashboard && (
       <div
-        className={`fixed inset-x-0 top-0 z-50 transition-all duration-500 ease-in-out ${
+        // Only background-color and box-shadow animate here, deliberately
+        // not text color. Animating white text to black passes through gray
+        // partway through, and gray text over a photo with wildly different
+        // brightness in different spots (dark rock vs. bright sky) reads as
+        // legible in some places and nearly invisible in others at that
+        // exact same instant, looking like the words are transitioning at
+        // different speeds even though every one of them is on the same
+        // duration. Leaving color out of the transition list makes it snap
+        // instantly instead, so text is always fully one color or the
+        // other, never a see-through-the-photo gray, while the background
+        // and shadow still fade in smoothly underneath it.
+        className={`fixed inset-x-0 top-0 z-50 transition-[background-color,box-shadow] duration-500 ease-in-out ${
           navIsSolid ? 'bg-white text-black shadow-md' : 'bg-transparent text-white shadow-none'
         }`}
       >
@@ -160,7 +171,22 @@ export default function Layout() {
             navIsSolid ? 'opacity-0' : 'opacity-100'
           }`}
         />
-        <div className="flex items-center justify-between px-6 py-5">
+        {/* The white gradient above lightens whatever's directly behind the
+            bar, which helps a lot over dark rock/foliage but does almost
+            nothing over the already-bright sky, so the same white text can
+            read as crisp in one spot and washed-out a few words later,
+            depending purely on what photo detail happens to sit behind it.
+            A drop-shadow doesn't have that problem: it darkens the edge of
+            the text itself, so it adds contrast the same way everywhere,
+            regardless of background brightness. Applied once here (not
+            per-item) so every child, logo included, gets the identical
+            shadow with zero risk of one item drifting out of sync with the
+            rest, the way separately-set classes could. */}
+        <div
+          className={`flex items-center justify-between px-6 py-5 transition-all duration-500 ease-in-out ${
+            navIsSolid ? '' : 'drop-shadow-md'
+          }`}
+        >
           <Link to="/" className="text-xl font-bold" onClick={() => setMenuOpen(false)}>
             <div className="flex items-center gap-2">
               <img src="/evershine-logo.png" alt="Evershine" className="h-16 w-32" />
@@ -180,7 +206,7 @@ export default function Layout() {
                 >
                   <button
                     onClick={() => setTravelInfoOpen(!travelInfoOpen)}
-                    className="flex items-center gap-1 border-b-2 border-transparent pb-1 text-xl font-medium transition-colors duration-500 ease-in-out hover:border-teal-950"
+                    className="flex items-center gap-1 border-b-2 border-transparent pb-1 text-xl font-medium transition-[border-color] duration-500 ease-in-out hover:border-teal-950"
                   >
                     {link.label}
                     <svg
@@ -213,7 +239,7 @@ export default function Layout() {
                 <Link
                   key={link.to}
                   to={link.to}
-                  className="border-b-2 border-transparent pb-1 text-xl font-medium transition-colors duration-500 ease-in-out hover:border-teal-950"
+                  className="border-b-2 border-transparent pb-1 text-xl font-medium transition-[border-color] duration-500 ease-in-out hover:border-teal-950"
                 >
                   {link.label}
                 </Link>
@@ -231,13 +257,13 @@ export default function Layout() {
               >
                 <button
                   onClick={() => setAccountMenuOpen((v) => !v)}
-                  className="flex items-center gap-2.5 border-b-2 border-transparent px-1 pb-1 transition-colors duration-500 ease-in-out hover:border-teal-950"
+                  className="flex items-center gap-2.5 border-b-2 border-transparent px-1 pb-1 transition-[border-color] duration-500 ease-in-out hover:border-teal-950"
                 >
                   <AccountAvatar photoUrl={photoUrl} name={customer.name} />
                   <span className="text-left leading-tight">
                     <span className="block text-lg font-semibold">Account</span>
                     <span
-                      className={`block text-sm font-normal transition-colors duration-500 ease-in-out ${
+                      className={`block text-sm font-normal ${
                         navIsSolid ? 'text-gray-500' : 'text-white/80'
                       }`}
                     >
@@ -268,7 +294,7 @@ export default function Layout() {
               <>
                 <Link
                   to="/account/login"
-                  className="flex items-center gap-2 border-b-2 border-transparent px-1 pb-1 transition-colors duration-500 ease-in-out hover:border-teal-950"
+                  className="flex items-center gap-2 border-b-2 border-transparent px-1 pb-1 transition-[border-color] duration-500 ease-in-out hover:border-teal-950"
                 >
                   <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-600">
                     <IconUser className="h-6 w-6" />
@@ -288,7 +314,7 @@ export default function Layout() {
           {/* Hamburger button — only visible below md: (768px) */}
           <button
             onClick={() => setMenuOpen(!menuOpen)}
-            className="flex h-11 w-11 items-center justify-center rounded-md transition-colors duration-500 ease-in-out hover:bg-gray-100 md:hidden"
+            className="flex h-11 w-11 items-center justify-center rounded-md transition-[background-color] duration-500 ease-in-out hover:bg-gray-100 md:hidden"
             aria-label="Toggle menu"
           >
             {menuOpen ? (

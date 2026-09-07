@@ -92,30 +92,51 @@ function IconChevron(props) {
 const BANNER_AD_SLIDES = ['/book-now-landscape.png', '/island-lagoon-landscape.png']
 const BANNER_AD_SLIDE_INTERVAL_MS = 6000
 
-function BannerAdSlider() {
+// Portrait ad beside the booking form itself, same size and image set as the
+// one already used on the Manage Booking page (ManageBooking.jsx's AdSlider)
+// so the two match. object-contain in a 4/5 box keeps a designed poster's
+// text/logos from getting cropped.
+const HERO_SIDE_AD_SLIDES = ['/search-dakdak.png', '/search-diving.png', 'search-lagoon.png', 'search-magellan.png']
+const HERO_SIDE_AD_SLIDE_INTERVAL_MS = 6000
+
+// Reusable across multiple spots on the page (each with its own slide list,
+// sizing, and aspect ratio) instead of a single hardcoded instance, so a
+// second slider can reuse this same carousel logic rather than duplicating
+// it. `className` sets the outer wrapper's width/margin, `aspectClassName`
+// sets the slide box's shape, e.g. a fixed landscape ratio for a banner
+// placed inline in the page, or a responsive override that switches to
+// `h-full` on larger screens so it can stretch to match a sibling's height
+// in a flex row instead of keeping a fixed ratio.
+function BannerAdSlider({
+  slides = BANNER_AD_SLIDES,
+  intervalMs = BANNER_AD_SLIDE_INTERVAL_MS,
+  className = 'mx-auto max-w-10xl px-4',
+  aspectClassName = 'aspect-[3/1]',
+}) {
   const [index, setIndex] = useState(0)
 
   useEffect(() => {
+    if (slides.length < 2) return
     const id = setInterval(() => {
-      setIndex((i) => (i + 1) % BANNER_AD_SLIDES.length)
-    }, BANNER_AD_SLIDE_INTERVAL_MS)
+      setIndex((i) => (i + 1) % slides.length)
+    }, intervalMs)
     return () => clearInterval(id)
-  }, [])
+  }, [slides, intervalMs])
 
-  if (BANNER_AD_SLIDES.length === 0) return null
+  if (slides.length === 0) return null
 
   function prev() {
-    setIndex((i) => (i - 1 + BANNER_AD_SLIDES.length) % BANNER_AD_SLIDES.length)
+    setIndex((i) => (i - 1 + slides.length) % slides.length)
   }
   function next() {
-    setIndex((i) => (i + 1) % BANNER_AD_SLIDES.length)
+    setIndex((i) => (i + 1) % slides.length)
   }
 
   return (
-    <div className="mx-auto max-w-10xl px-4">
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div className="relative aspect-[3/1] w-full bg-gray-50">
-          {BANNER_AD_SLIDES.map((src, i) => (
+    <div className={`h-full ${className}`}>
+      <div className="h-full overflow-hidden rounded-xl border border-teal-950 bg-teal-950 shadow-sm">
+        <div className={`relative h-full w-full bg-teal-950 ${aspectClassName}`}>
+          {slides.map((src, i) => (
             <img
               key={src}
               src={src}
@@ -124,7 +145,7 @@ function BannerAdSlider() {
             />
           ))}
 
-          {BANNER_AD_SLIDES.length > 1 && (
+          {slides.length > 1 && (
             <>
               <button
                 type="button"
@@ -144,12 +165,12 @@ function BannerAdSlider() {
               </button>
 
               <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-2">
-                {BANNER_AD_SLIDES.map((src, i) => (
+                {slides.map((src, i) => (
                   <button
                     key={src}
                     type="button"
                     onClick={() => setIndex(i)}
-                    aria-label={`Show promotion ${i + 1} of ${BANNER_AD_SLIDES.length}`}
+                    aria-label={`Show promotion ${i + 1} of ${slides.length}`}
                     className={`h-2 w-2 rounded-full transition-colors ${i === index ? 'bg-teal-700' : 'bg-gray-300'}`}
                   />
                 ))}
@@ -602,30 +623,49 @@ export default function Search() {
 
         {/* Search form — sits exactly half over the photo, half below it,
             no matter how tall the form itself grows, since it's taken out
-            of normal document flow entirely. Spans the full column width
-            (matching the headline above) instead of capping at max-w-3xl —
-            that cap left the card hugging the left edge with a large empty
-            gap beside it, since nothing centered the narrower box. */}
+            of normal document flow entirely. Widened from max-w-5xl to
+            max-w-6xl to give the ad slider beside it real estate without
+            squeezing the booking form's own column down to something
+            cramped. */}
    <div className="relative z-10 mt-6 px-4 pb-10 sm:absolute sm:inset-x-0 sm:bottom-0 sm:mt-0 sm:translate-y-1/4 sm:pb-0">
-          <div className="mx-auto w-full max-w-5xl">
-            <div className="w-full rounded-lg border border-gray-200 bg-white p-4 shadow-xl sm:p-6">
-              <h2 className="text-3xl font-bold text-gray-800 sm:text-4xl">Book your tickets now!</h2>
-              <p className="mt-1 text-lg text-gray-600">Explore the crystal clear waters of Limasawa and book your ticket out of the paradise.</p>
+          <div className="mx-auto w-full max-w-6xl">
+            {/* Same fixed-width side-column convention as the Manage Booking
+                page (ManageBooking.jsx's lookup form): a 300px column for the
+                ad and a flexible column for the primary content, switching
+                to a single stacked column below lg:. The form stays first in
+                the markup (and so first in tab order) at every width; lg:
+                order-1/order-2 only changes where each column is painted,
+                putting the ad on the left visually without reordering the
+                DOM, so keyboard users still reach the form first. */}
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[300px_minmax(0,1fr)] lg:gap-6">
+              <div className="w-full rounded-lg border border-gray-200 bg-white p-4 shadow-xl lg:order-2 sm:p-6">
+                <h2 className="text-3xl font-bold text-gray-800 sm:text-4xl">Book your tickets now!</h2>
+                <p className="mt-1 text-lg text-gray-600">Explore the crystal clear waters of Limasawa and book your ticket out of the paradise.</p>
 
-              <div className="mt-4">
-                <SearchFormFields
-                  tripType={tripType}
-                  setTripType={setTripType}
-                  direction={direction}
-                  ports={ports}
-                  swapDirection={swapDirection}
-                  date={date}
-                  setDate={setDate}
-                  returnDate={returnDate}
-                  setReturnDate={setReturnDate}
-                  onSearch={handleSearch}
-                  loading={loading}
-                  error={error}
+                <div className="mt-4">
+                  <SearchFormFields
+                    tripType={tripType}
+                    setTripType={setTripType}
+                    direction={direction}
+                    ports={ports}
+                    swapDirection={swapDirection}
+                    date={date}
+                    setDate={setDate}
+                    returnDate={returnDate}
+                    setReturnDate={setReturnDate}
+                    onSearch={handleSearch}
+                    loading={loading}
+                    error={error}
+                  />
+                </div>
+              </div>
+
+              <div className="w-full lg:order-1">
+                <BannerAdSlider
+                  slides={HERO_SIDE_AD_SLIDES}
+                  intervalMs={HERO_SIDE_AD_SLIDE_INTERVAL_MS}
+                  className="w-full"
+                  aspectClassName="aspect-[4/5]"
                 />
               </div>
             </div>
