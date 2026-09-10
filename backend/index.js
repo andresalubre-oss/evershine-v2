@@ -105,7 +105,10 @@ app.post(
 app.use(express.json({ limit: '100kb' }));
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-  methods: ['GET', 'POST', 'PUT'],
+  // PATCH included for /api/customer/me, without it the browser's CORS
+  // preflight for that route silently fails and profile edits never reach
+  // the server.
+  methods: ['GET', 'POST', 'PUT', 'PATCH'],
 }));
 
 // ---------------------------------------------------------------------------
@@ -399,10 +402,14 @@ function calculateFare(schedule, discountType) {
 }
 
 function generateReferenceCode() {
+  // crypto.randomInt (not Math.random) since this code doubles as a security
+  // credential. Paired with the contact email, it's what authorizes the
+  // guest lookup/cancel/payment routes below, the same reason
+  // generateSixDigitCode uses a CSPRNG instead of Math.random.
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code = 'EB';
   for (let i = 0; i < 6; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
+    code += chars[crypto.randomInt(0, chars.length)];
   }
   return code;
 }
