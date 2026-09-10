@@ -1,6 +1,6 @@
 // Save as: frontend/src/pages/VerifyEmail.jsx
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../api.js'
 import { useAuth } from '../context/AuthContext.jsx'
@@ -8,39 +8,51 @@ import { useAuth } from '../context/AuthContext.jsx'
 export default function VerifyEmail() {
   const [searchParams] = useSearchParams()
   const token = searchParams.get('token') || ''
-  const [status, setStatus] = useState('checking') // 'checking' | 'success' | 'error'
-  const [error, setError] = useState('')
+  // 'idle' waits for an explicit click before calling the API at all. Email
+  // providers (Gmail's link-safety checks, antivirus software, even browser
+  // link preloading) can open a link automatically before a person ever
+  // clicks it. Firing verification straight from a useEffect on page load
+  // meant that automatic open could silently burn the one-time token before
+  // the real click happened, and the person would land here to a confusing
+  // "invalid or already used" error. Requiring a button press first means
+  // only an actual click can trigger the request.
+  const [status, setStatus] = useState(token ? 'idle' : 'error')
+  const [error, setError] = useState(token ? '' : 'This link is missing its verification token.')
   const { refreshMe } = useAuth()
 
-  useEffect(() => {
-    if (!token) {
-      setStatus('error')
-      setError('This link is missing its verification token.')
-      return
-    }
-    let cancelled = false
+  function handleVerify() {
+    setStatus('checking')
     api.verifyEmail(token)
       .then(async () => {
-        if (cancelled) return
         // Without this, the customer object cached in AuthContext (loaded
         // once when the app started) would still show emailVerified: false
         // for the rest of the session — e.g. still blocking them from
         // booking — even though the server-side flag just flipped to true.
         await refreshMe()
-        if (!cancelled) setStatus('success')
+        setStatus('success')
       })
       .catch((err) => {
-        if (!cancelled) {
-          setStatus('error')
-          setError(err.message)
-        }
+        setStatus('error')
+        setError(err.message)
       })
-    return () => { cancelled = true }
-  }, [token, refreshMe])
+  }
 
   return (
     <div className="mx-auto max-w-md">
       <div className="rounded-lg border border-gray-200 bg-white p-8 text-center shadow-sm">
+        {status === 'idle' && (
+          <>
+            <h1 className="text-xl font-bold text-gray-800">Confirm your email</h1>
+            <p className="mt-2 text-sm text-gray-600">Click below to finish verifying your email address.</p>
+            <button
+              onClick={handleVerify}
+              className="mt-6 inline-block rounded-md bg-teal-700 px-5 py-2 text-sm font-medium text-white hover:bg-teal-800"
+            >
+              Verify Email Address
+            </button>
+          </>
+        )}
+
         {status === 'checking' && (
           <>
             <h1 className="text-xl font-bold text-gray-800">Verifying your email...</h1>
