@@ -24,7 +24,7 @@ const prisma = require('./lib/prisma');
 const { requireAuth, requireAdminOrSetup } = require('./middleware/auth');
 const validate = require('./middleware/validate');
 const paymongo = require('./lib/paymongo');
-const { sendVerificationEmail, sendGuestVerificationCode, sendContactMessage } = require('./lib/email');
+const { sendVerificationEmail, sendGuestVerificationCode, sendContactMessage, sendBookingInvoice } = require('./lib/email');
 
 const app = express();
 app.disable('x-powered-by');
@@ -93,6 +93,7 @@ app.post(
                 data: { status: 'confirmed' },
               }),
             ]);
+            await sendInvoiceForBooking(payment.bookingId);
           }
         }
       }
@@ -412,6 +413,23 @@ function generateReferenceCode() {
     code += chars[crypto.randomInt(0, chars.length)];
   }
   return code;
+}
+
+// Re-fetches the booking with everything the invoice email needs (the plain
+// `booking` variable in scope at each call site below is missing passengers
+// and/or the schedule's ferry, since those weren't needed for the payment
+// logic itself), then sends it. Shared by both places a booking can
+// transition to 'confirmed': the PayMongo webhook and the payment-status
+// poll, so the email is built the same way regardless of which one caught
+// the successful payment first.
+async function sendInvoiceForBooking(bookingId) {
+  const fullBooking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: { passengers: true, schedule: { include: { ferry: true } } },
+  });
+  if (fullBooking) {
+    await sendBookingInvoice(fullBooking);
+  }
 }
 
 function signCustomerToken(customer) {
@@ -1292,6 +1310,7 @@ app.get('/api/bookings/payment-status', validate(paymentStatusQuerySchema, 'quer
           data: { status: 'confirmed' },
         }),
       ]);
+      await sendInvoiceForBooking(booking.id);
       return res.json({ status: 'paid' });
     }
 
