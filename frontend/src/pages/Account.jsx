@@ -486,12 +486,170 @@ function BookingHistoryCard() {
   )
 }
 
+function IconNavDashboard(props) {
+  return (
+    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="3" width="8" height="8" rx="1.5" />
+      <rect x="13" y="3" width="8" height="5" rx="1.5" />
+      <rect x="13" y="10" width="8" height="11" rx="1.5" />
+      <rect x="3" y="13" width="8" height="8" rx="1.5" />
+    </svg>
+  )
+}
+
+function IconNavProfile(props) {
+  return (
+    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="8" r="3.5" />
+      <path strokeLinecap="round" d="M4.5 20c1.4-3.6 4.4-5.5 7.5-5.5s6.1 1.9 7.5 5.5" />
+    </svg>
+  )
+}
+
+function IconNavBookings(props) {
+  return (
+    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 7a2 2 0 012-2h12a2 2 0 012 2v3a2 2 0 000 4v3a2 2 0 01-2 2H6a2 2 0 01-2-2v-3a2 2 0 000-4V7z" />
+      <path strokeLinecap="round" d="M12 5v14" strokeDasharray="2 2" />
+    </svg>
+  )
+}
+
+function IconNavVerification(props) {
+  return (
+    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3l7 3v5c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6l7-3z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4" />
+    </svg>
+  )
+}
+
+function IconNavDirections(props) {
+  return (
+    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 21s-7-6.2-7-11.5A7 7 0 0119 9.5C19 14.8 12 21 12 21z" />
+      <circle cx="12" cy="9.5" r="2.5" />
+    </svg>
+  )
+}
+
+// Left sidebar navigation for the account area, splitting what used to be
+// one long scrolling page of cards into separate sections the customer picks
+// between, the same "persistent side menu + single content pane" pattern
+// as a typical account dashboard. Most items just switch which section shows
+// in the content pane on the right (id), but Directions is a real full page
+// with its own Leaflet map (a heavy, lazy-loaded dependency, see App.jsx),
+// so it navigates to its own route (to) instead of joining the in-page tabs,
+// keeping the map library out of the bundle for anyone who never opens it.
+const ACCOUNT_NAV_ITEMS = [
+  { id: 'dashboard', label: 'Dashboard', icon: IconNavDashboard },
+  { id: 'profile', label: 'Profile', icon: IconNavProfile },
+  { id: 'bookings', label: 'My Bookings', icon: IconNavBookings },
+  { id: 'verification', label: 'Profile Verification', icon: IconNavVerification },
+  { to: '/directions', label: 'Port Directions', icon: IconNavDirections },
+]
+
+function AccountSidebar({ activeTab, onSelect }) {
+  return (
+    <nav className="overflow-hidden rounded-xl border border-gray-200 bg-white lg:sticky lg:top-24">
+      {ACCOUNT_NAV_ITEMS.map((item) => {
+        const Icon = item.icon
+        if (item.to) {
+          return (
+            <Link
+              key={item.to}
+              to={item.to}
+              className="flex w-full items-center gap-3 border-l-4 border-transparent px-4 py-3 text-left text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
+            >
+              <Icon className="h-4 w-4 flex-shrink-0" />
+              {item.label}
+            </Link>
+          )
+        }
+        const active = activeTab === item.id
+        return (
+          <button
+            key={item.id}
+            onClick={() => onSelect(item.id)}
+            className={`flex w-full items-center gap-3 border-l-4 px-4 py-3 text-left text-sm font-medium transition-colors ${
+              active
+                ? 'border-teal-700 bg-teal-50 text-teal-800'
+                : 'border-transparent text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <Icon className="h-4 w-4 flex-shrink-0" />
+            {item.label}
+          </button>
+        )
+      })}
+    </nav>
+  )
+}
+
+function DashboardSection({ customer, navigate }) {
+  return (
+    <div className="space-y-6">
+      <div className="rounded-xl border border-gray-200 bg-white p-6">
+        <h2 className="text-lg font-semibold text-gray-800">Welcome back, {customer.firstName || customer.name}</h2>
+        <p className="mt-1 text-sm text-gray-500">Here's a quick overview of your account.</p>
+        <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="rounded-lg border border-gray-200 p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Email</p>
+            <p className={`mt-1 text-sm font-semibold ${customer.emailVerified ? 'text-teal-700' : 'text-amber-700'}`}>
+              {customer.emailVerified ? 'Verified' : 'Not verified'}
+            </p>
+          </div>
+          <div className="rounded-lg border border-gray-200 p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Discount Eligibility</p>
+            <p className="mt-1 text-sm font-semibold capitalize text-gray-800">
+              {customer.discountType === 'none'
+                ? 'None on file'
+                : `${customer.discountType} (${customer.discountStatus.replace('_', ' ')})`}
+            </p>
+          </div>
+          <div className="rounded-lg border border-gray-200 p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Member Since</p>
+            <p className="mt-1 text-sm font-semibold text-gray-800">{formatDate(customer.createdAt) || 'Not set'}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick actions — both styled identically (solid teal) so neither
+          reads as the "active" or default choice; a plain solid fill on
+          both avoids the earlier problem where only one looked selected. */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <button
+          onClick={() => navigate('/')}
+          className="flex items-center justify-between rounded-xl border border-teal-700 bg-teal-700 p-5 text-left text-white transition-colors hover:bg-teal-800"
+        >
+          <div className="min-w-0">
+            <p className="font-semibold">Book a New Trip</p>
+            <p className="mt-0.5 text-xs text-teal-100">Search sailings to Limasawa or Padre Burgos</p>
+          </div>
+          <span className="ml-4 flex-shrink-0 text-lg">&rarr;</span>
+        </button>
+        <button
+          onClick={() => navigate('/manage-booking')}
+          className="flex items-center justify-between rounded-xl border border-teal-700 bg-teal-700 p-5 text-left text-white transition-colors hover:bg-teal-800"
+        >
+          <div className="min-w-0">
+            <p className="font-semibold">Manage a Booking</p>
+            <p className="mt-0.5 text-xs text-teal-100">Look up any booking by reference code</p>
+          </div>
+          <span className="ml-4 flex-shrink-0 text-lg">&rarr;</span>
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function Account() {
   const { customer, loading, refreshMe } = useAuth()
   const navigate = useNavigate()
 
   const [resendingVerification, setResendingVerification] = useState(false)
   const [resendMessage, setResendMessage] = useState('')
+  const [activeTab, setActiveTab] = useState('dashboard')
 
   async function handleResendVerification() {
     setResendingVerification(true)
@@ -537,7 +695,9 @@ export default function Account() {
       {/* Not-verified notice — only shown when there's something to act on
           (never verified, or a previous submission expired/was rejected).
           Silent for 'pending' (already submitted, nothing to do) and
-          'verified' (nothing to warn about). */}
+          'verified' (nothing to warn about). Switches to the Profile
+          Verification tab instead of anchor-scrolling, now that section
+          lives behind the sidebar instead of further down the same page. */}
       {['none', 'rejected', 'expired'].includes(customer.discountStatus) && (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <span>
@@ -548,48 +708,25 @@ export default function Account() {
               ? 'Your Profile Verification has expired. Renew it to keep your discount eligibility.'
               : "Your profile isn't verified yet. Verify it to unlock Senior, PWD, or Student discounts."}
           </span>
-          <a
-            href="#profile-verification"
+          <button
+            onClick={() => setActiveTab('verification')}
             className="flex-shrink-0 whitespace-nowrap rounded-md border border-amber-700 bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800"
           >
             Verify Now
-          </a>
+          </button>
         </div>
       )}
 
-      {/* Quick actions — both styled identically (solid teal) so neither
-          reads as the "active" or default choice; a plain solid fill on
-          both avoids the earlier problem where only one looked selected. */}
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <button
-          onClick={() => navigate('/')}
-          className="flex items-center justify-between rounded-xl border border-teal-700 bg-teal-700 p-5 text-left text-white transition-colors hover:bg-teal-800"
-        >
-          <div className="min-w-0">
-            <p className="font-semibold">Book a New Trip</p>
-            <p className="mt-0.5 text-xs text-teal-100">Search sailings to Limasawa or Padre Burgos</p>
-          </div>
-          <span className="ml-4 flex-shrink-0 text-lg">&rarr;</span>
-        </button>
-        <button
-          onClick={() => navigate('/manage-booking')}
-          className="flex items-center justify-between rounded-xl border border-teal-700 bg-teal-700 p-5 text-left text-white transition-colors hover:bg-teal-800"
-        >
-          <div className="min-w-0">
-            <p className="font-semibold">Manage a Booking</p>
-            <p className="mt-0.5 text-xs text-teal-100">Look up any booking by reference code</p>
-          </div>
-          <span className="ml-4 flex-shrink-0 text-lg">&rarr;</span>
-        </button>
-      </div>
+      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
+        <AccountSidebar activeTab={activeTab} onSelect={setActiveTab} />
 
-      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-1">
-          <ProfileCard customer={customer} />
-          <ProfileVerificationCard customer={customer} onUpdated={handleVerificationUpdated} />
-        </div>
-        <div className="lg:col-span-2">
-          <BookingHistoryCard />
+        <div>
+          {activeTab === 'dashboard' && <DashboardSection customer={customer} navigate={navigate} />}
+          {activeTab === 'profile' && <ProfileCard customer={customer} />}
+          {activeTab === 'bookings' && <BookingHistoryCard />}
+          {activeTab === 'verification' && (
+            <ProfileVerificationCard customer={customer} onUpdated={handleVerificationUpdated} />
+          )}
         </div>
       </div>
     </div>

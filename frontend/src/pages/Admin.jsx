@@ -548,6 +548,20 @@ export default function Admin() {
     }
   }
 
+  // The server itself refuses to delete a schedule that already has
+  // bookings on it (see the DELETE /api/admin/schedules/:id route), so a
+  // rejected delete here just surfaces that message rather than something
+  // going wrong client-side.
+  async function deleteSchedule(id) {
+    setSchedulesMessage('')
+    try {
+      await api.deleteSchedule(id)
+      loadSchedules()
+    } catch (err) {
+      setSchedulesMessage(err.message)
+    }
+  }
+
   async function loadCustomers() {
     setCustomersMessage('')
     try {
@@ -1473,7 +1487,7 @@ export default function Admin() {
                 {schedules.length === 0 ? (
                   <p className="mt-4 text-sm text-gray-500 dark:text-slate-500">No sailings scheduled yet.</p>
                 ) : (
-                  <DataTable headers={['Date/Time', 'Direction', 'Fare', 'Discounts', 'Ferry', 'Status']}>
+                  <DataTable headers={['Date/Time', 'Direction', 'Fare', 'Discounts', 'Ferry', 'Status', 'Actions']}>
                     {schedules.map((s) => {
                       const isPast = new Date(s.departureDatetime) < now
                       return (
@@ -1503,6 +1517,16 @@ export default function Admin() {
                             >
                               {isPast ? 'Past' : 'Upcoming'}
                             </span>
+                          </td>
+                          <td className="px-3 py-1.5">
+                            <button
+                              onClick={() => {
+                                if (window.confirm('Delete this schedule? This cannot be undone.')) deleteSchedule(s.id)
+                              }}
+                              className="text-xs font-medium text-red-600 hover:text-red-800 hover:underline dark:text-red-400 dark:hover:text-red-300"
+                            >
+                              Delete
+                            </button>
                           </td>
                         </tr>
                       )

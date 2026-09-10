@@ -107,8 +107,8 @@ app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
   // PATCH included for /api/customer/me, without it the browser's CORS
   // preflight for that route silently fails and profile edits never reach
-  // the server.
-  methods: ['GET', 'POST', 'PUT', 'PATCH'],
+  // the server. DELETE included for /api/admin/schedules/:id, same reason.
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
 }));
 
 // ---------------------------------------------------------------------------
@@ -1339,6 +1339,27 @@ app.get('/api/admin/schedules', requireAuth, adminLimiter, async (req, res) => {
     orderBy: { departureDatetime: 'asc' },
   });
   res.json(schedules);
+});
+
+// Blocked if any booking already references this schedule, rather than
+// letting the delete cascade or fail on a raw foreign-key error. A customer
+// who already booked this sailing needs that record to stay intact (their
+// reference code, manifest entry, refund history, etc.). The admin has to
+// deal with those bookings first (cancel them, or just leave the schedule
+// alone) before the schedule itself can be removed.
+app.delete('/api/admin/schedules/:id', requireAuth, adminLimiter, validate(idParamSchema, 'params'), async (req, res) => {
+  const schedule = await prisma.schedule.findUnique({ where: { id: req.params.id } });
+  if (!schedule) {
+    return res.status(404).json({ error: 'Schedule not found' });
+  }
+  const bookingCount = await prisma.booking.count({ where: { scheduleId: req.params.id } });
+  if (bookingCount > 0) {
+    return res.status(400).json({
+      error: `Cannot delete this schedule: ${bookingCount} booking${bookingCount === 1 ? '' : 's'} already reference it.`,
+    });
+  }
+  await prisma.schedule.delete({ where: { id: req.params.id } });
+  res.json({ message: 'Schedule deleted' });
 });
 
 app.get('/api/admin/bookings', requireAuth, adminLimiter, async (req, res) => {

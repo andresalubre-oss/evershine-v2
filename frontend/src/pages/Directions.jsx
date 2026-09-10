@@ -77,9 +77,21 @@ function FitRoute({ bounds }) {
 
 export default function Directions() {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  const direction = searchParams.get('direction') === 'LIMASAWA_TO_PB' ? 'LIMASAWA_TO_PB' : 'PB_TO_LIMASAWA'
+  const [searchParams, setSearchParams] = useSearchParams()
+  // Reachable two ways now: from a specific booking (arrives with a
+  // direction already in the URL) and from the main nav / account sidebar
+  // (arrives with no query at all). Kept as local state, seeded from the
+  // URL, so a visitor who got here generally can still switch ports with
+  // the toggle below instead of being stuck on whichever one loaded first.
+  const [direction, setDirection] = useState(
+    searchParams.get('direction') === 'LIMASAWA_TO_PB' ? 'LIMASAWA_TO_PB' : 'PB_TO_LIMASAWA'
+  )
   const destination = PORTS[direction]
+
+  function switchDirection(next) {
+    setDirection(next)
+    setSearchParams({ direction: next })
+  }
 
   const [origin, setOrigin] = useState(null)
   // locating | location_denied | routing | ready | error
@@ -153,10 +165,10 @@ export default function Directions() {
         setStatus('error')
         setErrorMessage('Could not calculate a driving route to the port.')
       })
-    // destination is derived from `direction`, which only changes via URL —
-    // safe to omit from deps here since it's effectively constant per visit.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [origin])
+    // destination changes whenever the port toggle below is used, so it
+    // needs to be a real dependency now (it used to be effectively constant
+    // per visit, back when this page only ever loaded with one fixed port).
+  }, [origin, destination])
 
   const googleMapsAppUrl = `https://www.google.com/maps/dir/?api=1&destination=${destination.lat},${destination.lng}&travelmode=driving`
 
@@ -176,6 +188,31 @@ export default function Directions() {
           ? 'Head here to catch your ferry to Limasawa.'
           : 'Head here to catch your ferry to Padre Burgos.'}
       </p>
+
+      {/* Only meaningful now that this page is reachable without an active
+          booking (main nav, account sidebar). A visitor coming from a
+          specific booking already has the right port selected, but still
+          sees this in case they need the other terminal too. */}
+      <div className="mt-4 inline-flex rounded-md border border-gray-200 bg-gray-50 p-1">
+        <button
+          type="button"
+          onClick={() => switchDirection('PB_TO_LIMASAWA')}
+          className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${
+            direction === 'PB_TO_LIMASAWA' ? 'bg-white text-teal-800 shadow-sm' : 'text-gray-600 hover:text-gray-800'
+          }`}
+        >
+          Padre Burgos Port
+        </button>
+        <button
+          type="button"
+          onClick={() => switchDirection('LIMASAWA_TO_PB')}
+          className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${
+            direction === 'LIMASAWA_TO_PB' ? 'bg-white text-teal-800 shadow-sm' : 'text-gray-600 hover:text-gray-800'
+          }`}
+        >
+          Limasawa Port
+        </button>
+      </div>
 
       {status === 'locating' && (
         <p className="mt-6 text-sm text-gray-600">Getting your current location...</p>

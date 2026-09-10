@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, Suspense, lazy } from 'react'
 import { Routes, Route, useLocation } from 'react-router-dom'
 import Layout from './components/Layout.jsx'
 import Search from './pages/Search.jsx'
@@ -6,7 +6,6 @@ import SearchResults from './pages/SearchResults.jsx'
 import Booking from './pages/Booking.jsx'
 import GuestVerifyEmail from './pages/GuestVerifyEmail.jsx'
 import ManageBooking from './pages/ManageBooking.jsx'
-import Directions from './pages/Directions.jsx'
 import Login from './pages/Login.jsx'
 import Admin from './pages/Admin.jsx'
 import ManifestPrint from './pages/ManifestPrint.jsx'
@@ -23,6 +22,14 @@ import PrivacyPolicy from './pages/PrivacyPolicy.jsx'
 import TermsConditions from './pages/TermsConditions.jsx'
 import CookiePolicy from './pages/CookiePolicy.jsx'
 import ContactUs from './pages/ContactUs.jsx'
+
+// Lazy-loaded, not a static import like the pages above. This page pulls in
+// Leaflet and its CSS, which is one of the heaviest dependencies in the app.
+// Now that it's reachable from the main nav and account sidebar (not just a
+// specific booking), most visits to the site will never open it, so bundling
+// its weight into everyone's initial page load would be wasteful. This way
+// it's only fetched the moment someone actually navigates to /directions.
+const Directions = lazy(() => import('./pages/Directions.jsx'))
 
 // React Router doesn't reset scroll position on navigation (unlike a plain
 // multi-page site), so switching pages while scrolled down would otherwise
@@ -51,7 +58,14 @@ export default function App() {
         <Route path="/booking" element={<Booking />} />
         <Route path="/booking/verify-guest-email" element={<GuestVerifyEmail />} />
         <Route path="/manage-booking" element={<ManageBooking />} />
-        <Route path="/directions" element={<Directions />} />
+        <Route
+          path="/directions"
+          element={
+            <Suspense fallback={<p className="text-sm text-gray-500">Loading map...</p>}>
+              <Directions />
+            </Suspense>
+          }
+        />
         <Route path="/login" element={<Login />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="/register" element={<Register />} />

@@ -222,6 +222,8 @@ export const api = {
 
   getAdminSchedules: () => adminRequest('/admin/schedules'),
 
+  deleteSchedule: (id) => adminRequest(`/admin/schedules/${id}`, { method: 'DELETE' }),
+
   getAllBookings: () => adminRequest('/admin/bookings'),
 
   getRefundRequests: () => adminRequest('/admin/refund-requests'),

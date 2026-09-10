@@ -123,6 +123,7 @@ export default function Layout() {
         { to: '/travel-info/policies', label: 'Policies' },
         { to: '/travel-info/ticket-policies', label: 'Ticket Policies' },
         { to: '/travel-info/faqs', label: 'FAQs' },
+        { to: '/directions', label: 'Port Directions' },
       ],
     },
     { to: '/manage-booking', label: 'Manage Booking' },
