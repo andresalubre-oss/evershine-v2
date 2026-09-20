@@ -679,6 +679,68 @@ export default function Booking() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Key this browser's most recent in-progress payment is saved under, so a
+  // reload can look it back up. Mobile browsers routinely discard/reload a
+  // backgrounded tab to save memory — switching away to pay in the GCash app
+  // and back is exactly that scenario — which wipes booking/paymentStatus/
+  // qrCodeImageUrl below, since they're plain useState and never survive a
+  // reload on their own. Without this, a customer who already paid would
+  // land back at the very start of the booking flow with no way to reach
+  // their confirmation, even though the booking and payment already exist
+  // server-side.
+  const PENDING_BOOKING_STORAGE_KEY = 'evershine-pending-booking'
+
+  // On mount, check for a saved in-progress booking and re-fetch it from the
+  // server instead of trusting only in-memory state (which a reload has
+  // already wiped by the time this runs). Runs once — a booking created
+  // later in this same session sets `booking` directly, it doesn't need
+  // this restore path.
+  useEffect(() => {
+    const saved = localStorage.getItem(PENDING_BOOKING_STORAGE_KEY)
+    if (!saved) return
+    let cancelled = false
+    ;(async () => {
+      let savedReferenceCode, savedContactEmail
+      try {
+        ;({ referenceCode: savedReferenceCode, contactEmail: savedContactEmail } = JSON.parse(saved))
+      } catch {
+        localStorage.removeItem(PENDING_BOOKING_STORAGE_KEY)
+        return
+      }
+      try {
+        const fetched = await api.lookupBooking(savedReferenceCode, savedContactEmail)
+        if (cancelled) return
+        if (['cancelled', 'refund_requested', 'refunded', 'payment_declined'].includes(fetched.status)) {
+          localStorage.removeItem(PENDING_BOOKING_STORAGE_KEY)
+          return
+        }
+        // Guest checkout has no account to pull the contact email back from
+        // on reload — passengers resets to a single blank entry, so
+        // Passenger 1's email needs restoring for contactEmail (used by
+        // startPayment/polling below) to resolve correctly again.
+        if (!customer) {
+          setPassengers((prev) => {
+            const next = [...prev]
+            next[0] = { ...next[0], email: fetched.contactEmail }
+            return next
+          })
+        }
+        if (fetched.status === 'confirmed') {
+          setPaymentStatus('paid')
+        }
+        setBooking(fetched)
+      } catch {
+        // Reference code/email no longer valid, or a network hiccup — fall
+        // back to a normal fresh booking flow instead of getting stuck.
+        localStorage.removeItem(PENDING_BOOKING_STORAGE_KEY)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   async function submitBooking() {
     setError('')
     setSubmitting(true)
@@ -694,6 +756,10 @@ export default function Booking() {
       }
       const data = await api.createBooking(payload)
       setBooking(data.booking)
+      localStorage.setItem(
+        PENDING_BOOKING_STORAGE_KEY,
+        JSON.stringify({ referenceCode: data.booking.referenceCode, contactEmail: data.booking.contactEmail })
+      )
     } catch (err) {
       setError(err.message)
       setPhase('form') // something went wrong — let them fix it, not stare at a dead review screen
@@ -716,9 +782,15 @@ export default function Booking() {
     }
   }
 
-  // Kick off QR generation as soon as a booking exists.
+  // Kick off QR generation as soon as a booking exists. Skipped when
+  // paymentStatus is already 'paid' — the restore effect above sets that
+  // directly for a booking that turns out to already be confirmed, and
+  // calling startPayment on an already-paid booking would just fail (the
+  // server refuses to generate a QR for a booking that isn't awaiting
+  // payment), incorrectly flashing an error at someone who already paid.
   useEffect(() => {
-    if (booking) startPayment()
+    if (booking && paymentStatus !== 'paid') startPayment()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [booking])
 
   // Poll for payment confirmation while a QR is showing.
@@ -735,6 +807,41 @@ export default function Booking() {
     }, 8000)
     return () => clearInterval(interval)
   }, [paymentStatus, booking, contactEmail])
+
+  // Nothing left to resume once a booking is actually confirmed — clear the
+  // saved reference so a later, unrelated visit to this page (or another
+  // booking) doesn't have a stale entry sitting around. A new booking
+  // overwrites this key on its own anyway, but there's no reason to keep it
+  // once it's served its purpose.
+  useEffect(() => {
+    if (paymentStatus === 'paid') {
+      localStorage.removeItem(PENDING_BOOKING_STORAGE_KEY)
+    }
+  }, [paymentStatus])
+
+  // Fetches the QR image as a blob and downloads it directly, since the
+  // image is hosted by our payment provider on a different domain and a
+  // plain `download` attribute on an `<a>` isn't reliably honored
+  // cross-origin (Safari in particular tends to just open it instead). If
+  // the fetch fails (e.g. the host doesn't allow cross-origin reads), falls
+  // back to opening the image in a new tab, where the existing long-press
+  // instructions below still work to save it manually.
+  async function downloadQrCode() {
+    try {
+      const response = await fetch(qrCodeImageUrl)
+      const blob = await response.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = blobUrl
+      link.download = `evershine-payment-${booking.referenceCode}.png`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(blobUrl)
+    } catch {
+      window.open(qrCodeImageUrl, '_blank', 'noopener,noreferrer')
+    }
+  }
 
   if (!scheduleId) {
     return <p className="text-red-600">No trip selected. Go back and search again.</p>
@@ -1351,14 +1458,23 @@ export default function Booking() {
                 className="mx-auto mt-3 h-56 w-56 rounded-md border border-gray-200 bg-white p-2"
               />
 
+              <button
+                type="button"
+                onClick={downloadQrCode}
+                className="mx-auto mt-3 flex items-center gap-2 rounded-md border border-teal-700 px-4 py-2 text-sm font-medium text-teal-700 hover:bg-teal-100"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" />
+                </svg>
+                Download QR Code
+              </button>
+
               {/* Booking from the same phone you'd use to scan? You can't point
                   a camera at the screen it's displayed on. GCash, Maya, and
                   most banking apps also let you scan a QR image saved to your
                   gallery instead of using the live camera, so offer that as
-                  the on-device path. The QR image is hosted by our payment
-                  provider on a different domain, so a plain download link
-                  can't reliably force-save it — a long-press works in every
-                  mobile browser regardless. */}
+                  the on-device path too, in case the download button above
+                  doesn't behave the same way on every browser. */}
               <div className="mx-auto mt-4 max-w-sm rounded-lg border border-teal-100 bg-teal-50 p-4 text-left">
                 <div className="flex items-center gap-2.5">
                   <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-teal-600 text-white">
@@ -1376,7 +1492,8 @@ export default function Booking() {
                     </span>
                     <p className="text-xs leading-relaxed text-gray-700">
                       Press and hold the QR code above, then choose{' '}
-                      <span className="font-semibold">"Save Image"</span> (or "Add to Photos").
+                      <span className="font-semibold">"Save Image"</span> (or "Add to Photos"), or use the
+                      Download button above instead.
                     </p>
                   </li>
                   <li className="flex gap-2.5">

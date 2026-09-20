@@ -45,16 +45,13 @@ function Card({ title, children, className = '' }) {
 // panel.
 function StatCard({ label, value, icon: Icon, onClick, active = false, hint }) {
   const content = (
-    <div className="flex w-full gap-3">
-      <div className={`w-1 flex-shrink-0 self-stretch rounded-full ${active ? 'bg-white/50' : 'bg-teal-600'}`} />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-2">
-          <p className={`text-[11px] font-semibold uppercase leading-tight tracking-wide ${active ? 'text-teal-50' : 'text-gray-500 dark:text-slate-500'}`}>{label}</p>
-          {Icon && <Icon className={`h-4 w-4 flex-shrink-0 ${active ? 'text-teal-50' : 'text-teal-600'}`} />}
-        </div>
-        <p className={`mt-1 text-2xl font-bold leading-none ${active ? 'text-white' : 'text-gray-900 dark:text-white'}`}>{value}</p>
-        {hint && <p className={`mt-1.5 truncate text-xs ${active ? 'text-teal-50/80' : 'text-gray-500 dark:text-slate-500'}`}>{hint}</p>}
+    <div className="w-full">
+      <div className="flex items-center justify-between gap-2">
+        <p className={`text-[11px] font-semibold uppercase leading-tight tracking-wide ${active ? 'text-teal-50' : 'text-teal-700 dark:text-teal-500'}`}>{label}</p>
+        {Icon && <Icon className={`h-4 w-4 flex-shrink-0 ${active ? 'text-teal-50' : 'text-teal-600'}`} />}
       </div>
+      <p className={`mt-1 text-2xl font-bold leading-none ${active ? 'text-white' : 'text-gray-900 dark:text-white'}`}>{value}</p>
+      {hint && <p className={`mt-1.5 truncate text-xs ${active ? 'text-teal-50/80' : 'text-gray-500 dark:text-slate-500'}`}>{hint}</p>}
     </div>
   )
   if (!onClick) {
@@ -942,9 +939,9 @@ export default function Admin() {
           ))}
         </nav>
 
-        <div className={`border-t border-teal-900 py-4 ${sidebarCollapsed ? 'px-2' : 'px-4'}`}>
+        <div className={`bg-teal-900 py-4 ${sidebarCollapsed ? 'px-2' : 'px-4'}`}>
           {!sidebarCollapsed && (
-            <div className="rounded-md bg-teal-900/40 px-3 py-2.5" title={adminInfo?.email}>
+           <div className="rounded-md bg-teal-900 px-3 py-2.5" title={adminInfo?.email}>
               <p className="truncate text-sm font-semibold text-white">{adminInfo?.name || 'Administrator'}</p>
               <p className="mt-0.5 truncate text-xs text-slate-400">{adminInfo?.email || 'Loading…'}</p>
             </div>
@@ -952,9 +949,9 @@ export default function Admin() {
           <button
             onClick={logout}
             title={sidebarCollapsed ? (adminInfo?.email ? `Log Out (${adminInfo.email})` : 'Log Out') : undefined}
-            className={`flex items-center justify-center gap-2 rounded-md border border-teal-800 py-2 text-sm font-medium text-slate-200 hover:bg-teal-900 ${
-              sidebarCollapsed ? 'mx-auto mt-2 w-9 px-0' : 'mt-3 w-full px-3'
-            }`}
+            className={`flex items-center justify-center gap-2 rounded-md bg-teal-700 py-2 text-sm font-medium text-slate-200 hover:bg-red-700 ${
+  sidebarCollapsed ? 'mx-auto mt-2 w-9 px-0' : 'mt-3 w-full px-3'
+}`}
           >
             <IconLogout className="h-4 w-4 flex-shrink-0" />
             {!sidebarCollapsed && 'Log Out'}
@@ -1540,10 +1537,7 @@ export default function Admin() {
           {activeTab === 'discounts' && (
             <div className="space-y-5">
               <Card title="Profile Verification Requests">
-                <p className="text-sm text-gray-600 dark:text-slate-400">
-                  Review the live selfie and ID against each applicant's details, then set how long their discount
-                  stays valid before verifying or rejecting the request.
-                </p>
+              
 
                 <div className="mt-3 grid grid-cols-2 divide-x divide-gray-200 dark:divide-slate-800 overflow-hidden rounded-md border border-gray-200 dark:border-slate-800 sm:grid-cols-4">
                   <button
@@ -1782,10 +1776,7 @@ export default function Admin() {
           {activeTab === 'customers' && (
             <div className="space-y-5">
               <Card title="Customer Directory">
-                <p className="text-sm text-gray-600 dark:text-slate-400">
-                  Every registered account — verified or not — so you can look up contact details (e.g. to send an
-                  invoice) without digging through bookings.
-                </p>
+
 
                 <div className="mt-3 grid grid-cols-3 divide-x divide-gray-200 dark:divide-slate-800 overflow-hidden rounded-md border border-gray-200 dark:border-slate-800">
                   <button
@@ -2038,10 +2029,7 @@ export default function Admin() {
           {activeTab === 'bookings' && (
             <div className="space-y-5">
               <Card title="All Bookings">
-                <p className="text-sm text-gray-600 dark:text-slate-400">
-                  Includes guest checkouts — bookings made without an account still show the contact email and
-                  number entered at checkout, so you can reach anyone who's booked, verified account or not.
-                </p>
+              
 
                 <div className="mt-3 grid grid-cols-2 divide-x divide-gray-200 dark:divide-slate-800 overflow-hidden rounded-md border border-gray-200 dark:border-slate-800 sm:grid-cols-4 lg:grid-cols-7">
                   {[
@@ -2204,10 +2192,7 @@ export default function Admin() {
           {activeTab === 'refunds' && (
             <div className="space-y-5">
               <Card title="Refund Requests">
-                <p className="text-sm text-gray-600 dark:text-slate-400">
-                  Payments come in through QR codes, so refunds are sent manually — confirm where to send the money
-                  before transferring it yourself, then mark the request as resolved here.
-                </p>
+               
 
                 <div className="mt-3 grid grid-cols-3 divide-x divide-gray-200 dark:divide-slate-800 rounded-md border border-gray-200 dark:border-slate-800 bg-gray-50/60 dark:bg-slate-800/40">
                   <div className="px-3 py-2.5 text-center">
@@ -2479,10 +2464,7 @@ export default function Admin() {
             <div className="space-y-5">
               <Card title="Passenger Manifest">
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-slate-400">
-                    Pick a sailing to pull its full passenger list — useful for boarding checks or handing to the
-                    ferry crew.
-                  </p>
+                 
                   <label className="mt-3 block text-sm font-medium text-gray-600 dark:text-slate-400">Schedule</label>
                   <select
                     value={manifestScheduleId}
@@ -2564,9 +2546,7 @@ export default function Admin() {
 
           {activeTab === 'analytics' && (
             <div className="space-y-5">
-              <p className="text-sm text-gray-600 dark:text-slate-400">
-                Based on confirmed bookings only — pending, declined, and cancelled bookings aren't counted toward revenue.
-              </p>
+             
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <StatCard
