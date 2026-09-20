@@ -251,7 +251,7 @@ export default function ManageBooking() {
             Account dashboard) so the sections read as distinct information,
             not one wall of content. No icons, no gradients, no shadows. */}
         <div className="mt-6 space-y-5">
-          <div className="rounded-xl border border-l-4 border-gray-200 border-l-teal-700 bg-white p-6">
+      <div className="rounded-xl border border-gray-200 bg-white p-6">
             <h2 className="border-b-2 border-gray-100 pb-3 text-base font-semibold uppercase tracking-wide text-gray-500">
               Trip Details
             </h2>
@@ -278,7 +278,7 @@ export default function ManageBooking() {
             </Link>
           </div>
 
-          <div className="rounded-xl border border-l-4 border-gray-200 border-l-blue-600 bg-white p-6">
+        <div className="rounded-xl border border-gray-200 bg-white p-6">
             <h2 className="border-b-2 border-gray-100 pb-3 text-base font-semibold uppercase tracking-wide text-gray-500">
               Passengers
             </h2>
@@ -306,34 +306,34 @@ export default function ManageBooking() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-l-4 border-gray-200 border-l-amber-600 bg-white p-6">
+          <div className="rounded-xl border border-gray-200 bg-white p-6">
             <h2 className="border-b-2 border-gray-100 pb-3 text-base font-semibold uppercase tracking-wide text-gray-500">
               Cancellation
             </h2>
 
             <div className="mt-4">
               {booking.status === 'cancelled' && (
-                <div className="rounded-lg border border-l-4 border-gray-200 border-l-gray-400 bg-gray-50 p-4 text-base text-gray-600">
-                  This booking has been cancelled.
-                </div>
+                <div className="rounded-lg bg-gray-600 p-4 text-base text-white">
+  This booking has been cancelled.
+</div>
               )}
 
               {booking.status === 'refund_requested' && (
-                <div className="rounded-lg border border-l-4 border-blue-100 border-l-blue-600 bg-blue-50 p-4 text-base text-blue-800">
+                <div className="rounded-lg bg-blue-600 p-4 text-base text-white">
                   Your cancellation request has been submitted and is awaiting review. Our team verifies each
                   request manually and sends the refund once approved — this isn't instant.
                 </div>
               )}
 
               {booking.status === 'refunded' && (
-                <div className="rounded-lg border border-l-4 border-blue-100 border-l-blue-600 bg-blue-50 p-4 text-base text-blue-800">
+                <div className="rounded-lg bg-blue-600 p-4 text-base text-white">
                   This booking was cancelled and your refund has been sent.
                 </div>
               )}
 
               {!alreadyResolved && canCancel && !confirmingCancel && (
                 <>
-                  <div className="rounded-lg border border-l-4 border-teal-100 border-l-teal-700 bg-teal-50 p-4 text-base text-teal-800">
+                 <div className="rounded-lg bg-teal-700 p-4 text-base text-white">
                     You're within the 24-hour cancellation window — <b>{hoursLeft}h {minutesLeft}m</b> left to
                     request a cancellation.
                   </div>
@@ -347,16 +347,16 @@ export default function ManageBooking() {
               )}
 
               {!alreadyResolved && canCancel && confirmingCancel && (
-                <div className="rounded-lg border border-l-4 border-red-100 border-l-red-600 bg-red-50 p-4">
-                  <p className="text-base font-semibold text-red-800">Request a cancellation?</p>
-                  <p className="mt-1 text-base text-red-700">
-                    This submits a cancellation request for manual review it isn't instant. Our team will verify
-                    your reason and sends the refund once approved.
-                  </p>
+               <div className="rounded-lg bg-red-600 p-4">
+  <p className="text-base font-semibold text-white">Request a cancellation?</p>
+  <p className="mt-1 text-base text-red-50">
+    This submits a cancellation request for manual review it isn't instant. Our team will verify
+    your reason and sends the refund once approved.
+  </p>
 
-                  <label className="mt-3 block text-sm font-medium uppercase tracking-wide text-red-800">
-                    Reason for cancellation
-                  </label>
+  <label className="mt-3 block text-sm font-medium uppercase tracking-wide text-red-50">
+    Reason for cancellation
+  </label>
                   <textarea
                     value={cancelReason}
                     onChange={(e) => setCancelReason(e.target.value)}
@@ -391,14 +391,14 @@ export default function ManageBooking() {
               )}
 
               {!alreadyResolved && !canCancel && (
-                <div className="rounded-lg border border-l-4 border-amber-100 border-l-amber-600 bg-amber-50 p-4 text-base text-amber-800">
-                  This booking can no longer be cancelled cancellations must be requested within 24 hours of
-                  booking, and that window has passed. See our{' '}
-                  <Link to="/refund-cancellation" className="font-medium underline">
-                    Refund &amp; Cancellation
-                  </Link>{' '}
-                  page for details.
-                </div>
+               <div className="rounded-lg bg-amber-600 p-4 text-base text-white">
+  This booking can no longer be cancelled cancellations must be requested within 24 hours of
+  booking, and that window has passed. See our{' '}
+  <Link to="/refund-cancellation" className="font-medium text-white underline">
+    Refund &amp; Cancellation
+  </Link>{' '}
+  page for details.
+</div>
               )}
 
               {cancelMessage && (
