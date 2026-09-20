@@ -17,7 +17,7 @@ const statusColors = {
 
 function StatusBadge({ status }) {
   return (
-    <span className={`inline-block whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${statusColors[status] || 'bg-gray-100 text-gray-700'}`}>
+    <span className={`inline-block whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-semibold capitalize ${statusColors[status] || 'bg-gray-100 text-gray-700'}`}>
       {status.replace('_', ' ')}
     </span>
   )
@@ -107,11 +107,11 @@ function SelfieCapture({ file, onChange }) {
 
   if (file && previewUrl) {
     return (
-      <div className="mt-1.5 overflow-hidden rounded-md border border-gray-300">
+      <div className="mt-2 overflow-hidden rounded-md border border-gray-300">
         <img src={previewUrl} alt="Captured selfie" className="aspect-[4/3] w-full object-cover" />
-        <div className="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-3 py-2">
-          <span className="text-xs font-medium text-gray-700">Selfie captured</span>
-          <button type="button" onClick={retake} className="text-xs font-medium text-teal-700 hover:underline">
+        <div className="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-4 py-3">
+          <span className="text-sm font-medium text-gray-700">Selfie captured</span>
+          <button type="button" onClick={retake} className="text-sm font-medium text-teal-700 hover:underline">
             Retake
           </button>
         </div>
@@ -120,15 +120,15 @@ function SelfieCapture({ file, onChange }) {
   }
 
   return (
-    <div className="mt-1.5 overflow-hidden rounded-md border border-dashed border-gray-300">
+    <div className="mt-2 overflow-hidden rounded-md border border-dashed border-gray-300">
       {active ? (
         <div className="relative bg-black">
           <video ref={videoRef} muted playsInline className="aspect-[4/3] w-full scale-x-[-1] object-cover" />
-          <div className="border-t border-gray-700 bg-black p-2 text-center">
+          <div className="border-t border-gray-700 bg-black p-3 text-center">
             <button
               type="button"
               onClick={capture}
-              className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-100"
+              className="rounded-md bg-white px-5 py-2.5 text-base font-semibold text-gray-800 hover:bg-gray-100"
             >
               Capture Photo
             </button>
@@ -138,14 +138,14 @@ function SelfieCapture({ file, onChange }) {
         <button
           type="button"
           onClick={startCamera}
-          className="flex w-full flex-col items-center justify-center gap-1.5 px-4 py-6 text-center transition-colors hover:border-teal-400 hover:bg-teal-50"
+          className="flex w-full flex-col items-center justify-center gap-2 px-4 py-7 text-center transition-colors hover:border-teal-400 hover:bg-teal-50"
         >
-          <span className="text-sm font-medium text-teal-700">Turn on camera to take a live selfie</span>
-          <span className="text-xs text-gray-500">Required for verification — camera only, no gallery uploads</span>
+          <span className="text-base font-medium text-teal-700">Turn on camera to take a live selfie</span>
+          <span className="text-sm text-gray-500">Required for verification — camera only, no gallery uploads</span>
         </button>
       )}
       <canvas ref={canvasRef} className="hidden" />
-      {error && <p className="border-t border-gray-200 px-3 pb-3 pt-2 text-xs text-red-600">{error}</p>}
+      {error && <p className="border-t border-gray-200 px-4 pb-4 pt-2.5 text-sm text-red-600">{error}</p>}
     </div>
   )
 }
@@ -154,8 +154,8 @@ function SelfieCapture({ file, onChange }) {
 // one coherent system instead of five differently-styled boxes.
 function CardHeading({ children, action }) {
   return (
-    <div className="flex items-center justify-between border-b-2 border-gray-100 pb-3">
-      <h2 className="text-base font-semibold text-gray-800">{children}</h2>
+    <div className="flex items-center justify-between border-b-2 border-gray-100 pb-4">
+      <h2 className="text-xl font-semibold text-gray-800">{children}</h2>
       {action}
     </div>
   )
@@ -185,10 +185,10 @@ function formatDate(value) {
 // of expanding awkwardly inside this card.
 function ProfileCard({ customer }) {
   return (
-    <div className="rounded-xl border border-l-4 border-gray-200 border-l-teal-700 bg-white p-6">
+   <div className="rounded-xl border border-gray-200 bg-white p-7">
       <CardHeading
         action={
-          <Link to="/account/edit" className="text-sm font-semibold text-teal-700 hover:underline">
+          <Link to="/account/edit" className="text-base font-semibold text-teal-700 hover:underline">
             Edit
           </Link>
         }
@@ -196,35 +196,35 @@ function ProfileCard({ customer }) {
         Profile
       </CardHeading>
 
-      <div className="mt-5 space-y-4">
+      <div className="mt-6 space-y-5">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Full Name</p>
-          <p className="mt-0.5 text-sm font-medium text-gray-800">{fullLegalName(customer) || customer.name}</p>
+          <p className="text-sm font-medium uppercase tracking-wide text-gray-400">Full Name</p>
+          <p className="mt-1 text-lg font-medium text-gray-800">{fullLegalName(customer) || customer.name}</p>
         </div>
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Email</p>
-          <p className="mt-0.5 text-sm font-medium text-gray-800">
+          <p className="text-sm font-medium uppercase tracking-wide text-gray-400">Email</p>
+          <p className="mt-1 text-lg font-medium text-gray-800">
             {customer.email}{' '}
-            <span className={`ml-1 text-xs font-normal ${customer.emailVerified ? 'text-teal-700' : 'text-amber-700'}`}>
+            <span className={`ml-1 text-sm font-normal ${customer.emailVerified ? 'text-teal-700' : 'text-amber-700'}`}>
               ({customer.emailVerified ? 'Verified' : 'Not verified'})
             </span>
           </p>
         </div>
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Contact Number</p>
-          <p className="mt-0.5 text-sm font-medium text-gray-800">
+          <p className="text-sm font-medium uppercase tracking-wide text-gray-400">Contact Number</p>
+          <p className="mt-1 text-lg font-medium text-gray-800">
             {customer.contactNumber || <span className="font-normal text-gray-400">Not set</span>}
           </p>
         </div>
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Address</p>
-          <p className="mt-0.5 text-sm font-medium text-gray-800">
+          <p className="text-sm font-medium uppercase tracking-wide text-gray-400">Address</p>
+          <p className="mt-1 text-lg font-medium text-gray-800">
             {fullAddress(customer) || <span className="font-normal text-gray-400">Not set</span>}
           </p>
         </div>
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Discount Eligibility</p>
-          <p className="mt-0.5 text-sm font-medium capitalize text-gray-800">
+          <p className="text-sm font-medium uppercase tracking-wide text-gray-400">Discount Eligibility</p>
+          <p className="mt-1 text-lg font-medium capitalize text-gray-800">
             {customer.discountType === 'none' ? (
               <span className="font-normal capitalize text-gray-400">None on file</span>
             ) : (
@@ -239,8 +239,8 @@ function ProfileCard({ customer }) {
         </div>
         {formatDate(customer.createdAt) && (
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Member Since</p>
-            <p className="mt-0.5 text-sm font-medium text-gray-800">{formatDate(customer.createdAt)}</p>
+            <p className="text-sm font-medium uppercase tracking-wide text-gray-400">Member Since</p>
+            <p className="mt-1 text-lg font-medium text-gray-800">{formatDate(customer.createdAt)}</p>
           </div>
         )}
       </div>
@@ -254,26 +254,26 @@ function ProfileCard({ customer }) {
 function IdUploadField({ label, hint, file, onChange }) {
   return (
     <>
-      <label className="mt-4 block text-xs font-medium uppercase tracking-wide text-gray-500">{label}</label>
-      {hint && <p className="mt-0.5 text-xs text-gray-400">{hint}</p>}
+      <label className="mt-5 block text-sm font-medium uppercase tracking-wide text-gray-500">{label}</label>
+      {hint && <p className="mt-1 text-sm text-gray-400">{hint}</p>}
       {file ? (
-        <div className="mt-1.5 flex items-center gap-3 rounded-md border border-gray-300 bg-gray-50 p-3">
+        <div className="mt-2 flex items-center gap-3 rounded-md border border-gray-300 bg-gray-50 p-4">
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-gray-800">{file.name}</p>
-            <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(0)} KB</p>
+            <p className="truncate text-base font-medium text-gray-800">{file.name}</p>
+            <p className="text-sm text-gray-500">{(file.size / 1024).toFixed(0)} KB</p>
           </div>
           <button
             type="button"
             onClick={() => onChange(null)}
-            className="flex-shrink-0 text-xs font-medium text-gray-600 hover:text-red-600 hover:underline"
+            className="flex-shrink-0 text-sm font-medium text-gray-600 hover:text-red-600 hover:underline"
           >
             Remove
           </button>
         </div>
       ) : (
-        <label className="mt-1.5 flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-md border border-dashed border-gray-300 px-4 py-6 text-center transition-colors hover:border-teal-400 hover:bg-teal-50">
-          <span className="text-sm font-medium text-teal-700">Click to upload {label.toLowerCase()}</span>
-          <span className="text-xs text-gray-500">JPG or PNG</span>
+        <label className="mt-2 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-gray-300 px-4 py-7 text-center transition-colors hover:border-teal-400 hover:bg-teal-50">
+          <span className="text-base font-medium text-teal-700">Click to upload {label.toLowerCase()}</span>
+          <span className="text-sm text-gray-500">JPG or PNG</span>
           <input
             type="file"
             accept="image/*"
@@ -347,10 +347,10 @@ function ProfileVerificationCard({ customer, onUpdated }) {
   }
 
   return (
-    <div id="profile-verification" className="scroll-mt-24 rounded-xl border border-l-4 border-gray-200 border-l-amber-600 bg-white p-6">
+    <div id="profile-verification" className="scroll-mt-24 rounded-xl border border-gray-200 bg-white p-7">
       <CardHeading>Profile Verification</CardHeading>
 
-      <div className={`mt-4 rounded-lg border p-4 text-sm ${statusStyles[customer.discountStatus] || statusStyles.none}`}>
+      <div className={`mt-5 rounded-lg border p-5 text-base ${statusStyles[customer.discountStatus] || statusStyles.none}`}>
         {customer.discountStatus === 'verified' && (
           <>
             You're Profile Verified, which makes you eligible for the{' '}
@@ -375,18 +375,18 @@ function ProfileVerificationCard({ customer, onUpdated }) {
       </div>
 
       {['none', 'rejected', 'expired'].includes(customer.discountStatus) && (
-        <div className="mt-4">
-          <label className="block text-xs font-medium uppercase tracking-wide text-gray-500">Live Profile Photo</label>
-          <p className="mt-0.5 text-xs text-gray-400">
+        <div className="mt-5">
+          <label className="block text-sm font-medium uppercase tracking-wide text-gray-500">Live Profile Photo</label>
+          <p className="mt-1 text-sm text-gray-400">
             Take a live photo with your camera — required to verify your profile. This also becomes your profile picture.
           </p>
           <SelfieCapture file={selfieFile} onChange={setSelfieFile} />
 
-          <label className="mt-4 block text-xs font-medium uppercase tracking-wide text-gray-500">Discount Type</label>
+          <label className="mt-5 block text-sm font-medium uppercase tracking-wide text-gray-500">Discount Type</label>
           <select
             value={discountType}
             onChange={(e) => setDiscountType(e.target.value)}
-            className="mt-1.5 w-full rounded-md border border-gray-300 px-3 py-2.5 text-sm"
+            className="mt-2 w-full rounded-md border border-gray-300 px-4 py-3 text-base"
           >
             <option value="senior">Senior Citizen</option>
             <option value="pwd">PWD</option>
@@ -404,12 +404,12 @@ function ProfileVerificationCard({ customer, onUpdated }) {
           <button
             onClick={submitVerificationRequest}
             disabled={submitting || !file || !backFile || !selfieFile}
-            className="mt-4 rounded-md bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800 disabled:opacity-50"
+            className="mt-5 rounded-md bg-teal-700 px-5 py-2.5 text-base font-medium text-white hover:bg-teal-800 disabled:opacity-50"
           >
             {submitting ? 'Submitting...' : 'Submit for Verification'}
           </button>
 
-          {message && <p className={`mt-3 text-sm ${error ? 'text-red-600' : 'text-teal-700'}`}>{message}</p>}
+          {message && <p className={`mt-3 text-base ${error ? 'text-red-600' : 'text-teal-700'}`}>{message}</p>}
         </div>
       )}
     </div>
@@ -431,16 +431,16 @@ function BookingHistoryCard() {
   }, [])
 
   return (
-    <div className="rounded-xl border border-l-4 border-gray-200 border-l-blue-600 bg-white p-6">
+ <div className="rounded-xl border border-gray-200 bg-white p-7">
       <CardHeading>My Bookings</CardHeading>
 
-      {loading && <p className="mt-5 text-sm text-gray-500">Loading your bookings...</p>}
-      {error && <p className="mt-5 text-sm text-red-600">{error}</p>}
+      {loading && <p className="mt-5 text-base text-gray-500">Loading your bookings...</p>}
+      {error && <p className="mt-5 text-base text-red-600">{error}</p>}
 
       {!loading && !error && bookings.length === 0 && (
-        <div className="mt-5 rounded-lg border border-dashed border-gray-300 py-10 text-center">
-          <p className="text-sm text-gray-500">No bookings yet under this account.</p>
-          <p className="mt-1 text-xs text-gray-400">Bookings you make while logged in will show up here.</p>
+        <div className="mt-5 rounded-lg border border-dashed border-gray-300 py-12 text-center">
+          <p className="text-base text-gray-500">No bookings yet under this account.</p>
+          <p className="mt-1.5 text-sm text-gray-400">Bookings you make while logged in will show up here.</p>
         </div>
       )}
 
@@ -452,15 +452,15 @@ function BookingHistoryCard() {
               <Link
                 key={b.id}
                 to={`/manage-booking?reference_code=${encodeURIComponent(b.referenceCode)}&contact_email=${encodeURIComponent(b.contactEmail)}`}
-                className="block rounded-lg border border-gray-200 p-4 transition-colors hover:border-teal-300 hover:bg-teal-50"
+                className="block rounded-lg border border-gray-200 p-5 transition-colors hover:border-teal-300 hover:bg-teal-50"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="font-semibold text-gray-800">
+                    <p className="text-lg font-semibold text-gray-800">
                       {ports.from} &rarr; {ports.to}
                     </p>
                     {b.schedule?.departureDatetime && (
-                      <p className="mt-0.5 text-sm text-gray-500">
+                      <p className="mt-1 text-base text-gray-500">
                         {new Date(b.schedule.departureDatetime).toLocaleString('en-US', {
                           month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
                         })}
@@ -469,12 +469,12 @@ function BookingHistoryCard() {
                   </div>
                   <StatusBadge status={b.status} />
                 </div>
-                <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-gray-100 pt-3 text-sm text-gray-600">
+                <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-gray-100 pt-3 text-base text-gray-600">
                   <span>Ref: <span className="font-medium text-gray-800">{b.referenceCode}</span></span>
                   <span>{b.passengers?.length || 0} passenger{b.passengers?.length === 1 ? '' : 's'}</span>
-                  <span className="ml-auto text-base font-semibold text-gray-800">{formatPeso(b.totalFare)}</span>
+                  <span className="ml-auto text-xl font-semibold text-gray-800">{formatPeso(b.totalFare)}</span>
                 </div>
-                <div className="mt-3 border-t border-gray-100 pt-2.5 text-right text-sm font-medium text-teal-700">
+                <div className="mt-3 border-t border-gray-100 pt-2.5 text-right text-base font-medium text-teal-700">
                   View details &rarr;
                 </div>
               </Link>
@@ -559,28 +559,28 @@ function AccountSidebar({ activeTab, onSelect }) {
             <Link
               key={item.to}
               to={item.to}
-              className="flex w-full items-center gap-3 border-l-4 border-transparent px-4 py-3 text-left text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
+           className="flex w-full items-center gap-3 px-5 py-3.5 text-left text-base font-medium text-gray-600 transition-colors hover:bg-gray-50"
             >
-              <Icon className="h-4 w-4 flex-shrink-0" />
+              <Icon className="h-5 w-5 flex-shrink-0" />
               {item.label}
             </Link>
           )
         }
-        const active = activeTab === item.id
-        return (
-          <button
-            key={item.id}
-            onClick={() => onSelect(item.id)}
-            className={`flex w-full items-center gap-3 border-l-4 px-4 py-3 text-left text-sm font-medium transition-colors ${
-              active
-                ? 'border-teal-700 bg-teal-50 text-teal-800'
-                : 'border-transparent text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            <Icon className="h-4 w-4 flex-shrink-0" />
-            {item.label}
-          </button>
-        )
+       const active = activeTab === item.id
+return (
+  <button
+    key={item.id}
+    onClick={() => onSelect(item.id)}
+    className={`flex w-full items-center gap-3 px-5 py-3.5 text-left text-base font-medium transition-colors ${
+      active
+        ? 'bg-teal-700 text-white'
+        : 'text-gray-600 hover:bg-gray-50'
+    }`}
+  >
+    <Icon className="h-5 w-5 flex-shrink-0" />
+    {item.label}
+  </button>
+)
       })}
     </nav>
   )
@@ -589,27 +589,27 @@ function AccountSidebar({ activeTab, onSelect }) {
 function DashboardSection({ customer, navigate }) {
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-gray-200 bg-white p-6">
-        <h2 className="text-lg font-semibold text-gray-800">Welcome back, {customer.firstName || customer.name}</h2>
-        <p className="mt-1 text-sm text-gray-500">Here's a quick overview of your account.</p>
-        <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div className="rounded-lg border border-gray-200 p-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Email</p>
-            <p className={`mt-1 text-sm font-semibold ${customer.emailVerified ? 'text-teal-700' : 'text-amber-700'}`}>
+      <div className="rounded-xl border border-gray-200 bg-white p-7">
+        <h2 className="text-2xl font-semibold text-gray-800">Welcome back, {customer.firstName || customer.name}</h2>
+        <p className="mt-1.5 text-base text-gray-500">Here's a quick overview of your account.</p>
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="rounded-lg border border-gray-200 p-5">
+            <p className="text-sm font-medium uppercase tracking-wide text-gray-400">Email</p>
+            <p className={`mt-1.5 text-lg font-semibold ${customer.emailVerified ? 'text-teal-700' : 'text-amber-700'}`}>
               {customer.emailVerified ? 'Verified' : 'Not verified'}
             </p>
           </div>
-          <div className="rounded-lg border border-gray-200 p-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Discount Eligibility</p>
-            <p className="mt-1 text-sm font-semibold capitalize text-gray-800">
+          <div className="rounded-lg border border-gray-200 p-5">
+            <p className="text-sm font-medium uppercase tracking-wide text-gray-400">Discount Eligibility</p>
+            <p className="mt-1.5 text-lg font-semibold capitalize text-gray-800">
               {customer.discountType === 'none'
                 ? 'None on file'
                 : `${customer.discountType} (${customer.discountStatus.replace('_', ' ')})`}
             </p>
           </div>
-          <div className="rounded-lg border border-gray-200 p-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Member Since</p>
-            <p className="mt-1 text-sm font-semibold text-gray-800">{formatDate(customer.createdAt) || 'Not set'}</p>
+          <div className="rounded-lg border border-gray-200 p-5">
+            <p className="text-sm font-medium uppercase tracking-wide text-gray-400">Member Since</p>
+            <p className="mt-1.5 text-lg font-semibold text-gray-800">{formatDate(customer.createdAt) || 'Not set'}</p>
           </div>
         </div>
       </div>
@@ -620,23 +620,23 @@ function DashboardSection({ customer, navigate }) {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <button
           onClick={() => navigate('/')}
-          className="flex items-center justify-between rounded-xl border border-teal-700 bg-teal-700 p-5 text-left text-white transition-colors hover:bg-teal-800"
+          className="flex items-center justify-between rounded-xl border border-teal-700 bg-teal-700 p-6 text-left text-white transition-colors hover:bg-teal-800"
         >
           <div className="min-w-0">
-            <p className="font-semibold">Book a New Trip</p>
-            <p className="mt-0.5 text-xs text-teal-100">Search sailings to Limasawa or Padre Burgos</p>
+            <p className="text-lg font-semibold">Book a New Trip</p>
+            <p className="mt-1 text-sm text-teal-100">Search sailings to Limasawa or Padre Burgos</p>
           </div>
-          <span className="ml-4 flex-shrink-0 text-lg">&rarr;</span>
+          <span className="ml-4 flex-shrink-0 text-2xl">&rarr;</span>
         </button>
         <button
           onClick={() => navigate('/manage-booking')}
-          className="flex items-center justify-between rounded-xl border border-teal-700 bg-teal-700 p-5 text-left text-white transition-colors hover:bg-teal-800"
+          className="flex items-center justify-between rounded-xl border border-teal-700 bg-teal-700 p-6 text-left text-white transition-colors hover:bg-teal-800"
         >
           <div className="min-w-0">
-            <p className="font-semibold">Manage a Booking</p>
-            <p className="mt-0.5 text-xs text-teal-100">Look up any booking by reference code</p>
+            <p className="text-lg font-semibold">Manage a Booking</p>
+            <p className="mt-1 text-sm text-teal-100">Look up any booking by reference code</p>
           </div>
-          <span className="ml-4 flex-shrink-0 text-lg">&rarr;</span>
+          <span className="ml-4 flex-shrink-0 text-2xl">&rarr;</span>
         </button>
       </div>
     </div>
@@ -677,14 +677,14 @@ export default function Account() {
           This just confirms the customer controls their inbox; it doesn't
           block login or booking. */}
       {!customer.emailVerified && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-5 py-4 text-base text-amber-900">
           <span><strong>Action needed:</strong> Please verify your email address. Check your inbox at {customer.email} for a link.</span>
-          <div className="flex flex-shrink-0 items-center gap-2">
-            {resendMessage && <span className="text-xs text-amber-800">{resendMessage}</span>}
+          <div className="flex flex-shrink-0 items-center gap-3">
+            {resendMessage && <span className="text-sm text-amber-800">{resendMessage}</span>}
             <button
               onClick={handleResendVerification}
               disabled={resendingVerification}
-              className="whitespace-nowrap rounded-md border border-amber-700 bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800 disabled:opacity-50"
+              className="whitespace-nowrap rounded-md border border-amber-700 bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-800 disabled:opacity-50"
             >
               {resendingVerification ? 'Sending...' : 'Resend Email'}
             </button>
@@ -699,7 +699,7 @@ export default function Account() {
           Verification tab instead of anchor-scrolling, now that section
           lives behind the sidebar instead of further down the same page. */}
       {['none', 'rejected', 'expired'].includes(customer.discountStatus) && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-5 py-4 text-base text-amber-900">
           <span>
             <strong>Action needed:</strong>{' '}
             {customer.discountStatus === 'rejected'
@@ -710,7 +710,7 @@ export default function Account() {
           </span>
           <button
             onClick={() => setActiveTab('verification')}
-            className="flex-shrink-0 whitespace-nowrap rounded-md border border-amber-700 bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800"
+            className="flex-shrink-0 whitespace-nowrap rounded-md border border-amber-700 bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-800"
           >
             Verify Now
           </button>

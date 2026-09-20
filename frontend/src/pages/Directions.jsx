@@ -36,12 +36,12 @@ function GoogleMapsButton({ href, className = '' }) {
       href={href}
       target="_blank"
       rel="noreferrer"
-      className={`flex items-center gap-3 rounded-lg border border-teal-700 bg-teal-700 px-5 py-3 text-white transition-colors hover:bg-teal-800 ${className}`}
+      className={`flex items-center gap-3 rounded-lg border border-teal-700 bg-teal-700 px-6 py-4 text-white transition-colors hover:bg-teal-800 ${className}`}
     >
-      <IconMapPin className="h-6 w-6 flex-shrink-0" />
+      <IconMapPin className="h-7 w-7 flex-shrink-0" />
       <span>
-        <span className="block text-sm font-semibold">Open in Google Maps</span>
-        <span className="block text-xs text-teal-100">Get live turn-by-turn navigation to the port</span>
+        <span className="block text-base font-semibold">Open in Google Maps</span>
+        <span className="block text-sm text-teal-100">Get live turn-by-turn navigation to the port</span>
       </span>
     </a>
   )
@@ -177,13 +177,13 @@ export default function Directions() {
       <button
         type="button"
         onClick={() => navigate(-1)}
-        className="text-sm font-medium text-teal-700 hover:text-teal-800 hover:underline"
+        className="text-base font-medium text-teal-700 hover:text-teal-800 hover:underline"
       >
         &larr; Back
       </button>
 
-      <h1 className="mt-3 text-2xl font-bold text-gray-800">Directions to {destination.name}</h1>
-      <p className="mt-1 text-gray-600">
+      <h1 className="mt-3 text-3xl font-bold text-gray-800">Directions to {destination.name}</h1>
+      <p className="mt-1.5 text-lg text-gray-600">
         {direction === 'PB_TO_LIMASAWA'
           ? 'Head here to catch your ferry to Limasawa.'
           : 'Head here to catch your ferry to Padre Burgos.'}
@@ -193,11 +193,11 @@ export default function Directions() {
           booking (main nav, account sidebar). A visitor coming from a
           specific booking already has the right port selected, but still
           sees this in case they need the other terminal too. */}
-      <div className="mt-4 inline-flex rounded-md border border-gray-200 bg-gray-50 p-1">
+      <div className="mt-5 inline-flex rounded-md border border-gray-200 bg-gray-50 p-1.5">
         <button
           type="button"
           onClick={() => switchDirection('PB_TO_LIMASAWA')}
-          className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${
+          className={`rounded px-4 py-2 text-base font-medium transition-colors ${
             direction === 'PB_TO_LIMASAWA' ? 'bg-white text-teal-800 shadow-sm' : 'text-gray-600 hover:text-gray-800'
           }`}
         >
@@ -206,7 +206,7 @@ export default function Directions() {
         <button
           type="button"
           onClick={() => switchDirection('LIMASAWA_TO_PB')}
-          className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${
+          className={`rounded px-4 py-2 text-base font-medium transition-colors ${
             direction === 'LIMASAWA_TO_PB' ? 'bg-white text-teal-800 shadow-sm' : 'text-gray-600 hover:text-gray-800'
           }`}
         >
@@ -215,23 +215,23 @@ export default function Directions() {
       </div>
 
       {status === 'locating' && (
-        <p className="mt-6 text-sm text-gray-600">Getting your current location...</p>
+        <p className="mt-6 text-base text-gray-600">Getting your current location...</p>
       )}
 
       {status === 'location_denied' && (
-        <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-6">
-          <p className="text-sm text-gray-700">
+        <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-7">
+          <p className="text-base text-gray-700">
             Location access was denied, so we can't draw a route from where you are. You can
             still open directions in the Google Maps app instead:
           </p>
-          <GoogleMapsButton href={googleMapsAppUrl} className="mt-3" />
+          <GoogleMapsButton href={googleMapsAppUrl} className="mt-4" />
         </div>
       )}
 
-      {status === 'error' && <p className="mt-6 text-sm text-red-600">{errorMessage}</p>}
+      {status === 'error' && <p className="mt-6 text-base text-red-600">{errorMessage}</p>}
 
       {status === 'ready' && (
-        <p className="mt-6 text-sm text-gray-600">
+        <p className="mt-6 text-base text-gray-600">
           <b>{distanceText}</b> away &middot; about <b>{durationText}</b> by car
         </p>
       )}
@@ -243,7 +243,7 @@ export default function Directions() {
             // controls and panes use z-index up to 1000), which otherwise
             // escapes this wrapper and can render on top of fixed page
             // elements like the chat widget when zoomed/panned.
-            className={`${status === 'ready' ? 'mt-3' : 'mt-6'} isolate h-96 w-full overflow-hidden rounded-lg border border-gray-200`}
+            className={`${status === 'ready' ? 'mt-3' : 'mt-6'} isolate h-[32rem] w-full overflow-hidden rounded-lg border border-gray-200`}
           >
             <MapContainer
               center={[origin.lat, origin.lng]}
@@ -280,7 +280,7 @@ export default function Directions() {
               {routeLine && <FitRoute bounds={routeLine} />}
             </MapContainer>
           </div>
-          <p className="mt-2 text-xs text-gray-500">
+          <p className="mt-2.5 text-sm text-gray-500">
             Location is estimated from your device and network, and can be off by a wide margin,
             especially on desktop. Drag the blue marker to your exact position, or{' '}
             <button type="button" onClick={locate} className="font-medium text-teal-700 hover:underline">
@@ -288,7 +288,7 @@ export default function Directions() {
             </button>
             .
           </p>
-          <GoogleMapsButton href={googleMapsAppUrl} className="mt-4" />
+          <GoogleMapsButton href={googleMapsAppUrl} className="mt-5" />
         </>
       )}
     </div>
