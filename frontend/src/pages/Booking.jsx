@@ -853,20 +853,28 @@ export default function Booking() {
 
       <h1 className="text-2xl font-bold text-gray-800">Book Your Trip</h1>
 
-      <div className="mt-4 rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Trip Summary</p>
+      <div className="mt-4 rounded-lg text-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <p className="text-lg font-semibold uppercase tracking-wide text-gray-500">Trip Summary</p>
         <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
-            <p className="text-xs text-gray-500">Route</p>
+            <p className="text-lg text-gray-500">Route</p>
             <p className="mt-0.5 font-semibold text-gray-800">{directionLabel[direction]}</p>
           </div>
           <div>
-            <p className="text-xs text-gray-500">Departure</p>
-            <p className="mt-0.5 font-semibold text-gray-800">{new Date(datetime).toLocaleString()}</p>
+            <p className="text-lg text-gray-500">Departure</p>
+           <p className="mt-0.5 font-semibold text-gray-800">
+  {new Date(datetime).toLocaleString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })}
+</p>
           </div>
           <div>
-            <p className="text-xs text-gray-500">Base Fare (per passenger)</p>
-            <p className="mt-0.5 font-semibold text-teal-700">{formatPeso(fare)}</p>
+            <p className="text-lg text-gray-500">Base Fare (per passenger)</p>
+            <p className="mt-0.5 text-xl font-semibold text-teal-700">{formatPeso(fare)}</p>
           </div>
         </div>
       </div>
@@ -915,9 +923,9 @@ export default function Booking() {
             </div>
           )}
 
-          <div className="mt-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-gray-800">Passengers</h2>
-            <p className="mt-1 text-sm text-gray-500">
+          <div className="mt-6 text-xl rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-semibold text-gray-800">Passengers</h2>
+            <p className="mt-1 text-lg text-sm text-gray-500">
               Enter each passenger's details exactly as shown on a valid ID. This is needed for boarding.
               Fields marked with <span className="text-red-600">*</span> are required.
             </p>
@@ -1375,7 +1383,7 @@ export default function Booking() {
       )}
 
       {!booking && phase === 'review' && (
-        <div className="mt-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="mt-6 rounded-lg text-xl border border-gray-200 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-800">Review Your Booking</h2>
           <p className="mt-1 text-sm text-gray-600">Double-check everything before confirming.</p>
 
@@ -1419,14 +1427,14 @@ export default function Booking() {
       {booking && (
         <div className="mt-6 rounded-lg border border-teal-200 bg-teal-50 p-6 text-center">
           <h2 className="text-xl font-bold text-gray-800">Booking Confirmed!</h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Your reference code (save this — you'll need it to manage your booking):
+          <p className="mt-2 text-lg text-gray-600">
+            Your reference code (save this you'll need it to manage your booking)
           </p>
           <div className="mt-2 text-2xl font-bold tracking-wide text-teal-700">
             {booking.referenceCode}
           </div>
-          <p className="mt-2 text-sm text-gray-600">
-            Total to pay: <b>&#8369;{booking.totalFare}</b>
+          <p className="mt-2 text-lg text-gray-600">
+            Total to pay: <b className="text-lg">&#8369;{booking.totalFare}</b>
           </p>
 
           <Link
@@ -1483,24 +1491,24 @@ export default function Booking() {
                       <path strokeLinecap="round" d="M11 18h2" />
                     </svg>
                   </span>
-                  <p className="text-sm font-semibold text-gray-800">Paying with the phone you're on right now?</p>
+                  <p className="text-lg font-semibold text-gray-800">Paying with the phone you're on right now?</p>
                 </div>
                 <ol className="mt-3 space-y-2.5">
                   <li className="flex gap-2.5">
-                    <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-white text-[11px] font-bold text-teal-700 ring-1 ring-teal-200">
+                    <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-white text-[11px] font-bold text-teal-700 ring-1 ring-teal-200">
                       1
                     </span>
-                    <p className="text-xs leading-relaxed text-gray-700">
+                    <p className="text-lg leading-relaxed text-gray-700">
                       Press and hold the QR code above, then choose{' '}
                       <span className="font-semibold">"Save Image"</span> (or "Add to Photos"), or use the
                       Download button above instead.
                     </p>
                   </li>
                   <li className="flex gap-2.5">
-                    <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-white text-[11px] font-bold text-teal-700 ring-1 ring-teal-200">
+                    <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-white text-[11px] font-bold text-teal-700 ring-1 ring-teal-200">
                       2
                     </span>
-                    <p className="text-xs leading-relaxed text-gray-700">
+                    <p className="text-lg leading-relaxed text-gray-700">
                       Open your GCash, Maya, or banking app and choose{' '}
                       <span className="font-semibold">"Scan QR" &rarr; "Upload from Gallery"</span> to pay with the
                       saved image.
@@ -1513,7 +1521,7 @@ export default function Booking() {
               <p className="mt-1 text-xs text-gray-500">This code expires in 30 minutes.</p>
               {testUrl && (
                 <p className="mt-4 text-xs text-gray-500">
-                  Test mode — do not scan this with a real banking app.{' '}
+                  Test mode: do not scan this with a real banking app.{' '}
                   <a
                     href={testUrl}
                     target="_blank"
@@ -1554,42 +1562,33 @@ export default function Booking() {
         </div>
       )}
 
-      {/* Summary bar — on desktop this is pinned to the bottom of the screen
-          through Passenger and Review so the trip, running total, and next
-          action are always visible without scrolling back up (the same way
-          OceanJet's booking flow keeps its bottom bar in place). On a small
-          screen it stays in the normal page flow instead of floating fixed —
-          a bar permanently glued to the bottom eats too much of an already
-          small viewport, so there it just appears as the last card on the
-          page, right where the old inline summary used to sit. Hidden once
-          a booking exists, since the QR/payment screen has its own flow. */}
       {!booking && (
         <div className="static mt-6 border-t border-teal-900 bg-teal-950 text-white sm:fixed sm:inset-x-0 sm:bottom-0 sm:z-40 sm:mt-0 sm:shadow-lg">
-          <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-4 px-4 py-4 sm:flex-nowrap sm:justify-between sm:gap-6 sm:py-3">
+          <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-4 px-4 py-4 sm:flex-nowrap sm:justify-between sm:gap-6 sm:py-3">
             <div className="flex min-w-0 items-center gap-3">
-              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-white p-1 shadow-sm">
+              <div className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-md bg-white p-1 shadow-sm">
                 <img src="/evershine-logo.png" alt="Evershine" className="h-full w-full object-contain" />
               </div>
               <div className="min-w-0">
-                <p className="text-xs text-teal-300">Departure</p>
-                <p className="truncate text-sm font-semibold">{directionLabel[direction]}</p>
-                <p className="truncate text-xs text-teal-300">{new Date(datetime).toLocaleString()}</p>
+                <p className="text-xl text-teal-300">Departure</p>
+                <p className="truncate text-xl font-semibold">{directionLabel[direction]}</p>
+                <p className="truncate text-xl text-teal-300">{new Date(datetime).toLocaleString()}</p>
               </div>
             </div>
 
             <div>
-              <p className="text-xs text-teal-300">Passengers</p>
-              <p className="text-sm font-semibold">
+              <p className="text-lg text-teal-300">Passengers</p>
+              <p className="text-xl font-semibold">
                 {passengers.length} Passenger{passengers.length === 1 ? '' : 's'}
               </p>
             </div>
 
             <div>
-              <p className="text-xs text-teal-300">Total</p>
-              <p className="text-lg font-bold leading-tight">{formatPeso(estimatedTotal)}</p>
+              <p className="text-lg text-teal-300">Total</p>
+              <p className="text-2xl font-bold leading-tight">{formatPeso(estimatedTotal)}</p>
             </div>
 
-            <div className="w-full sm:w-auto">
+            <div className="w-full text-xl sm:w-auto">
               {phase === 'form' ? (
                 <button
                   onClick={goToReview}

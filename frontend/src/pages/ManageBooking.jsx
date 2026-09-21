@@ -417,9 +417,6 @@ export default function ManageBooking() {
     <div className="mx-auto max-w-5xl">
       <div className="border-b border-gray-100 pb-5">
         <h1 className="text-3xl font-bold text-gray-800 sm:text-4xl">Manage Your Booking</h1>
-        <p className="mt-1.5 text-base text-gray-600">
-          Look up a booking to view its details, get directions to the terminal, or request a cancellation.
-        </p>
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
@@ -433,7 +430,7 @@ export default function ManageBooking() {
           <label className="mt-5 block text-base font-medium text-gray-700">Reference Code</label>
           <input
             type="text"
-            placeholder="e.g. EBJBCBTA"
+            placeholder="EBJBCBTA"
             value={referenceCode}
             onChange={(e) => setReferenceCode(e.target.value)}
             className="mt-1.5 w-full rounded-md border border-gray-300 px-3 py-2.5 text-base uppercase tracking-wide placeholder:normal-case placeholder:tracking-normal focus:border-teal-600 focus:outline-none focus:ring-1 focus:ring-teal-600"
@@ -445,7 +442,7 @@ export default function ManageBooking() {
           <label className="mt-4 block text-base font-medium text-gray-700">Email used when booking</label>
           <input
             type="email"
-            placeholder="you@example.com"
+            placeholder="delacruz@gmail.com"
             value={contactEmail}
             onChange={(e) => setContactEmail(e.target.value)}
             className="mt-1.5 w-full rounded-md border border-gray-300 px-3 py-2.5 text-base focus:border-teal-600 focus:outline-none focus:ring-1 focus:ring-teal-600"

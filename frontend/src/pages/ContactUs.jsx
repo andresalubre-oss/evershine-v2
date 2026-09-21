@@ -108,7 +108,7 @@ export default function ContactUs() {
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Juan Dela Cruz"
+                  placeholder="Juan Dela Cruz"
                   className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2.5 text-base"
                 />
               </div>
@@ -118,7 +118,7 @@ export default function ContactUs() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="e.g. juandelacruz@email.com"
+                  placeholder="juandelacruz@email.com"
                   className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2.5 text-base"
                 />
               </div>

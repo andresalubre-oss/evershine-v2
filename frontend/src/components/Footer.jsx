@@ -96,7 +96,7 @@ export default function Footer() {
       </div>
       <div className="border-t border-gray-100 py-4">
          <p className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs text-gray-500">
-            Disclaimer: This website is for educational purposes only. Ayaw intawn mi ipakiha.Kapoy na baja skuyla nga way kwarta. All the details provided is not accurate and is subject for changes.</p>
+            Disclaimer: This is an unofficial website of Evershine Company and it's for educational purposes only. All the details provided is not accurate and is subject for changes.</p>
       </div>
     </footer>
   )

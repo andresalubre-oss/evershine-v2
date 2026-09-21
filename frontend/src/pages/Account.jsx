@@ -377,9 +377,6 @@ function ProfileVerificationCard({ customer, onUpdated }) {
       {['none', 'rejected', 'expired'].includes(customer.discountStatus) && (
         <div className="mt-5">
           <label className="block text-sm font-medium uppercase tracking-wide text-gray-500">Live Profile Photo</label>
-          <p className="mt-1 text-sm text-gray-400">
-            Take a live photo with your camera — required to verify your profile. This also becomes your profile picture.
-          </p>
           <SelfieCapture file={selfieFile} onChange={setSelfieFile} />
 
           <label className="mt-5 block text-sm font-medium uppercase tracking-wide text-gray-500">Discount Type</label>
@@ -396,7 +393,6 @@ function ProfileVerificationCard({ customer, onUpdated }) {
           <IdUploadField label="ID (Front)" file={file} onChange={setFile} />
           <IdUploadField
             label="ID (Back)"
-            hint="Most IDs print the expiry date on the back — we need both sides."
             file={backFile}
             onChange={setBackFile}
           />
@@ -591,7 +587,6 @@ function DashboardSection({ customer, navigate }) {
     <div className="space-y-6">
       <div className="rounded-xl border border-gray-200 bg-white p-7">
         <h2 className="text-2xl font-semibold text-gray-800">Welcome back, {customer.firstName || customer.name}</h2>
-        <p className="mt-1.5 text-base text-gray-500">Here's a quick overview of your account.</p>
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="rounded-lg border border-gray-200 p-5">
             <p className="text-sm font-medium uppercase tracking-wide text-gray-400">Email</p>

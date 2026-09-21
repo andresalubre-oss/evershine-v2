@@ -83,7 +83,18 @@ const NCR_REGION_CODE = '130000000'
 // also showing a filtered dropdown of matching official names underneath —
 // picking one fills the field and, for Region/Province/Municipality-City,
 // loads the next field's options.
-function AddressCombobox({ label, required, value, onChange, onSelect, options, loading, loadError, emptyHint }) {
+function AddressCombobox({
+  label,
+  required,
+  value,
+  onChange,
+  onSelect,
+  options,
+  loading,
+  loadError,
+  emptyHint,
+  placeholder,
+}) {
   const [open, setOpen] = useState(false)
   const wrapperRef = useRef(null)
 
@@ -102,15 +113,16 @@ function AddressCombobox({ label, required, value, onChange, onSelect, options, 
   return (
     <Field label={label} required={required}>
       <div ref={wrapperRef} className="relative">
-        <input
-          type="text"
-          required={required}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onFocus={() => setOpen(true)}
-          autoComplete="off"
-          className={inputClass}
-        />
+       <input
+  type="text"
+  required={required}
+  value={value}
+  onChange={(e) => onChange(e.target.value)}
+  onFocus={() => setOpen(true)}
+  autoComplete="off"
+  placeholder={placeholder}
+  className={inputClass}
+/>
         {open && (
           <div className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg">
             {loading ? (
@@ -397,35 +409,38 @@ export default function Register() {
           <SectionHeading
             number={2}
             title="Address"
-            hint="Start typing to see suggestions from official PSA data — or type your own if it's not listed."
           />
 
           <div className="mt-3 space-y-4">
             <AddressCombobox
-              label="Region"
-              required
-              value={region}
-              onChange={handleRegionChange}
-              onSelect={handleRegionSelect}
-              options={regions}
-              loadError={regionsError}
-            />
+  label="Region"
+  required
+  placeholder="Eastern Visayas"
+  value={region}
+  onChange={handleRegionChange}
+  onSelect={handleRegionSelect}
+  options={regions}
+  loadError={regionsError}
+/>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <AddressCombobox
-                label="Province"
-                required
-                value={province}
-                onChange={handleProvinceChange}
-                onSelect={handleProvinceSelect}
-                options={provinces}
-                loading={loadingProvinces}
-                loadError={provincesError}
-                emptyHint={regionCode ? 'No matches.' : 'Select a Region first, or type your own.'}
-              />
+  label="Province"
+  required
+  placeholder="Southern Leyte"
+  value={province}
+  onChange={handleProvinceChange}
+  onSelect={handleProvinceSelect}
+  options={provinces}
+  loading={loadingProvinces}
+  loadError={provincesError}
+  emptyHint={regionCode ? 'No matches.' : 'Select a Region first, or type your own.'}
+/>
+
               <AddressCombobox
                 label="Municipality/City"
                 required
+                placeholder="City of Maasin"
                 value={cityMunicipality}
                 onChange={handleCityChange}
                 onSelect={handleCitySelect}
@@ -440,6 +455,7 @@ export default function Register() {
               <AddressCombobox
                 label="Barangay"
                 required
+                placeholder="Ibarra"
                 value={barangay}
                 onChange={handleBarangayChange}
                 onSelect={handleBarangaySelect}

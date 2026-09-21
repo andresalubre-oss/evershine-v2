@@ -90,7 +90,7 @@ export default function ChatWidget({ liftedByBanner = false }) {
       {open && (
         <div className="mb-3 flex h-[28rem] w-80 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
           <div className="flex flex-shrink-0 items-center justify-between bg-teal-700 px-4 py-3 text-white">
-            <p className="text-sm font-semibold">Evershine Help</p>
+            <p className="text-sm font-semibold">Evershine Assist</p>
             <button onClick={() => setOpen(false)} aria-label="Close chat" className="rounded p-1 hover:bg-white/10">
               <IconX className="h-4 w-4" />
             </button>
