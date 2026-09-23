@@ -65,6 +65,15 @@ function advisoryLevel(windKmh, waveM) {
 const CACHE_TTL_MS = 30 * 60 * 1000;
 let cache = { data: null, fetchedAt: 0 };
 
+// Render's free tier shares outbound IPs across many unrelated apps, so
+// Open-Meteo's per-IP rate limit (429) can trip from traffic that has
+// nothing to do with this app. Once that happens, retrying immediately on
+// every dashboard refresh just adds to the problem — this cooldown makes
+// sure a failed attempt waits a while before trying Open-Meteo again,
+// serving the last good (now-stale) reading in the meantime instead.
+const FAILURE_RETRY_COOLDOWN_MS = 5 * 60 * 1000;
+let lastFailureAt = 0;
+
 async function fetchOpenMeteo(url) {
   const response = await fetch(url);
   if (!response.ok) {
@@ -76,6 +85,12 @@ async function fetchOpenMeteo(url) {
 async function getWeather() {
   if (cache.data && Date.now() - cache.fetchedAt < CACHE_TTL_MS) {
     return cache.data;
+  }
+
+  // Still within the cooldown from a recent failure — reuse whatever we
+  // last had (marked stale) rather than hitting Open-Meteo again so soon.
+  if (cache.data && Date.now() - lastFailureAt < FAILURE_RETRY_COOLDOWN_MS) {
+    return { ...cache.data, stale: true };
   }
 
   const forecastUrl =
@@ -95,7 +110,22 @@ async function getWeather() {
   // separately (not Promise.all with a shared catch) so a marine hiccup
   // still leaves the rest of the forecast usable rather than failing the
   // whole tab.
-  const forecast = await fetchOpenMeteo(forecastUrl);
+  let forecast;
+  try {
+    forecast = await fetchOpenMeteo(forecastUrl);
+  } catch (err) {
+    // The main forecast call is the one that actually failed with a 429 in
+    // production (Render's shared free-tier outbound IP tripping
+    // Open-Meteo's rate limit) — same "show the last good copy, marked
+    // stale, instead of a hard error" treatment as the PAGASA bulletin.
+    lastFailureAt = Date.now();
+    console.error('Failed to fetch weather:', err.message);
+    if (cache.data) {
+      return { ...cache.data, stale: true };
+    }
+    throw err;
+  }
+
   let marine = null;
   try {
     marine = await fetchOpenMeteo(marineUrl);
@@ -135,6 +165,7 @@ async function getWeather() {
       };
     }),
     marineDataAvailable: marine !== null,
+    stale: false,
   };
 
   cache = { data: result, fetchedAt: Date.now() };

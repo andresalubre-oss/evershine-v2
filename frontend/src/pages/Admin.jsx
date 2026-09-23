@@ -2202,6 +2202,11 @@ export default function Admin() {
 
                       <p className="mt-4 text-xs text-gray-400 dark:text-slate-500">
                         Updated {new Date(weather.generatedAt).toLocaleString('en-US', { timeZone: 'Asia/Manila' })} (Manila time)
+                        {weather.stale && (
+                          <span className="ml-1.5 rounded-full bg-amber-100 dark:bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
+                            Showing last known reading — live refresh temporarily unavailable
+                          </span>
+                        )}
                       </p>
                     </Card>
 
