@@ -1,7 +1,11 @@
 import { useState, useEffect, useRef, Fragment } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { MapContainer, TileLayer, Marker } from 'react-leaflet'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
 import { api } from '../api.js'
 import { exportAnalyticsPdf, exportAnalyticsExcel, exportAnalyticsPptx } from '../lib/analyticsExport.js'
+import ChatPanel from '../components/ChatPanel.jsx'
 
 const statusColors = {
   confirmed: 'bg-green-100 dark:bg-green-500/15 text-green-800 dark:text-green-300',
@@ -77,7 +81,7 @@ function StatCard({ label, value, icon: Icon, onClick, active = false, hint }) {
 // Sticky header + zebra striping keep long, dense tables scannable.
 function DataTable({ headers, children }) {
   return (
-    <div className="mt-3 max-h-[520px] overflow-auto rounded-md border border-gray-200 dark:border-slate-800">
+    <div className="no-scrollbar mt-3 max-h-[520px] overflow-auto rounded-md border border-gray-200 dark:border-slate-800">
       <table className="w-full text-sm">
         <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-slate-800">
           <tr>
@@ -165,6 +169,102 @@ function RevenueBarChart({ data }) {
     </div>
   )
 }
+
+// ---------------------------------------------------------------------------
+// Weather tab visuals — condition icons, a wind-speed gauge, and a small
+// location map. Flat/outline style and solid fills throughout, matching the
+// rest of the admin UI's "no gradients, no light-tint effects" design
+// language rather than the glossy dark-dashboard look it was inspired by.
+// ---------------------------------------------------------------------------
+
+function IconCloudRain(props) {
+  return (
+    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.5 15a4.5 4.5 0 01-.5-8.98 5.5 5.5 0 0110.7-1.9A4 4 0 0119 12.5" />
+      <path strokeLinecap="round" d="M8 17.5v2.5M12 17.5v2.5M16 17.5v2.5" />
+    </svg>
+  )
+}
+function IconCloudLightning(props) {
+  return (
+    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.5 14.5a4.5 4.5 0 01-.5-8.98 5.5 5.5 0 0110.7-1.9A4 4 0 0119 12" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M11.5 16l-2.5 4.5h3.4l-1.6 3.5" />
+    </svg>
+  )
+}
+
+// Picks an icon by keyword match against the plain-language condition label
+// the backend sends (e.g. "Light rain", "Overcast") rather than re-deriving
+// from a raw weather code, so the icon and the label text can never
+// disagree with each other.
+function weatherIconFor(condition) {
+  const c = (condition || '').toLowerCase()
+  if (c.includes('thunder')) return IconCloudLightning
+  if (c.includes('rain') || c.includes('drizzle') || c.includes('shower')) return IconCloudRain
+  if (c.includes('clear') || c.includes('mostly clear')) return IconSun
+  return IconCloud
+}
+
+// Semi-circle wind-speed gauge, 0–60 km/h, three flat color zones (matches
+// the same normal/caution/rough thresholds the advisory badges use) with a
+// needle pointing at the current reading. Pure SVG + trig — no charting
+// library, consistent with RevenueBarChart above also being hand-rolled.
+function WindGauge({ valueKmh }) {
+  const max = 60
+  const cx = 100
+  const cy = 95
+  const r = 78
+  const clamped = Math.max(0, Math.min(valueKmh || 0, max))
+
+  // value 0 -> 180deg (left), value max -> 0deg (right)
+  const pointAt = (value, radius) => {
+    const angleDeg = 180 - (value / max) * 180
+    const rad = (angleDeg * Math.PI) / 180
+    return { x: cx + radius * Math.cos(rad), y: cy - radius * Math.sin(rad) }
+  }
+  const arcPath = (fromValue, toValue, radius) => {
+    const from = pointAt(fromValue, radius)
+    const to = pointAt(toValue, radius)
+    return `M ${from.x} ${from.y} A ${radius} ${radius} 0 0 1 ${to.x} ${to.y}`
+  }
+
+  const needle = pointAt(clamped, r - 14)
+  const zones = [
+    { from: 0, to: 25, color: '#16a34a' },   // normal
+    { from: 25, to: 40, color: '#d97706' },  // caution
+    { from: 40, to: 60, color: '#dc2626' },  // rough
+  ]
+
+  return (
+    <svg viewBox="0 0 200 110" className="mx-auto w-full max-w-[220px]">
+      {zones.map((z) => (
+        <path
+          key={z.from}
+          d={arcPath(z.from, z.to, r)}
+          fill="none"
+          stroke={z.color}
+          strokeWidth="14"
+          strokeLinecap="butt"
+        />
+      ))}
+      <line x1={cx} y1={cy} x2={needle.x} y2={needle.y} stroke="#0f172a" strokeWidth="3" strokeLinecap="round" />
+      <circle cx={cx} cy={cy} r="5" fill="#0f172a" />
+      <text x={cx} y={cy + 26} textAnchor="middle" className="fill-gray-900 dark:fill-white" fontSize="20" fontWeight="700">
+        {Math.round(valueKmh || 0)} km/h
+      </text>
+    </svg>
+  )
+}
+
+// Teal-filled pin, matching the app's brand color instead of Leaflet's
+// default blue marker — same divIcon approach Directions.jsx uses.
+const weatherPinIcon = L.divIcon({
+  className: '',
+  html: '<div style="width:18px;height:18px;border-radius:9999px;background:#0f766e;border:3px solid #ffffff;box-shadow:0 0 0 1px #0f766e;box-sizing:border-box;"></div>',
+  iconSize: [18, 18],
+  iconAnchor: [9, 9],
+})
 
 // Receipts/discount IDs are served through an authenticated route, so a plain
 // <img src> won't work — fetch as a blob and render that instead. When
@@ -300,10 +400,30 @@ function IconMoon(props) {
     </svg>
   )
 }
+function IconCloud(props) {
+  return (
+    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.5 19a4.5 4.5 0 01-.5-8.98 5.5 5.5 0 0110.7-1.9A4 4 0 0119 16.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.5 19h12" />
+    </svg>
+  )
+}
+
+function IconLifeRing(props) {
+  return (
+    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="4" />
+      <path strokeLinecap="round" d="M5.64 5.64l3.53 3.53M18.36 5.64l-3.53 3.53M5.64 18.36l3.53-3.53M18.36 18.36l-3.53-3.53" />
+    </svg>
+  )
+}
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: IconGrid },
   { id: 'ferries', label: 'Ferries & Schedules', icon: IconPin },
+  { id: 'weather', label: 'Weather', icon: IconCloud },
+  { id: 'coastguard', label: 'Coast Guard', icon: IconLifeRing },
   { id: 'customers', label: 'Customers', icon: IconUsers },
   { id: 'discounts', label: 'Profile Verification', icon: IconTag },
   { id: 'bookings', label: 'All Bookings', icon: IconList },
@@ -316,7 +436,7 @@ const TABS = [
 // unit at a glance — purely a rendering grouping, tab ids/logic are untouched.
 const TAB_GROUPS = [
   { label: null, ids: ['overview'] },
-  { label: 'Operations', ids: ['ferries', 'customers', 'discounts', 'bookings', 'refunds', 'manifest'] },
+  { label: 'Operations', ids: ['ferries', 'weather', 'coastguard', 'customers', 'discounts', 'bookings', 'refunds', 'manifest'] },
   { label: 'Insights', ids: ['analytics'] },
 ]
 
@@ -420,6 +540,42 @@ export default function Admin() {
   const [scheduleError, setScheduleError] = useState(false)
   const [schedules, setSchedules] = useState([])
   const [schedulesMessage, setSchedulesMessage] = useState('')
+
+  const [weather, setWeather] = useState(null)
+  const [weatherMessage, setWeatherMessage] = useState('')
+  const [weatherLoading, setWeatherLoading] = useState(false)
+
+  const [pagasaBulletin, setPagasaBulletin] = useState(null)
+  const [pagasaMessage, setPagasaMessage] = useState('')
+  const [pagasaLoading, setPagasaLoading] = useState(false)
+  // Remembered across sessions (not just this page load) so "New bulletin"
+  // reflects whatever the admin has actually seen, not just what loaded
+  // since the tab was last opened.
+  const [lastSeenBulletinAt, setLastSeenBulletinAt] = useState(
+    () => localStorage.getItem('evershine-last-seen-pagasa-bulletin') || null
+  )
+
+  // Coast Guard coordination — accounts are provisioned from here (station +
+  // login), and the read-only schedules list reuses the `schedules` state
+  // already loaded for the Ferries & Schedules tab, so no extra fetch.
+  const [cgAccounts, setCgAccounts] = useState([])
+  const [cgAccountsMessage, setCgAccountsMessage] = useState('')
+  const [cgAccountsLoading, setCgAccountsLoading] = useState(false)
+  const [cgForm, setCgForm] = useState({ name: '', email: '', password: '', station: 'Padre Burgos' })
+  const [cgFormMessage, setCgFormMessage] = useState('')
+  const [cgFormError, setCgFormError] = useState(false)
+  const [cgFormSubmitting, setCgFormSubmitting] = useState(false)
+
+  // "Send Manifest" — a small inline panel on the Manifest tab for emailing
+  // a PDF copy of the currently-generated manifest to any combination of
+  // Coast Guard accounts (checkboxes, reusing cgAccounts loaded above) and/or
+  // one extra address typed in by hand.
+  const [sendManifestOpen, setSendManifestOpen] = useState(false)
+  const [sendManifestSelectedIds, setSendManifestSelectedIds] = useState([])
+  const [sendManifestExtraEmail, setSendManifestExtraEmail] = useState('')
+  const [sendManifestMessage, setSendManifestMessage] = useState('')
+  const [sendManifestError, setSendManifestError] = useState(false)
+  const [sendManifestSending, setSendManifestSending] = useState(false)
 
   // Which schedule row (if any) has its inline edit form open, plus the
   // draft field values for it. Reuses the same shape as the "add schedule"
@@ -791,12 +947,135 @@ export default function Admin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab])
 
+  useEffect(() => {
+    if (activeTab === 'weather' && !weather) loadWeather()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab])
+
+  async function loadWeather() {
+    setWeatherMessage('')
+    setWeatherLoading(true)
+    try {
+      const data = await api.getWeather()
+      setWeather(data)
+    } catch (err) {
+      setWeatherMessage(err.message)
+    } finally {
+      setWeatherLoading(false)
+    }
+  }
+
+  async function loadPagasaBulletin() {
+    setPagasaMessage('')
+    setPagasaLoading(true)
+    try {
+      const data = await api.getPagasaBulletin()
+      setPagasaBulletin(data)
+    } catch (err) {
+      setPagasaMessage(err.message)
+    } finally {
+      setPagasaLoading(false)
+    }
+  }
+
+  // Marks the currently-shown bulletin as seen — clears the "New" badge and
+  // remembers it (localStorage) so it stays cleared across page reloads and
+  // future logins, not just for this render.
+  function markBulletinSeen() {
+    if (!pagasaBulletin) return
+    setLastSeenBulletinAt(pagasaBulletin.issuedAt)
+    localStorage.setItem('evershine-last-seen-pagasa-bulletin', pagasaBulletin.issuedAt)
+  }
+
+  // Loads the PAGASA bulletin on mount and re-checks it every 5 minutes for
+  // as long as the admin dashboard stays open — deliberately NOT gated to
+  // the Weather tab being active, so the sidebar's "New" badge (via
+  // tabBadges.weather above) can appear no matter which tab the admin is
+  // actually looking at, not just when they happen to have Weather open.
+  useEffect(() => {
+    loadPagasaBulletin()
+    const id = setInterval(loadPagasaBulletin, 5 * 60 * 1000)
+    return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    if ((activeTab === 'coastguard' || activeTab === 'manifest') && cgAccounts.length === 0) loadCgAccounts()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab])
+
+  async function loadCgAccounts() {
+    setCgAccountsMessage('')
+    setCgAccountsLoading(true)
+    try {
+      const data = await api.getCoastGuardAccounts()
+      setCgAccounts(data)
+    } catch (err) {
+      setCgAccountsMessage(err.message)
+    } finally {
+      setCgAccountsLoading(false)
+    }
+  }
+
+  async function handleAddCgAccount(e) {
+    e.preventDefault()
+    setCgFormMessage('')
+    setCgFormError(false)
+    setCgFormSubmitting(true)
+    try {
+      await api.createCoastGuardAccount(cgForm)
+      setCgFormMessage(`Account created for ${cgForm.email}.`)
+      setCgForm({ name: '', email: '', password: '', station: cgForm.station })
+      loadCgAccounts()
+    } catch (err) {
+      setCgFormMessage(err.message)
+      setCgFormError(true)
+    } finally {
+      setCgFormSubmitting(false)
+    }
+  }
+
+  function toggleSendManifestRecipient(id) {
+    setSendManifestSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }
+
+  async function handleSendManifest() {
+    setSendManifestMessage('')
+    setSendManifestError(false)
+    if (sendManifestSelectedIds.length === 0 && !sendManifestExtraEmail.trim()) {
+      setSendManifestMessage('Choose at least one Coast Guard account or enter an email address.')
+      setSendManifestError(true)
+      return
+    }
+    setSendManifestSending(true)
+    try {
+      const payload = { coastGuardAccountIds: sendManifestSelectedIds }
+      if (sendManifestExtraEmail.trim()) payload.extraEmail = sendManifestExtraEmail.trim()
+      const data = await api.sendManifest(manifestScheduleId, payload)
+      setSendManifestMessage(data.message)
+      setSendManifestExtraEmail('')
+      setSendManifestSelectedIds([])
+    } catch (err) {
+      setSendManifestMessage(err.message)
+      setSendManifestError(true)
+    } finally {
+      setSendManifestSending(false)
+    }
+  }
+
   async function loadAdminInfo() {
     try {
       const data = await api.getAdminMe()
       setAdminInfo(data)
     } catch (err) {
       console.error('Failed to load admin info:', err)
+      // A coast_guard-role token (or no token at all) gets "Not logged in"
+      // from this admin-only route — bounce to the right place instead of
+      // leaving every tab silently broken.
+      if (err.message === 'Not logged in') {
+        const token = localStorage.getItem('adminToken')
+        navigate(token ? '/coastguard' : '/login')
+      }
     }
   }
 
@@ -847,11 +1126,14 @@ export default function Admin() {
     ? `through ${formatMonthLabel(analyticsTo)}`
     : 'all recorded months'
 
+  const hasNewBulletin = pagasaBulletin && pagasaBulletin.issuedAt !== lastSeenBulletinAt
+
   // Small live counts surfaced directly in the nav so an admin can see
   // what needs attention without first clicking into Overview.
   const tabBadges = {
     discounts: pendingDiscounts.length,
     refunds: refundRequests.length,
+    weather: hasNewBulletin ? 1 : 0,
   }
   // Built from records already loaded for other tabs (no extra API calls) —
   // real recent events instead of a placeholder activity feed.
@@ -999,7 +1281,7 @@ export default function Admin() {
           )}
         </div>
 
-        <nav className={`flex-1 space-y-1 overflow-y-auto pb-4 ${sidebarCollapsed ? 'px-2' : 'px-3'}`}>
+        <nav className={`no-scrollbar flex-1 space-y-1 overflow-y-auto pb-4 ${sidebarCollapsed ? 'px-2' : 'px-3'}`}>
           {TAB_GROUPS.map((group, gi) => (
             <div key={gi}>
               {group.label && !sidebarCollapsed && (
@@ -1111,7 +1393,7 @@ export default function Admin() {
           <nav
             ref={mobileNavRef}
             onScroll={updateMobileNavScroll}
-            className="flex flex-1 gap-1 overflow-x-auto px-3 py-2"
+            className="no-scrollbar flex flex-1 gap-1 overflow-x-auto px-3 py-2"
           >
             {TABS.map((tab) => {
               const Icon = tab.icon
@@ -1759,6 +2041,370 @@ export default function Admin() {
                   </DataTable>
                 )}
               </Card>
+            </div>
+          )}
+
+          {activeTab === 'weather' && (
+            <div className="space-y-5">
+              <Card title="Weather & Sea Conditions — Padre Burgos ↔ Limasawa">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-sm text-gray-600 dark:text-slate-400">
+                    Live conditions from Open-Meteo for the crossing. This is a general indicator to help you plan
+                    around rough weather <b>not an official PAGASA advisory</b>. For actual sailing/safety
+                    decisions, always defer to PAGASA and local port authority guidance.
+                  </p>
+                  <button
+                    onClick={loadWeather}
+                    disabled={weatherLoading}
+                    className="rounded-md bg-teal-700 px-3.5 py-2 text-sm font-medium text-white hover:bg-teal-800 disabled:opacity-50"
+                  >
+                    {weatherLoading ? 'Loading…' : 'Refresh'}
+                  </button>
+                </div>
+                {weatherMessage && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{weatherMessage}</p>}
+              </Card>
+
+              {(() => {
+                return (
+                  <Card
+                    title={
+                      <span className="flex items-center gap-2">
+                        {/* Loaded directly from PAGASA's own site (not a copy
+                            bundled into our app) — this is attribution for
+                            where the data below comes from, not a claim of
+                            official affiliation with PAGASA. */}
+                        <img
+                          src="https://pubfiles.pagasa.dost.gov.ph/pagasaweb/images/pagasa-logo.png"
+                          alt="PAGASA"
+                          className="h-6 w-6 flex-shrink-0 object-contain"
+                          onError={(e) => { e.currentTarget.style.display = 'none' }}
+                        />
+                        PAGASA Bulletin
+                      </span>
+                    }
+                  >
+                    {pagasaLoading && !pagasaBulletin ? (
+                      <p className="text-sm text-gray-500 dark:text-slate-500">Checking PAGASA's site…</p>
+                    ) : pagasaBulletin ? (
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {hasNewBulletin && (
+                            <span className="rounded-full bg-teal-700 px-2.5 py-1 text-xs font-semibold text-white">New</span>
+                          )}
+                          {pagasaBulletin.stale && (
+                            <span className="rounded-full bg-amber-600 px-2.5 py-1 text-xs font-semibold text-white">
+                              Showing last known bulletin — couldn't reach PAGASA just now
+                            </span>
+                          )}
+                          <p className="text-sm font-semibold text-gray-800 dark:text-slate-100">
+                            Issued at: {pagasaBulletin.issuedAt}
+                          </p>
+                        </div>
+                        {pagasaBulletin.synopsis && (
+                          <p className="mt-2 text-sm text-gray-700 dark:text-slate-300">{pagasaBulletin.synopsis}</p>
+                        )}
+                        <div className="mt-3 flex flex-wrap items-center gap-4">
+                          <a
+                            href={pagasaBulletin.sourceUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-sm font-medium text-teal-700 dark:text-teal-400 hover:underline"
+                          >
+                            View full bulletin on PAGASA &rarr;
+                          </a>
+                          <a
+                            href={pagasaBulletin.pdfUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-sm font-medium text-teal-700 dark:text-teal-400 hover:underline"
+                          >
+                            Official PDF &rarr;
+                          </a>
+                          {hasNewBulletin && (
+                            <button
+                              onClick={markBulletinSeen}
+                              className="text-sm font-medium text-gray-500 dark:text-slate-400 hover:underline"
+                            >
+                              Mark as seen
+                            </button>
+                          )}
+                        </div>
+                        <p className="mt-3 text-xs text-gray-400 dark:text-slate-500">
+                          Unofficial — pulled directly from PAGASA's public bulletin page (not an API), checked every 5
+                          minutes while this tab is open. Last checked{' '}
+                          {new Date(pagasaBulletin.fetchedAt).toLocaleString('en-US', { timeZone: 'Asia/Manila' })}.
+                        </p>
+                      </div>
+                    ) : (
+                      pagasaMessage && <p className="text-sm text-red-600 dark:text-red-400">{pagasaMessage}</p>
+                    )}
+                  </Card>
+                )
+              })()}
+
+              {weatherLoading && !weather ? (
+                <Card><p className="text-sm text-gray-500 dark:text-slate-500">Loading weather…</p></Card>
+              ) : weather ? (
+                <>
+                  <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+                    <Card title="Current Conditions" className="lg:col-span-2">
+                      <div className="flex flex-wrap items-center gap-6">
+                        <div className="flex items-center gap-3">
+                          {(() => {
+                            const ConditionIcon = weatherIconFor(weather.current.condition)
+                            return <ConditionIcon className="h-14 w-14 flex-shrink-0 text-teal-700 dark:text-teal-400" />
+                          })()}
+                          <div>
+                            <p className="text-3xl font-bold leading-none text-gray-900 dark:text-white">
+                              {Math.round(weather.current.temperatureC)}°C
+                            </p>
+                            <p className="mt-1 text-sm text-gray-500 dark:text-slate-500">{weather.current.condition}</p>
+                          </div>
+                        </div>
+
+                        <span
+                          className={`inline-block rounded-full px-3 py-1 text-sm font-semibold text-white ${
+                            weather.current.advisory === 'rough'
+                              ? 'bg-red-600'
+                              : weather.current.advisory === 'caution'
+                              ? 'bg-amber-600'
+                              : 'bg-green-600'
+                          }`}
+                        >
+                          {weather.current.advisory === 'rough' ? 'Rough Seas' : weather.current.advisory === 'caution' ? 'Use Caution' : 'Normal'}
+                        </span>
+                      </div>
+
+                      <div className="mt-5 grid grid-cols-2 gap-4 border-t border-gray-100 dark:border-slate-800 pt-4 sm:grid-cols-3">
+                        <div>
+                          <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-slate-500">Wind</p>
+                          <p className="mt-1 text-xl font-bold text-gray-900 dark:text-white">{Math.round(weather.current.windSpeedKmh)} km/h</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-slate-500">Rain</p>
+                          <p className="mt-1 text-xl font-bold text-gray-900 dark:text-white">
+                            {weather.current.precipitationMm > 0 ? `${weather.current.precipitationMm} mm` : 'None'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-slate-500">Wave Height</p>
+                          <p className="mt-1 text-xl font-bold text-gray-900 dark:text-white">
+                            {weather.current.waveHeightM != null ? `${weather.current.waveHeightM.toFixed(1)} m` : '—'}
+                          </p>
+                          {weather.current.wavePeriodS != null && (
+                            <p className="text-xs text-gray-500 dark:text-slate-500">{weather.current.wavePeriodS.toFixed(0)}s period</p>
+                          )}
+                          <p className="mt-0.5 text-[11px] text-gray-400 dark:text-slate-500">
+                            Wave height is derived from wind — treat as an estimate, not an exact reading
+                          </p>
+                        </div>
+                      </div>
+
+                      <p className="mt-4 text-xs text-gray-400 dark:text-slate-500">
+                        Updated {new Date(weather.generatedAt).toLocaleString('en-US', { timeZone: 'Asia/Manila' })} (Manila time)
+                      </p>
+                    </Card>
+
+                    <Card title="Wind Speed">
+                      <WindGauge valueKmh={weather.current.windSpeedKmh} />
+                      <div className="mt-1 flex justify-center gap-3 text-[11px] text-gray-500 dark:text-slate-500">
+                        <span><span className="inline-block h-2 w-2 rounded-full bg-green-600" /> Normal</span>
+                        <span><span className="inline-block h-2 w-2 rounded-full bg-amber-600" /> Caution</span>
+                        <span><span className="inline-block h-2 w-2 rounded-full bg-red-600" /> Rough</span>
+                      </div>
+                    </Card>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+                    <Card title="5-Day Forecast" className="lg:col-span-2">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                        {weather.daily.map((d, i) => {
+                          const DayIcon = weatherIconFor(d.condition)
+                          // Forecast skill drops off the further out it goes —
+                          // day 1-2 are shown at full strength, day 3-5 fade
+                          // progressively, so the reliability difference is
+                          // visible at a glance rather than only explained in
+                          // the note below.
+                          const fadeClass = ['opacity-100', 'opacity-100', 'opacity-80', 'opacity-65', 'opacity-50'][i] || 'opacity-50'
+                          return (
+                            <div key={d.date} className={`rounded-md border border-gray-200 dark:border-slate-800 p-3.5 transition-opacity ${fadeClass}`}>
+                              <p className="text-sm font-semibold text-gray-800 dark:text-slate-100">
+                                {new Date(`${d.date}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                              </p>
+                              <DayIcon className="mt-2 h-8 w-8 text-teal-700 dark:text-teal-400" />
+                              <p className="mt-1 text-xs text-gray-500 dark:text-slate-500">{d.condition}</p>
+                              <p className="mt-2 text-lg font-bold text-gray-900 dark:text-white">
+                                {Math.round(d.tempMaxC)}° <span className="text-sm font-normal text-gray-500 dark:text-slate-500">/ {Math.round(d.tempMinC)}°</span>
+                              </p>
+                              <p className="mt-1 text-xs text-gray-600 dark:text-slate-400">Wind {Math.round(d.windSpeedMaxKmh)} km/h</p>
+                              <p className="text-xs text-gray-600 dark:text-slate-400">
+                                Waves {d.waveHeightMaxM != null ? `${d.waveHeightMaxM.toFixed(1)} m` : '—'}
+                              </p>
+                              <span
+                                className={`mt-2 inline-block rounded-full px-2.5 py-1 text-xs font-semibold text-white ${
+                                  d.advisory === 'rough' ? 'bg-red-600' : d.advisory === 'caution' ? 'bg-amber-600' : 'bg-green-600'
+                                }`}
+                              >
+                                {d.advisory === 'rough' ? 'Rough Seas' : d.advisory === 'caution' ? 'Caution' : 'Normal'}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                      <p className="mt-3 text-xs text-gray-700 dark:text-slate-500">
+                        Note: Day 1–2 are the most reliable; treat Day 3–5 as a general trend, not an exact reading forecast
+                        accuracy naturally declines the further out it goes.
+                      </p>
+                    </Card>
+
+                    <Card title="Crossing Location">
+                      <div className="h-64 overflow-hidden rounded-md">
+                        <MapContainer
+                          center={[weather.location.latitude, weather.location.longitude]}
+                          zoom={11}
+                          className="h-full w-full"
+                          scrollWheelZoom={false}
+                        >
+                          <TileLayer
+                            url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                          />
+                          <Marker position={[weather.location.latitude, weather.location.longitude]} icon={weatherPinIcon} />
+                        </MapContainer>
+                      </div>
+                      <p className="mt-2 text-xs text-gray-500 dark:text-slate-500">{weather.location.label}</p>
+                    </Card>
+                  </div>
+                </>
+              ) : (
+                !weatherMessage && <Card><p className="text-sm text-gray-500 dark:text-slate-500">No weather data yet.</p></Card>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'coastguard' && (
+            <div className="space-y-5">
+              <Card title="Coast Guard Coordination — Limasawa & Padre Burgos">
+                <p className="text-sm text-gray-600 dark:text-slate-400">
+                  A shared line for coordinating with the Philippine Coast Guard at both ports. Coast Guard accounts
+                  are provisioned below and can view sailing schedules and exchange messages here in real time.
+                </p>
+              </Card>
+
+              <div className="grid gap-5 lg:grid-cols-2">
+                <Card title="Coast Guard Accounts">
+                  {cgAccountsMessage && <p className="mb-3 text-sm text-red-600 dark:text-red-400">{cgAccountsMessage}</p>}
+
+                  <form onSubmit={handleAddCgAccount} className="space-y-3 rounded-md border border-gray-200 dark:border-slate-800 p-3.5">
+                    <p className="text-sm font-semibold text-gray-800 dark:text-slate-100">Add Coast Guard Account</p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 dark:text-slate-400">Name</label>
+                        <input
+                          type="text"
+                          required
+                          value={cgForm.name}
+                          onChange={(e) => setCgForm((f) => ({ ...f, name: e.target.value }))}
+                          className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 dark:text-slate-400">Station</label>
+                        <select
+                          value={cgForm.station}
+                          onChange={(e) => setCgForm((f) => ({ ...f, station: e.target.value }))}
+                          className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                        >
+                          <option>Padre Burgos</option>
+                          <option>Limasawa</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 dark:text-slate-400">Email</label>
+                        <input
+                          type="email"
+                          required
+                          value={cgForm.email}
+                          onChange={(e) => setCgForm((f) => ({ ...f, email: e.target.value }))}
+                          className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 dark:text-slate-400">Password</label>
+                        <input
+                          type="password"
+                          required
+                          minLength={8}
+                          value={cgForm.password}
+                          onChange={(e) => setCgForm((f) => ({ ...f, password: e.target.value }))}
+                          className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                        />
+                      </div>
+                    </div>
+                    {cgFormMessage && (
+                      <p className={`text-sm ${cgFormError ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                        {cgFormMessage}
+                      </p>
+                    )}
+                    <button
+                      type="submit"
+                      disabled={cgFormSubmitting}
+                      className="rounded-md bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800 disabled:opacity-50"
+                    >
+                      {cgFormSubmitting ? 'Creating…' : 'Create Account'}
+                    </button>
+                  </form>
+
+                  <div className="mt-4">
+                    <p className="mb-2 text-sm font-semibold text-gray-800 dark:text-slate-100">Existing Accounts</p>
+                    {cgAccountsLoading ? (
+                      <p className="text-sm text-gray-500 dark:text-slate-500">Loading…</p>
+                    ) : cgAccounts.length === 0 ? (
+                      <p className="text-sm text-gray-500 dark:text-slate-500">No Coast Guard accounts yet.</p>
+                    ) : (
+                      <ul className="divide-y divide-gray-100 dark:divide-slate-800">
+                        {cgAccounts.map((a) => (
+                          <li key={a.id} className="py-2 text-sm">
+                            <p className="font-medium text-gray-800 dark:text-slate-100">{a.name}</p>
+                            <p className="text-xs text-gray-500 dark:text-slate-500">{a.email} &middot; {a.coastGuardStation}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </Card>
+
+                <Card title="Upcoming Sailings">
+                  {upcomingSchedules.length === 0 ? (
+                    <p className="text-sm text-gray-500 dark:text-slate-500">No upcoming sailings scheduled.</p>
+                  ) : (
+                    <div className="no-scrollbar max-h-[28rem] overflow-y-auto">
+                      <DataTable headers={['Date/Time', 'Direction', 'Ferry', 'Seats']}>
+                        {upcomingSchedules.map((s) => {
+                          const capacity = s.ferry?.seatCapacity
+                          const available = s.availableSeats
+                          return (
+                            <tr key={s.id} className="border-t border-gray-100 dark:border-slate-800">
+                              <td className="px-3 py-1.5 text-gray-700 dark:text-slate-300">
+                                {new Date(s.departureDatetime).toLocaleString('en-US', {
+                                  month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+                                })}
+                              </td>
+                              <td className="px-3 py-1.5 text-gray-700 dark:text-slate-300">{directionLabel[s.direction] || s.direction}</td>
+                              <td className="px-3 py-1.5 text-gray-600 dark:text-slate-400">{s.ferry?.name || '—'}</td>
+                              <td className="px-3 py-1.5 text-gray-700 dark:text-slate-300">
+                                {typeof available === 'number' ? `${available} / ${capacity}` : '—'}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </DataTable>
+                    </div>
+                  )}
+                </Card>
+              </div>
+
+              <ChatPanel currentAccountId={adminInfo?.id} />
             </div>
           )}
 
@@ -2732,8 +3378,74 @@ export default function Admin() {
                     >
                       Print
                     </button>
+                    <button
+                      onClick={() => {
+                        setSendManifestOpen((v) => !v)
+                        setSendManifestMessage('')
+                      }}
+                      disabled={manifestPassengers.length === 0}
+                      className="rounded-md border border-teal-700 bg-white dark:bg-slate-900 px-3.5 py-2 text-sm font-medium text-teal-700 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/20 disabled:cursor-not-allowed disabled:opacity-50 disabled:border-gray-300 disabled:text-gray-400"
+                    >
+                      Send Manifest
+                    </button>
                   </div>
                   {manifestMessage && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{manifestMessage}</p>}
+
+                  {sendManifestOpen && manifestPassengers.length > 0 && (
+                    <div className="mt-3 rounded-md border border-gray-200 dark:border-slate-800 p-3.5">
+                      <p className="text-sm font-semibold text-gray-800 dark:text-slate-100">Send a PDF copy of this manifest</p>
+                      <p className="mt-0.5 text-xs text-gray-500 dark:text-slate-500">
+                        Pick one or more Coast Guard accounts, an extra email address, or both.
+                      </p>
+
+                      <div className="mt-3">
+                        {cgAccounts.length === 0 ? (
+                          <p className="text-sm text-gray-500 dark:text-slate-500">
+                            No Coast Guard accounts yet — add one from the Coast Guard tab, or just send to an email below.
+                          </p>
+                        ) : (
+                          <div className="space-y-1.5">
+                            {cgAccounts.map((a) => (
+                              <label key={a.id} className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-300">
+                                <input
+                                  type="checkbox"
+                                  checked={sendManifestSelectedIds.includes(a.id)}
+                                  onChange={() => toggleSendManifestRecipient(a.id)}
+                                  className="h-4 w-4 rounded border-gray-300 text-teal-700 focus:ring-teal-500"
+                                />
+                                {a.name} &middot; <span className="text-gray-500 dark:text-slate-500">{a.coastGuardStation} &middot; {a.email}</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mt-3">
+                        <label className="block text-xs font-medium text-gray-600 dark:text-slate-400">Additional email (optional)</label>
+                        <input
+                          type="email"
+                          value={sendManifestExtraEmail}
+                          onChange={(e) => setSendManifestExtraEmail(e.target.value)}
+                          placeholder="name@example.com"
+                          className="mt-1 w-full max-w-sm rounded-md border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                        />
+                      </div>
+
+                      {sendManifestMessage && (
+                        <p className={`mt-3 text-sm ${sendManifestError ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                          {sendManifestMessage}
+                        </p>
+                      )}
+
+                      <button
+                        onClick={handleSendManifest}
+                        disabled={sendManifestSending}
+                        className="mt-3 rounded-md bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800 disabled:opacity-50"
+                      >
+                        {sendManifestSending ? 'Sending…' : 'Send'}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {(() => {

@@ -21,9 +21,17 @@ export default function Login() {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
+    // Coast Guard accounts share this same login form and the same Admin
+    // table (see backend/index.js signAdminToken) — the only difference is
+    // where they land afterward, decided by the `role` the backend hands
+    // back alongside the token.
     function finishLogin(data) {
     localStorage.setItem('adminToken', data.token)
-    navigate('/admin')
+    if (data.admin?.role === 'coast_guard') {
+      navigate('/coastguard')
+    } else {
+      navigate('/admin')
+    }
   }
   
    async function handlePasswordSubmit(e) {

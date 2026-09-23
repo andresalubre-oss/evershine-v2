@@ -8,3 +8,16 @@
   max-width: none !important;
   max-height: none !important;
 }
+
+/* Hides the scrollbar track/thumb on an element while leaving it fully
+   scrollable by mouse wheel, trackpad, or touch — used on the admin
+   sidebar nav, tab strip, chat message list, and other internal scroll
+   panels where a visible scrollbar reads as a stray UI element rather
+   than an intentional part of the design. */
+.no-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* old Edge/IE */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, new Edge */
+}

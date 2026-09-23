@@ -38,4 +38,17 @@ function requireAdminOrSetup(req, res, next) {
   next();
 }
 
-module.exports = { requireAuth, requireAdminOrSetup };
+// Coast Guard accounts only ever hit two kinds of routes: the read-only
+// schedules list and the shared chat — both use this instead of requireAuth.
+// Every other /api/admin/* route is untouched and keeps using plain
+// requireAuth, which only accepts 'admin' — so a coast_guard token is
+// rejected there automatically, without each of those routes needing its
+// own role check.
+function requireAdminOrCoastGuard(req, res, next) {
+  const payload = verifyAdminToken(req, res, ['admin', 'coast_guard']);
+  if (!payload) return;
+  req.admin = payload;
+  next();
+}
+
+module.exports = { requireAuth, requireAdminOrSetup, requireAdminOrCoastGuard };

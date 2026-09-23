@@ -270,7 +270,72 @@ export const api = {
 
   getManifest: (scheduleId) => adminRequest(`/admin/schedules/${scheduleId}/manifest`),
 
+  // "Send Manifest" — payload: { coastGuardAccountIds: [...], extraEmail? }
+  sendManifest: (scheduleId, payload) =>
+    adminRequest(`/admin/schedules/${scheduleId}/manifest/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
+
   getMonthlySales: () => adminRequest('/admin/analytics/monthly-sales'),
+
+  getWeather: () => adminRequest('/admin/weather'),
+
+  getPagasaBulletin: () => adminRequest('/admin/pagasa-bulletin'),
+
+  // Coast Guard coordination — accounts are admin-provisioned, and reuse
+  // the same adminToken/adminRequest plumbing as every other admin call
+  // (a coast_guard-role token behaves the same as an admin one at the HTTP
+  // layer; the backend decides what each role is actually allowed to hit).
+  createCoastGuardAccount: (payload) =>
+    adminRequest('/admin/coastguard-accounts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
+
+  getCoastGuardAccounts: () => adminRequest('/admin/coastguard-accounts'),
+
+  getCoastGuardMe: () => adminRequest('/admin/coastguard/me'),
+
+  getCoastGuardMessages: (before) =>
+    adminRequest(`/admin/coastguard/messages${before ? `?before=${encodeURIComponent(before)}` : ''}`),
+
+  // Used only if the live socket connection is down when Send is clicked —
+  // see ChatPanel.jsx for how the two paths are reconciled.
+  sendCoastGuardMessageRest: (body) =>
+    adminRequest('/admin/coastguard/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body }),
+    }),
+
+  markCoastGuardChatRead: () => adminRequest('/admin/coastguard/mark-read', { method: 'POST' }),
+
+  // Manifests shared with the logged-in account (admin or coast_guard) —
+  // powers the Coast Guard portal's "Manifests" panel.
+  getCoastGuardManifests: () => adminRequest('/admin/coastguard/manifests'),
+
+  // Fetches the PDF as a blob and force-saves it — same reasoning as
+  // downloadInvoicePdf above (auth header needed, so a plain <a href> can't
+  // be used directly).
+  downloadCoastGuardManifestPdf: async (id, filenameHint) => {
+    const response = await fetch(`${BASE}/admin/coastguard/manifests/${id}/pdf`, { headers: authHeaders() })
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      throw new Error(data.error || 'Could not download the manifest.')
+    }
+    const blob = await response.blob()
+    const blobUrl = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = blobUrl
+    link.download = filenameHint || 'evershine-manifest.pdf'
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(blobUrl)
+  },
 
   // Verification selfies/ID photos are behind an authenticated route (not a
   // public static folder), so a plain <img src> can't load them directly —

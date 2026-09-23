@@ -96,7 +96,7 @@ export default function ChatWidget({ liftedByBanner = false }) {
             </button>
           </div>
 
-          <div ref={listRef} className="flex-1 space-y-3 overflow-y-auto p-4">
+          <div ref={listRef} className="no-scrollbar flex-1 space-y-3 overflow-y-auto p-4">
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.from === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div

@@ -44,9 +44,10 @@ export default function Layout() {
   const { customer, logout } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
-  // The admin dashboard has its own sidebar/Log Out — the customer-facing
-  // nav (Book, Refund & Cancellation, Travel Info, etc.) doesn't belong there.
-  const isAdminDashboard = location.pathname === '/admin'
+  // The admin dashboard and the Coast Guard portal both have their own
+  // header/Log Out — the customer-facing nav (Book, Refund & Cancellation,
+  // Travel Info, etc.) doesn't belong on either of those staff-only screens.
+  const isAdminDashboard = location.pathname === '/admin' || location.pathname === '/coastguard'
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [travelInfoOpen, setTravelInfoOpen] = useState(false)

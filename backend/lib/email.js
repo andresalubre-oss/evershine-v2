@@ -315,11 +315,58 @@ async function sendBookingInvoice(booking) {
   }
 }
 
+// Sends the passenger manifest for one sailing as a PDF attachment — used by
+// the admin's "Send Manifest" action (Coast Guard coordination, or any other
+// recipient an admin types in). Unlike the booking invoice, this always
+// throws on failure: an admin explicitly clicked "Send" expecting it to go
+// out immediately, so silently swallowing a failure here would leave them
+// thinking the Coast Guard has a manifest they don't actually have yet.
+async function sendManifestEmail(toEmails, schedule, pdfBuffer, passengerCount) {
+  const ports = PORT_NAMES[schedule.direction] || { from: '', to: '' };
+  const departure = new Date(schedule.departureDatetime).toLocaleString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
+    timeZone: 'Asia/Manila',
+  });
+  const filenameDate = new Date(schedule.departureDatetime).toISOString().slice(0, 10);
+
+  if (!resend) {
+    console.warn(`(RESEND_API_KEY not set) Would have sent the manifest for ${schedule.id} to ${toEmails.join(', ')}`);
+    return;
+  }
+
+  await resend.emails.send({
+    from: FROM,
+    to: toEmails,
+    subject: `Passenger Manifest — ${ports.from} to ${ports.to}, ${departure}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; color: #111827;">
+        <h2 style="color: #0f766e; margin-bottom: 4px;">Passenger Manifest</h2>
+        <p style="color:#6b7280;font-size:13px;margin-top:0;">Evershine Booking &middot; Padre Burgos &harr; Limasawa</p>
+        <table role="presentation" width="100%" style="font-size:14px;margin:20px 0;">
+          <tr><td style="padding:4px 0;color:#6b7280;width:40%;">Route</td><td style="padding:4px 0;font-weight:600;">${escapeHtml(ports.from)} &rarr; ${escapeHtml(ports.to)}</td></tr>
+          <tr><td style="padding:4px 0;color:#6b7280;">Departure</td><td style="padding:4px 0;font-weight:600;">${departure}</td></tr>
+          <tr><td style="padding:4px 0;color:#6b7280;">Ferry</td><td style="padding:4px 0;font-weight:600;">${escapeHtml(schedule.ferry?.name || 'Not set')}</td></tr>
+          <tr><td style="padding:4px 0;color:#6b7280;">Passengers</td><td style="padding:4px 0;font-weight:600;">${passengerCount}</td></tr>
+        </table>
+        <p style="font-size:13px;color:#4b5563;">The full passenger list is attached as a PDF.</p>
+        <p style="color:#9ca3af;font-size:11px;margin-top:24px;">Sent from the Evershine Booking admin dashboard. This is an automated message.</p>
+      </div>
+    `,
+    attachments: [
+      {
+        filename: `evershine-manifest-${filenameDate}.pdf`,
+        content: pdfBuffer.toString('base64'),
+      },
+    ],
+  });
+}
+
 module.exports = {
   sendVerificationEmail,
   sendGuestVerificationCode,
   sendContactMessage,
   sendBookingInvoice,
+  sendManifestEmail,
   // Exported so the PDF invoice generator (lib/pdfInvoice.js) can reuse the
   // exact same port names, terminal/support details, and formatting instead
   // of a second, driftable copy of the same constants.

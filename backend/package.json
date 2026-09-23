@@ -27,6 +27,7 @@
     "pg": "^8.23.0",
     "qrcode": "^1.5.4",
     "resend": "^6.24.0",
+    "socket.io": "^4.8.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {

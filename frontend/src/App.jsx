@@ -8,6 +8,7 @@ import GuestVerifyEmail from './pages/GuestVerifyEmail.jsx'
 import ManageBooking from './pages/ManageBooking.jsx'
 import Login from './pages/Login.jsx'
 import Admin from './pages/Admin.jsx'
+import CoastGuardPortal from './pages/CoastGuardPortal.jsx'
 import ManifestPrint from './pages/ManifestPrint.jsx'
 import Register from './pages/Register.jsx'
 import CustomerLogin from './pages/CustomerLogin.jsx'
@@ -68,6 +69,7 @@ export default function App() {
         />
         <Route path="/login" element={<Login />} />
         <Route path="/admin" element={<Admin />} />
+        <Route path="/coastguard" element={<CoastGuardPortal />} />
         <Route path="/register" element={<Register />} />
         <Route path="/account/login" element={<CustomerLogin />} />
         <Route path="/account" element={<Account />} />

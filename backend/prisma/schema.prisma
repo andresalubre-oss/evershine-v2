@@ -11,6 +11,17 @@ enum Direction {
   LIMASAWA_TO_PB
 }
 
+// 'admin' = full Evershine staff access (everything in the dashboard).
+// 'coast_guard' = restricted account for the Coast Guard coordination
+// feature — read-only schedules + the shared chat only, enforced at the
+// route level (requireAuth only accepts 'admin'; the schedules-read and
+// chat routes use requireAdminOrCoastGuard instead). Both roles share the
+// same Admin table/login/2FA flow rather than a separate account system.
+enum AdminRole {
+  admin
+  coast_guard
+}
+
 enum Sex {
   Male
   Female
@@ -58,6 +69,19 @@ model Admin {
   totpSecret       String?  @map("totp_secret")
   twoFactorEnabled Boolean  @default(false) @map("two_factor_enabled")
     auditLogs        AdminAuditLog[]
+
+  // Coast Guard coordination feature. `role` defaults to 'admin' so every
+  // existing row stays exactly as it was before this migration.
+  // `coastGuardStation` is a free-text label ("Limasawa" / "Padre Burgos")
+  // shown next to a coast_guard account's messages — irrelevant for a
+  // regular admin account. `coastGuardChatLastReadAt` tracks read/unread
+  // per-account server-side (not just in one browser's localStorage), so
+  // the "New" badge is correct no matter which device someone checks from.
+  role                     AdminRole            @default(admin)
+  coastGuardStation        String?              @map("coast_guard_station")
+  coastGuardChatLastReadAt DateTime?            @map("coast_guard_chat_last_read_at")
+  sentCoastGuardMessages   CoastGuardMessage[]
+  sentManifests            SentManifest[]
 
   @@map("admins")
 }
@@ -125,6 +149,7 @@ model Schedule {
   studentDiscountPercent Decimal   @default(20.00) @map("student_discount_percent") @db.Decimal(5, 2)
   createdAt              DateTime  @default(now()) @map("created_at")
   bookings               Booking[]
+  sentManifests          SentManifest[]
 
   @@map("schedules")
 }
@@ -229,4 +254,47 @@ model AdminAuditLog {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("admin_audit_logs")
+}
+
+// One shared channel — every admin and every Coast Guard account (both
+// stations) reads and writes the same thread, distinguished per-message by
+// senderName/senderRole/senderStation. Those three are snapshotted at send
+// time (not just joined live from Admin) so a message still reads sensibly
+// even if the sender's name or station is edited, or the account removed,
+// later.
+model CoastGuardMessage {
+  id            String    @id @default(uuid())
+  senderId      String    @map("sender_id")
+  sender        Admin     @relation(fields: [senderId], references: [id])
+  senderName    String    @map("sender_name")
+  senderRole    AdminRole @map("sender_role")
+  senderStation String?   @map("sender_station")
+  body          String
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("coast_guard_messages")
+}
+
+// A record of "Send Manifest" from the admin's Manifest tab — not the PDF
+// itself (that's regenerated on demand from current passenger data whenever
+// someone opens it, so it never goes stale relative to later bookings/
+// cancellations for that sailing), just who it was sent to and when. Lets
+// the Coast Guard portal show "manifests shared with you" instead of relying
+// entirely on the account's actual email inbox, which the portal has no way
+// to read. recipientAccountIds is a plain Postgres array (no join table
+// needed) — the Coast Guard portal queries with a `has` filter for its own
+// account id.
+model SentManifest {
+  id                  String   @id @default(uuid())
+  scheduleId          String   @map("schedule_id")
+  schedule            Schedule @relation(fields: [scheduleId], references: [id])
+  sentByAdminId        String   @map("sent_by_admin_id")
+  sentByAdmin          Admin    @relation(fields: [sentByAdminId], references: [id])
+  recipientAccountIds String[] @map("recipient_account_ids")
+  extraEmail          String?  @map("extra_email")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("sent_manifests")
 }

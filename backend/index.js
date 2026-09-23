@@ -1,5 +1,7 @@
 require('dotenv').config();
 
+const http = require('http');
+const { Server } = require('socket.io');
 const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -21,11 +23,14 @@ const QRCode = require('qrcode');
 authenticator.options = { window: 1 };
 
 const prisma = require('./lib/prisma');
-const { requireAuth, requireAdminOrSetup } = require('./middleware/auth');
+const { requireAuth, requireAdminOrSetup, requireAdminOrCoastGuard } = require('./middleware/auth');
 const validate = require('./middleware/validate');
 const paymongo = require('./lib/paymongo');
-const { sendVerificationEmail, sendGuestVerificationCode, sendContactMessage, sendBookingInvoice } = require('./lib/email');
+const { sendVerificationEmail, sendGuestVerificationCode, sendContactMessage, sendBookingInvoice, sendManifestEmail } = require('./lib/email');
 const { generateInvoicePdf } = require('./lib/pdfInvoice');
+const { generateManifestPdf } = require('./lib/pdfManifest');
+const { getWeather } = require('./lib/weather');
+const { getPagasaBulletin } = require('./lib/pagasaBulletin');
 
 const app = express();
 app.disable('x-powered-by');
@@ -112,6 +117,22 @@ app.use(cors({
   // the server. DELETE included for /api/admin/schedules/:id, same reason.
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
 }));
+
+// Socket.io needs the raw http.Server, not the Express app directly — app
+// itself becomes the request handler passed into it. Everything else
+// (routes, middleware) is defined exactly as before; only how the server
+// actually starts listening (see server.listen at the bottom, replacing
+// what used to be app.listen) changes.
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    methods: ['GET', 'POST'],
+  },
+});
+// One fixed room — see the CoastGuardMessage model comment for why this is
+// a single shared channel rather than one room per station.
+const COAST_GUARD_CHAT_ROOM = 'coastguard-chat';
 
 // ---------------------------------------------------------------------------
 // Rate limiting
@@ -401,6 +422,31 @@ const editScheduleSchema = z.object({
 
 const idParamSchema = z.object({ id: z.string().uuid() }).strict();
 
+const addCoastGuardAccountSchema = z.object({
+  email: z.string().trim().email().max(255),
+  password: z.string().min(8).max(200),
+  name: z.string().trim().min(1).max(100),
+  station: z.string().trim().min(1).max(100),
+}).strict();
+
+const coastGuardMessageSchema = z.object({
+  body: z.string().trim().min(1).max(2000),
+}).strict();
+
+const coastGuardMessagesQuerySchema = z.object({
+  before: z.string().datetime().optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+}).strict();
+
+// "Send Manifest" — at least one recipient is required, but that's checked
+// in the route itself (both fields being independently optional here is what
+// lets an admin send to Coast Guard accounts only, an extra email only, or
+// both at once).
+const sendManifestSchema = z.object({
+  coastGuardAccountIds: z.array(z.string().uuid()).max(20).optional().default([]),
+  extraEmail: z.string().trim().email().max(255).optional(),
+}).strict();
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -499,6 +545,26 @@ async function sendInvoiceForBooking(bookingId) {
   }
 }
 
+// Shared by both the socket.io 'send_message' handler and the REST POST
+// fallback below, so a message is persisted identically either way. Looks
+// the sender's current name/role/station up fresh from the database rather
+// than trusting anything the client claims, then snapshots those three
+// fields onto the message row itself (see the CoastGuardMessage model
+// comment for why). Returns null if the sender account no longer exists.
+async function persistCoastGuardMessage(senderId, body) {
+  const sender = await prisma.admin.findUnique({ where: { id: senderId } });
+  if (!sender) return null;
+  return prisma.coastGuardMessage.create({
+    data: {
+      senderId: sender.id,
+      senderName: sender.name || sender.email,
+      senderRole: sender.role,
+      senderStation: sender.coastGuardStation,
+      body,
+    },
+  });
+}
+
 function signCustomerToken(customer) {
   return jwt.sign(
     { customerId: customer.id, email: customer.email, role: 'customer' },
@@ -507,9 +573,12 @@ function signCustomerToken(customer) {
   );
 }
 
+// admin.role is 'admin' or 'coast_guard' from the database — this is the
+// ONE place that decides what a session token can do, so requireAuth
+// (admin-only) vs requireAdminOrCoastGuard downstream can trust it.
 function signAdminToken(admin) {
   return jwt.sign(
-    { id: admin.id, email: admin.email, role: 'admin' },
+    { id: admin.id, email: admin.email, role: admin.role },
     process.env.JWT_SECRET,
     { expiresIn: '1d' }
   );
@@ -699,7 +768,14 @@ app.post('/api/login/2fa', loginLimiter, validate(twoFactorVerifySchema), async 
   res.json({
     message: 'Login successful',
     token: signAdminToken(admin),
-    admin: { id: admin.id, email: admin.email, name: admin.name, twoFactorEnabled: admin.twoFactorEnabled },
+    admin: {
+      id: admin.id,
+      email: admin.email,
+      name: admin.name,
+      twoFactorEnabled: admin.twoFactorEnabled,
+      role: admin.role,
+      coastGuardStation: admin.coastGuardStation,
+    },
   });
 });
 app.post('/api/admin/2fa/setup', requireAdminOrSetup, adminLimiter, async (req, res) => {
@@ -730,7 +806,18 @@ app.post('/api/admin/2fa/enable', requireAdminOrSetup, adminLimiter, validate(tw
   }
   await prisma.admin.update({ where: { id: admin.id }, data: { twoFactorEnabled: true } });
   await logAdminEvent({ adminId: admin.id, email: admin.email, event: '2fa_enabled', req });
-  res.json({ message: 'Two-factor authentication is now enabled.', token: signAdminToken(admin) });
+  res.json({
+    message: 'Two-factor authentication is now enabled.',
+    token: signAdminToken(admin),
+    admin: {
+      id: admin.id,
+      email: admin.email,
+      name: admin.name,
+      twoFactorEnabled: true,
+      role: admin.role,
+      coastGuardStation: admin.coastGuardStation,
+    },
+  });
 });
 
 // Requires the current password (not just an existing session) so leaving a
@@ -1564,7 +1651,11 @@ app.patch(
   }
 );
 
-app.get('/api/admin/schedules', requireAuth, adminLimiter, async (req, res) => {
+// requireAdminOrCoastGuard (not plain requireAuth) — this is the one
+// existing route Coast Guard accounts are also allowed to read, so they can
+// see the same schedule/seat picture the admin does without any separate
+// endpoint to maintain.
+app.get('/api/admin/schedules', requireAdminOrCoastGuard, adminLimiter, async (req, res) => {
   const schedules = await prisma.schedule.findMany({
     include: { ferry: true },
     orderBy: { departureDatetime: 'asc' },
@@ -1575,6 +1666,112 @@ app.get('/api/admin/schedules', requireAuth, adminLimiter, async (req, res) => {
     return { ...s, bookedSeats: booked, availableSeats: Math.max(0, s.ferry.seatCapacity - booked) };
   });
   res.json(withAvailability);
+});
+
+// ---------------------------------------------------------------------------
+// Coast Guard coordination — admin-provisioned accounts (role: coast_guard
+// on the same Admin table, see schema.prisma) that can only ever read
+// schedules (above) and use the shared chat below. See lib nowhere —
+// deliberately kept inline here since it's a small, tightly-scoped set of
+// routes rather than its own module.
+// ---------------------------------------------------------------------------
+
+// Admin-only (plain requireAuth): creates a new Coast Guard login. There's
+// no self-registration — these are handed out by Evershine staff to an
+// actual Coast Guard contact, the same way you'd hand someone a radio.
+app.post(
+  '/api/admin/coastguard-accounts',
+  requireAuth,
+  adminLimiter,
+  validate(addCoastGuardAccountSchema),
+  async (req, res) => {
+    const { email, password, name, station } = req.body;
+    const existing = await prisma.admin.findUnique({ where: { email } });
+    if (existing) {
+      return res.status(400).json({ error: 'An account with this email already exists.' });
+    }
+    const passwordHash = await bcrypt.hash(password, 12);
+    const account = await prisma.admin.create({
+      data: { email, passwordHash, name, role: 'coast_guard', coastGuardStation: station },
+    });
+    await logAdminEvent({ adminId: req.admin.id, email: req.admin.email, event: `coastguard_account_created:${email}`, req });
+    res.json({
+      message: 'Coast Guard account created. 2FA setup is required the first time they log in, same as any admin account.',
+      account: { id: account.id, email: account.email, name: account.name, coastGuardStation: account.coastGuardStation },
+    });
+  }
+);
+
+app.get('/api/admin/coastguard-accounts', requireAuth, adminLimiter, async (req, res) => {
+  const accounts = await prisma.admin.findMany({
+    where: { role: 'coast_guard' },
+    select: { id: true, email: true, name: true, coastGuardStation: true, twoFactorEnabled: true, createdAt: true },
+    orderBy: { createdAt: 'desc' },
+  });
+  res.json(accounts);
+});
+
+// Lightweight "who am I" for the Coast Guard portal — requireAuth (admin
+// only) already has its own /api/admin/me; this is the coast_guard-inclusive
+// equivalent, used so the portal page can confirm the session and show a
+// name/station without needing full admin access.
+app.get('/api/admin/coastguard/me', requireAdminOrCoastGuard, adminLimiter, async (req, res) => {
+  const admin = await prisma.admin.findUnique({
+    where: { id: req.admin.id },
+    select: { id: true, email: true, name: true, role: true, coastGuardStation: true },
+  });
+  if (!admin) return res.status(404).json({ error: 'Account not found' });
+  res.json(admin);
+});
+
+// Message history, newest-last (oldest-first in the response) for the
+// single shared channel. `before` (an ISO timestamp) pages backward through
+// older messages — the chat UI only needs to ask for it when someone
+// scrolls up, not on every load.
+app.get(
+  '/api/admin/coastguard/messages',
+  requireAdminOrCoastGuard,
+  adminLimiter,
+  validate(coastGuardMessagesQuerySchema, 'query'),
+  async (req, res) => {
+    const { before, limit } = req.query;
+    const messages = await prisma.coastGuardMessage.findMany({
+      where: before ? { createdAt: { lt: new Date(before) } } : undefined,
+      orderBy: { createdAt: 'desc' },
+      take: limit || 50,
+    });
+    res.json(messages.reverse());
+  }
+);
+
+// Plain REST fallback for sending — the socket.io handler (see the bottom of
+// this file) is the primary path since it broadcasts live, but this exists
+// so a message can still be sent (just without instant delivery to others)
+// if a Coast Guard connection's socket happens to be down when they hit
+// Send. Both paths write through the same persistence, so history stays
+// consistent either way.
+app.post(
+  '/api/admin/coastguard/messages',
+  requireAdminOrCoastGuard,
+  writeLimiter,
+  validate(coastGuardMessageSchema),
+  async (req, res) => {
+    const message = await persistCoastGuardMessage(req.admin.id, req.body.body);
+    if (!message) return res.status(404).json({ error: 'Account not found' });
+    io.to(COAST_GUARD_CHAT_ROOM).emit('new_message', message);
+    res.json(message);
+  }
+);
+
+// Marks the channel as read up to now, for whichever account is logged in —
+// server-side (not localStorage), so the "New" badge is correct regardless
+// of which browser/device someone checks from.
+app.post('/api/admin/coastguard/mark-read', requireAdminOrCoastGuard, adminLimiter, async (req, res) => {
+  await prisma.admin.update({
+    where: { id: req.admin.id },
+    data: { coastGuardChatLastReadAt: new Date() },
+  });
+  res.json({ message: 'Marked as read.' });
 });
 
 // Blocked if any booking already references this schedule, rather than
@@ -1704,6 +1901,144 @@ app.get('/api/admin/schedules/:id/manifest', requireAuth, adminLimiter, validate
   res.json(manifest);
 });
 
+// Emails a PDF copy of a sailing's manifest — to any combination of
+// admin-provisioned Coast Guard accounts and/or a one-off email address an
+// admin types in. Recipients are resolved server-side from the account IDs
+// (not trusted from the client as raw email strings) so this can never be
+// used to blast the manifest to an address that isn't either a real Coast
+// Guard account or one the admin explicitly typed in this request.
+app.post(
+  '/api/admin/schedules/:id/manifest/send',
+  requireAuth,
+  adminLimiter,
+  validate(idParamSchema, 'params'),
+  validate(sendManifestSchema),
+  async (req, res) => {
+    const schedule = await prisma.schedule.findUnique({
+      where: { id: req.params.id },
+      include: { ferry: true },
+    });
+    if (!schedule) return res.status(404).json({ error: 'Schedule not found' });
+
+    const { coastGuardAccountIds, extraEmail } = req.body;
+    const recipients = [];
+    if (coastGuardAccountIds.length > 0) {
+      const cgAccounts = await prisma.admin.findMany({
+        where: { id: { in: coastGuardAccountIds }, role: 'coast_guard' },
+        select: { email: true },
+      });
+      recipients.push(...cgAccounts.map((a) => a.email));
+    }
+    if (extraEmail) recipients.push(extraEmail);
+    const uniqueRecipients = [...new Set(recipients)];
+
+    if (uniqueRecipients.length === 0) {
+      return res.status(400).json({ error: 'Choose at least one recipient before sending.' });
+    }
+
+    const bookings = await prisma.booking.findMany({
+      where: { scheduleId: schedule.id, status: { not: 'cancelled' } },
+      include: { passengers: true },
+    });
+    const passengers = bookings.flatMap((b) => b.passengers);
+
+    try {
+      const pdfBuffer = await generateManifestPdf(schedule, passengers);
+      await sendManifestEmail(uniqueRecipients, schedule, pdfBuffer, passengers.length);
+      await logAdminEvent({ adminId: req.admin.id, email: req.admin.email, event: 'manifest_sent', req });
+      // Recorded so a Coast Guard account can see this manifest was shared
+      // with them from inside the portal itself, not just their email inbox
+      // (which the portal has no way to read). Only real Coast Guard account
+      // ids go into recipientAccountIds — extraEmail is kept separately and
+      // never grants portal visibility to whoever holds that inbox.
+      if (coastGuardAccountIds.length > 0) {
+        await prisma.sentManifest.create({
+          data: {
+            scheduleId: schedule.id,
+            sentByAdminId: req.admin.id,
+            recipientAccountIds: coastGuardAccountIds,
+            extraEmail: extraEmail || null,
+          },
+        });
+      }
+      res.json({
+        message: `Manifest sent to ${uniqueRecipients.length} recipient${uniqueRecipients.length === 1 ? '' : 's'}.`,
+        recipients: uniqueRecipients,
+      });
+    } catch (err) {
+      console.error('Failed to send manifest:', err);
+      res.status(500).json({ error: 'Could not send the manifest. Please try again.' });
+    }
+  }
+);
+
+// Lists manifests that have been shared with the logged-in account — powers
+// the Coast Guard portal's "Manifests" panel. Scoped with a `has` filter on
+// the scalar recipientAccountIds array, so an account only ever sees
+// manifests it was actually a recipient of.
+app.get('/api/admin/coastguard/manifests', requireAdminOrCoastGuard, adminLimiter, async (req, res) => {
+  const sent = await prisma.sentManifest.findMany({
+    where: { recipientAccountIds: { has: req.admin.id } },
+    include: { schedule: { include: { ferry: true } }, sentByAdmin: { select: { name: true, email: true } } },
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+  });
+  res.json(
+    sent.map((s) => ({
+      id: s.id,
+      createdAt: s.createdAt,
+      sentByName: s.sentByAdmin?.name || s.sentByAdmin?.email || 'Evershine Admin',
+      schedule: {
+        id: s.schedule.id,
+        direction: s.schedule.direction,
+        departureDatetime: s.schedule.departureDatetime,
+        ferry: s.schedule.ferry ? { name: s.schedule.ferry.name, seatCapacity: s.schedule.ferry.seatCapacity } : null,
+      },
+    }))
+  );
+});
+
+// Streams the PDF for one shared manifest. Regenerated live from current
+// passenger data (not the exact bytes that were emailed) so a manifest
+// opened days later still reflects any bookings/cancellations since it was
+// first sent — more useful for a duty audience than a frozen snapshot would
+// be. Authorization: the requesting account must actually be a recipient on
+// this specific SentManifest row (or be a full admin), not just hold any
+// valid coast_guard token.
+app.get(
+  '/api/admin/coastguard/manifests/:id/pdf',
+  requireAdminOrCoastGuard,
+  adminLimiter,
+  validate(idParamSchema, 'params'),
+  async (req, res) => {
+    const sent = await prisma.sentManifest.findUnique({
+      where: { id: req.params.id },
+      include: { schedule: { include: { ferry: true } } },
+    });
+    if (!sent) return res.status(404).json({ error: 'Manifest not found' });
+    if (req.admin.role !== 'admin' && !sent.recipientAccountIds.includes(req.admin.id)) {
+      return res.status(403).json({ error: 'You do not have access to this manifest.' });
+    }
+
+    const bookings = await prisma.booking.findMany({
+      where: { scheduleId: sent.scheduleId, status: { not: 'cancelled' } },
+      include: { passengers: true },
+    });
+    const passengers = bookings.flatMap((b) => b.passengers);
+
+    try {
+      const pdfBuffer = await generateManifestPdf(sent.schedule, passengers);
+      const dateStr = new Date(sent.schedule.departureDatetime).toISOString().slice(0, 10);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="evershine-manifest-${dateStr}.pdf"`);
+      res.send(pdfBuffer);
+    } catch (err) {
+      console.error('Failed to generate manifest PDF:', err);
+      res.status(500).json({ error: 'Could not generate the manifest PDF. Please try again.' });
+    }
+  }
+);
+
 app.get('/api/admin/analytics/monthly-sales', requireAuth, adminLimiter, async (req, res) => {
   const bookings = await prisma.booking.findMany({
     where: { status: 'confirmed' },
@@ -1720,6 +2055,32 @@ app.get('/api/admin/analytics/monthly-sales', requireAuth, adminLimiter, async (
     .map(([month, stats]) => ({ month, ...stats }))
     .sort((a, b) => a.month.localeCompare(b.month));
   res.json(result);
+});
+
+// Weather/marine conditions for the Padre Burgos <-> Limasawa crossing —
+// see lib/weather.js for the data source, caching, and the important
+// caveat that the "advisory" field is our own general threshold, not an
+// official PAGASA warning.
+app.get('/api/admin/weather', requireAuth, adminLimiter, async (req, res) => {
+  try {
+    const weather = await getWeather();
+    res.json(weather);
+  } catch (err) {
+    console.error('Failed to fetch weather:', err.message);
+    res.status(502).json({ error: 'Could not reach the weather service. Please try again shortly.' });
+  }
+});
+
+// Unofficial — see lib/pagasaBulletin.js for what this does and doesn't
+// pull from PAGASA's public bulletin page, and why.
+app.get('/api/admin/pagasa-bulletin', requireAuth, adminLimiter, async (req, res) => {
+  try {
+    const bulletin = await getPagasaBulletin();
+    res.json(bulletin);
+  } catch (err) {
+    console.error('Failed to fetch PAGASA bulletin:', err.message);
+    res.status(502).json({ error: "Could not reach PAGASA's site. Please try again shortly." });
+  }
 });
 
 // Full customer directory — every registered account, verified or not, so
@@ -1798,6 +2159,55 @@ app.get('/api/admin/uploads/:folder/:filename', requireAuth, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// Coast Guard chat — socket.io connection handling. Sits after every HTTP
+// route on purpose (pure organization; socket.io attaches to `server`
+// independently of Express's route matching, so ordering relative to the
+// app.get/app.post calls above doesn't actually matter functionally).
+// ---------------------------------------------------------------------------
+
+// Same role boundary as requireAdminOrCoastGuard above, just for a socket
+// handshake instead of an HTTP request — the JWT is sent as
+// `auth: { token }` when the client calls io(), not as a header, since
+// socket.io's handshake isn't a normal HTTP request the browser controls.
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (!token) return next(new Error('Not logged in'));
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    if (payload.role !== 'admin' && payload.role !== 'coast_guard') {
+      return next(new Error('Not logged in'));
+    }
+    socket.adminId = payload.id;
+    socket.adminRole = payload.role;
+    next();
+  } catch {
+    next(new Error('Session expired, please log in again'));
+  }
+});
+
+io.on('connection', (socket) => {
+  socket.join(COAST_GUARD_CHAT_ROOM);
+
+  socket.on('send_message', async (data, ack) => {
+    const result = coastGuardMessageSchema.safeParse(data);
+    if (!result.success) {
+      if (typeof ack === 'function') ack({ error: 'Message could not be sent.' });
+      return;
+    }
+    try {
+      const message = await persistCoastGuardMessage(socket.adminId, result.data.body);
+      if (!message) {
+        if (typeof ack === 'function') ack({ error: 'Account not found.' });
+        return;
+      }
+      io.to(COAST_GUARD_CHAT_ROOM).emit('new_message', message);
+      if (typeof ack === 'function') ack({ message });
+    } catch (err) {
+      console.error('Failed to persist coast guard message:', err);
+      if (typeof ack === 'function') ack({ error: 'Message could not be sent.' });
+    }
+  });
+});
 
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError || err.message?.startsWith('Only JPEG')) {
@@ -1808,6 +2218,6 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Backend running on http://localhost:${PORT}`);
 });
