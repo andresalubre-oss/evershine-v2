@@ -200,12 +200,7 @@ export default function CoastGuardPortal() {
         {/* Short orientation banner — this audience opens the portal
             infrequently, so a one-line reminder of what it's for and isn't
             for is worth the space every time. */}
-        <div className="mb-5 rounded-lg border border-teal-100 dark:border-teal-900/40 bg-teal-50 dark:bg-teal-950/40 px-4 py-3">
-          <p className="text-sm text-teal-900 dark:text-teal-200">
-            Padre Burgos ↔ Limasawa sailing schedule and a direct line to Evershine's dispatch team for coordination
-            around weather, delays, or incidents. Booking, customer, and payment information are not part of this portal.
-          </p>
-        </div>
+        
 
         {message && (
           <div className="mb-5 rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/30 px-4 py-3">
@@ -288,7 +283,7 @@ export default function CoastGuardPortal() {
                 </div>
                 {manifests.length === 0 ? (
                   <p className="px-4 py-6 text-sm text-gray-500 dark:text-slate-500">
-                    Nothing here yet — Evershine admins can send a sailing's manifest from their dashboard.
+                    Nothing here yet Evershine admins can send a sailing's manifest from their dashboard.
                   </p>
                 ) : (
                   <div className="no-scrollbar max-h-[20rem] space-y-2 overflow-y-auto px-4 py-4">

@@ -2284,12 +2284,7 @@ export default function Admin() {
 
           {activeTab === 'coastguard' && (
             <div className="space-y-5">
-              <Card title="Coast Guard Coordination — Limasawa & Padre Burgos">
-                <p className="text-sm text-gray-600 dark:text-slate-400">
-                  A shared line for coordinating with the Philippine Coast Guard at both ports. Coast Guard accounts
-                  are provisioned below and can view sailing schedules and exchange messages here in real time.
-                </p>
-              </Card>
+              
 
               <div className="grid gap-5 lg:grid-cols-2">
                 <Card title="Coast Guard Accounts">
@@ -3394,9 +3389,7 @@ export default function Admin() {
                   {sendManifestOpen && manifestPassengers.length > 0 && (
                     <div className="mt-3 rounded-md border border-gray-200 dark:border-slate-800 p-3.5">
                       <p className="text-sm font-semibold text-gray-800 dark:text-slate-100">Send a PDF copy of this manifest</p>
-                      <p className="mt-0.5 text-xs text-gray-500 dark:text-slate-500">
-                        Pick one or more Coast Guard accounts, an extra email address, or both.
-                      </p>
+                     
 
                       <div className="mt-3">
                         {cgAccounts.length === 0 ? (
@@ -3426,7 +3419,7 @@ export default function Admin() {
                           type="email"
                           value={sendManifestExtraEmail}
                           onChange={(e) => setSendManifestExtraEmail(e.target.value)}
-                          placeholder="name@example.com"
+                          placeholder="juandelacruz@gmail.com"
                           className="mt-1 w-full max-w-sm rounded-md border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
                         />
                       </div>

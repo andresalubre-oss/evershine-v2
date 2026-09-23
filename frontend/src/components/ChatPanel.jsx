@@ -152,7 +152,7 @@ export default function ChatPanel({ currentAccountId, className = '' }) {
       <div ref={scrollRef} className="no-scrollbar flex-1 space-y-3 overflow-y-auto px-4 py-3">
         {loadError && <p className="text-sm text-red-600 dark:text-red-400">{loadError}</p>}
         {messages.length === 0 && !loadError ? (
-          <p className="text-sm text-gray-400 dark:text-slate-500">No messages yet — say hello.</p>
+          <p className="text-sm text-gray-400 dark:text-slate-500">No messages yet say hello.</p>
         ) : (
           messages.map((m) => {
             const isMine = m.senderId === currentAccountId
