@@ -25,6 +25,7 @@ const { requireAuth, requireAdminOrSetup } = require('./middleware/auth');
 const validate = require('./middleware/validate');
 const paymongo = require('./lib/paymongo');
 const { sendVerificationEmail, sendGuestVerificationCode, sendContactMessage, sendBookingInvoice } = require('./lib/email');
+const { generateInvoicePdf } = require('./lib/pdfInvoice');
 
 const app = express();
 app.disable('x-powered-by');
@@ -1130,6 +1131,43 @@ app.get('/api/bookings/lookup', validate(lookupQuerySchema, 'query'), async (req
   }
 
   res.json(booking);
+});
+
+// Downloadable PDF version of the booking invoice — same reference-code +
+// contact-email pair as the lookup route above is the only "auth" here (no
+// login required), matching how Manage Booking and the emailed invoice
+// already work. Generated on demand rather than stored, since it's cheap to
+// build and this way it never goes stale if a booking's details somehow
+// change after confirmation.
+app.get('/api/bookings/invoice-pdf', validate(lookupQuerySchema, 'query'), async (req, res) => {
+  const { reference_code, contact_email } = req.query;
+
+  const booking = await prisma.booking.findUnique({
+    where: { referenceCode: reference_code },
+    include: { passengers: true, schedule: { include: { ferry: true } } },
+  });
+
+  if (!booking) {
+    return res.status(404).json({ error: 'Booking not found' });
+  }
+  if (booking.contactEmail.toLowerCase() !== contact_email.toLowerCase()) {
+    return res.status(403).json({ error: 'Reference code and email do not match' });
+  }
+  // A PDF invoice only makes sense once payment has actually gone through —
+  // an unpaid booking has no confirmed trip to hand a "ticket" for yet.
+  if (booking.status !== 'confirmed') {
+    return res.status(400).json({ error: 'This booking is not confirmed yet, so there is no invoice to download.' });
+  }
+
+  try {
+    const pdfBuffer = await generateInvoicePdf(booking);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="evershine-invoice-${booking.referenceCode}.pdf"`);
+    res.send(pdfBuffer);
+  } catch (err) {
+    console.error('Failed to generate invoice PDF:', err);
+    res.status(500).json({ error: 'Could not generate the invoice PDF. Please try again.' });
+  }
 });
 
 app.post('/api/bookings/cancel', writeLimiter, validate(cancelBookingSchema), async (req, res) => {

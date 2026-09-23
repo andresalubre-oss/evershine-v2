@@ -164,11 +164,16 @@ function escapeHtml(s) {
 // pull it up through Manage Booking with their reference code and email.
 async function sendBookingInvoice(booking) {
   const ports = PORT_NAMES[booking.schedule.direction] || { from: '', to: '' };
+  // Always rendered in Philippine time, regardless of what timezone the
+  // server process itself runs in (Render's servers default to UTC) — the
+  // ferry departs at a fixed real-world Manila-time slot, and that must
+  // never shift based on where the backend or the reader happens to be.
   const departure = new Date(booking.schedule.departureDatetime).toLocaleString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
+    timeZone: 'Asia/Manila',
   });
   const bookedOn = new Date(booking.createdAt).toLocaleDateString('en-US', {
-    month: 'long', day: 'numeric', year: 'numeric',
+    month: 'long', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila',
   });
   const passengerCount = booking.passengers.length;
   // Same public/ frontend asset the site's own nav bar and footer use, built
@@ -176,6 +181,11 @@ async function sendBookingInvoice(booking) {
   // the way a browser can.
   const logoUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/evershine-logo.png`;
   const manageBookingUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/manage-booking`;
+  // Points at the API server itself, not the frontend — BACKEND_URL needs to
+  // be set to the backend's public URL (e.g. Render's service URL) in
+  // production for this link to resolve; falls back to the local dev API
+  // port so it still works when testing without that env var set.
+  const invoicePdfUrl = `${process.env.BACKEND_URL || 'http://localhost:4000'}/api/bookings/invoice-pdf?reference_code=${encodeURIComponent(booking.referenceCode)}&contact_email=${encodeURIComponent(booking.contactEmail)}`;
 
   if (!resend) {
     console.warn(`(RESEND_API_KEY not set) Would have sent booking invoice for ${booking.referenceCode} to ${booking.contactEmail}`);
@@ -223,7 +233,7 @@ async function sendBookingInvoice(booking) {
                   code below, at the terminal during boarding.
                 </p>
 
-                <table role="presentation" width="100%" style="background:#f0fdfa;border:1px solid #99f6e4;border-radius:8px;margin-bottom:28px;">
+                <table role="presentation" width="100%" style="background:#f0fdfa;border:1px solid #99f6e4;border-radius:8px;margin-bottom:16px;">
                   <tr>
                     <td style="padding:18px;text-align:center;">
                       <p style="margin:0;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#0f766e;">Reference Code</p>
@@ -231,6 +241,12 @@ async function sendBookingInvoice(booking) {
                     </td>
                   </tr>
                 </table>
+
+                <p style="margin:0 0 28px;text-align:center;">
+                  <a href="${invoicePdfUrl}" style="display:inline-block;background:#0f766e;color:#ffffff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:700;font-size:14px;">
+                    Download Invoice (PDF)
+                  </a>
+                </p>
 
                 <h2 style="margin:0 0 12px;font-size:13px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:#111827;border-bottom:2px solid #111827;padding-bottom:8px;">Trip Details</h2>
                 <table role="presentation" width="100%" style="font-size:14px;color:#374151;margin-bottom:28px;">
@@ -299,4 +315,19 @@ async function sendBookingInvoice(booking) {
   }
 }
 
-module.exports = { sendVerificationEmail, sendGuestVerificationCode, sendContactMessage, sendBookingInvoice };
+module.exports = {
+  sendVerificationEmail,
+  sendGuestVerificationCode,
+  sendContactMessage,
+  sendBookingInvoice,
+  // Exported so the PDF invoice generator (lib/pdfInvoice.js) can reuse the
+  // exact same port names, terminal/support details, and formatting instead
+  // of a second, driftable copy of the same constants.
+  PORT_NAMES,
+  TERMINAL_NAME,
+  TERMINAL_ADDRESS,
+  SUPPORT_PHONE,
+  SUPPORT_EMAIL,
+  formatPeso,
+  passengerFullName,
+};

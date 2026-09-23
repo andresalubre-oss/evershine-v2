@@ -199,6 +199,30 @@ export const api = {
   lookupBooking: (referenceCode, contactEmail) =>
     request(`/bookings/lookup?reference_code=${encodeURIComponent(referenceCode)}&contact_email=${encodeURIComponent(contactEmail)}`),
 
+  // Downloads the PDF invoice for a confirmed booking. Fetches as a blob and
+  // force-saves it rather than a plain <a href download> — the API lives on
+  // a different origin than the frontend in production, and a cross-origin
+  // download link isn't reliably honored by every browser (same reasoning
+  // as the payment QR code download on the Booking page).
+  downloadInvoicePdf: async (referenceCode, contactEmail) => {
+    const response = await fetch(
+      `${BASE}/bookings/invoice-pdf?reference_code=${encodeURIComponent(referenceCode)}&contact_email=${encodeURIComponent(contactEmail)}`
+    )
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      throw new Error(data.error || 'Could not download the invoice.')
+    }
+    const blob = await response.blob()
+    const blobUrl = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = blobUrl
+    link.download = `evershine-invoice-${referenceCode}.pdf`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(blobUrl)
+  },
+
   cancelBooking: (referenceCode, contactEmail, reason) =>
     request('/bookings/cancel', {
       method: 'POST',

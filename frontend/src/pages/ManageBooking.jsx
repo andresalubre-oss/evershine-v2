@@ -145,6 +145,21 @@ export default function ManageBooking() {
   const [cancelMessage, setCancelMessage] = useState('')
   const [cancelError, setCancelError] = useState(false)
 
+  const [downloadingInvoice, setDownloadingInvoice] = useState(false)
+  const [downloadError, setDownloadError] = useState('')
+
+  async function handleDownloadInvoice() {
+    setDownloadError('')
+    setDownloadingInvoice(true)
+    try {
+      await api.downloadInvoicePdf(booking.referenceCode, booking.contactEmail)
+    } catch (err) {
+      setDownloadError(err.message)
+    } finally {
+      setDownloadingInvoice(false)
+    }
+  }
+
   async function lookupBooking(e) {
     e?.preventDefault()
     if (!referenceCode.trim() || !contactEmail.trim()) {
@@ -270,12 +285,26 @@ export default function ManageBooking() {
               <p className="text-xl font-bold text-teal-700">{formatPeso(booking.totalFare)}</p>
             </div>
 
-            <Link
-              to={`/directions?direction=${booking.schedule.direction}`}
-              className="mt-4 inline-block rounded-md border border-teal-700 px-5 py-2.5 text-base font-medium text-teal-700 hover:bg-teal-50"
-            >
-              Get Directions to the Port
-            </Link>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Link
+                to={`/directions?direction=${booking.schedule.direction}`}
+                className="inline-block rounded-md border border-teal-700 px-5 py-2.5 text-base font-medium text-teal-700 hover:bg-teal-50"
+              >
+                Get Directions to the Port
+              </Link>
+
+              {booking.status === 'confirmed' && (
+                <button
+                  type="button"
+                  onClick={handleDownloadInvoice}
+                  disabled={downloadingInvoice}
+                  className="inline-block rounded-md bg-teal-700 px-5 py-2.5 text-base font-medium text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {downloadingInvoice ? 'Preparing PDF...' : 'Download Invoice (PDF)'}
+                </button>
+              )}
+            </div>
+            {downloadError && <p className="mt-2 text-sm text-red-600">{downloadError}</p>}
           </div>
 
         <div className="rounded-xl border border-gray-200 bg-white p-6">
