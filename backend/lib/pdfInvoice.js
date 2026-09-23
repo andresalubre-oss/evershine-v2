@@ -16,6 +16,7 @@
 // if used directly. "PHP" is used instead, which is also standard on
 // official Philippine financial documents.
 
+const path = require('path');
 const PDFDocument = require('pdfkit');
 const {
   PORT_NAMES,
@@ -26,6 +27,12 @@ const {
   passengerFullName,
 } = require('./email');
 
+// Bundled inside backend/ (copied from frontend/public/evershine-logo.png)
+// rather than fetched over HTTP from FRONTEND_URL at request time — a local
+// file read is instant and doesn't add "the frontend must be reachable" as
+// a failure mode for something as simple as generating a PDF.
+const LOGO_PATH = path.join(__dirname, '../assets/evershine-logo.png');
+
 const TEAL_DARK = '#042f2e'; // header/footer bars — matches the email's footer and the site's teal-950
 const TEAL = '#0f766e'; // accent text — matches the email's teal-700 accent
 const TEAL_PALE = '#f0fdfa'; // zebra-striping fill — matches the email's reference-code panel background
@@ -33,8 +40,6 @@ const GRAY_LABEL = '#6b7280';
 const GRAY_FAINT = '#9ca3af';
 const GRAY_BORDER = '#e5e7eb';
 const INK = '#111827';
-const AMBER_HEADING = '#92400e';
-const AMBER_TEXT = '#78350f';
 
 function formatPesoPdf(amount) {
   return `PHP ${Number(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -75,16 +80,36 @@ function generateInvoicePdf(booking) {
 
       // ---- Header bar ------------------------------------------------------
       doc.rect(0, 0, pageWidth, 90).fill(TEAL_DARK);
+
+      // White square backing behind the logo — same treatment used for it
+      // everywhere else against a dark background (site nav, admin sidebar),
+      // since the mark itself relies on a light background to read clearly.
+      const logoBadgeSize = 38;
+      const logoBadgeX = marginX;
+      const logoBadgeY = 22;
+      doc.roundedRect(logoBadgeX, logoBadgeY, logoBadgeSize, logoBadgeSize, 6).fill('#ffffff');
+      try {
+        doc.image(LOGO_PATH, logoBadgeX + 4, logoBadgeY + 4, {
+          fit: [logoBadgeSize - 8, logoBadgeSize - 8],
+          align: 'center',
+          valign: 'center',
+        });
+      } catch {
+        // Missing/unreadable logo file shouldn't block the whole invoice —
+        // the white badge alone still leaves the header looking intentional.
+      }
+
+      const wordmarkX = logoBadgeX + logoBadgeSize + 12;
       doc
         .fillColor('#ffffff')
         .font('Helvetica-Bold')
         .fontSize(20)
-        .text('EVERSHINE BOOKING', marginX, 28);
+        .text('EVERSHINE BOOKING', wordmarkX, 28);
       doc
         .fillColor('#99f6e4')
         .font('Helvetica')
         .fontSize(11)
-        .text('Official Booking Invoice', marginX, 54);
+        .text('Official Booking Invoice', wordmarkX, 54);
       // Reference code echoed top-right too, so a passenger flipping through
       // a printed stack of tickets can find the right one without opening
       // each page — the same reason paper boarding passes repeat the
@@ -226,28 +251,24 @@ function generateInvoicePdf(booking) {
       y = doc.y + 22;
 
       // ---- Before You Board ---------------------------------------------------
+      // Plain white background, black text, no box — same flat treatment as
+      // every other section on this document rather than a colored callout,
+      // per the site's "no colored boxes/light effects" design language.
       const noticeLines = [
         'Arrive at the terminal at least 30 minutes before departure.',
         "Bring a valid government ID matching each passenger's name above.",
         'Discount ID (Senior, PWD, or Student) is required for a discounted fare.',
       ];
-      const noticeBoxHeight = 24 + noticeLines.length * 15;
-      doc.rect(marginX, y, contentWidth, noticeBoxHeight).lineWidth(1).stroke('#fde68a');
-      doc
-        .fillColor(AMBER_HEADING)
-        .font('Helvetica-Bold')
-        .fontSize(10)
-        .text('Before You Board', marginX + 14, y + 12);
-      let noticeY = y + 30;
+      y = sectionHeading(doc, 'Before You Board', marginX, y, contentWidth);
       noticeLines.forEach((line) => {
         doc
-          .fillColor(AMBER_TEXT)
+          .fillColor(INK)
           .font('Helvetica')
-          .fontSize(9)
-          .text(`-  ${line}`, marginX + 14, noticeY, { width: contentWidth - 28 });
-        noticeY += 15;
+          .fontSize(9.5)
+          .text(`-  ${line}`, marginX, y, { width: contentWidth, lineGap: 2 });
+        y = doc.y + 4;
       });
-      y += noticeBoxHeight + 18;
+      y += 14;
 
       // ---- Generation note -----------------------------------------------------
       doc
