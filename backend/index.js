@@ -296,6 +296,10 @@ const schedulesQuerySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
 }).strict();
 
+const upcomingDatesQuerySchema = z.object({
+  direction: z.enum(['PB_TO_LIMASAWA', 'LIMASAWA_TO_PB']),
+}).strict();
+
 const passengerSchema = z.object({
   first_name: z.string().trim().min(1).max(100),
   middle_name: z.string().trim().max(100).optional().or(z.literal('')),
@@ -380,6 +384,21 @@ const addScheduleSchema = z.object({
   student_discount_percent: z.coerce.number().min(0).max(100).default(20),
 }).strict();
 
+// Same fields as addScheduleSchema, but every field is optional — an admin
+// editing a schedule usually only wants to tweak the fare or the discount
+// rates, not resupply every field. ferry_id and direction are still
+// editable (e.g. fixing a schedule that was created against the wrong
+// ferry) but nothing here is required.
+const editScheduleSchema = z.object({
+  ferry_id: z.string().uuid().optional(),
+  direction: z.enum(['PB_TO_LIMASAWA', 'LIMASAWA_TO_PB']).optional(),
+  departure_datetime: z.string().min(1).max(30).optional(),
+  base_fare: z.coerce.number().positive().max(100000).optional(),
+  senior_discount_percent: z.coerce.number().min(0).max(100).optional(),
+  pwd_discount_percent: z.coerce.number().min(0).max(100).optional(),
+  student_discount_percent: z.coerce.number().min(0).max(100).optional(),
+}).strict();
+
 const idParamSchema = z.object({ id: z.string().uuid() }).strict();
 
 // ---------------------------------------------------------------------------
@@ -401,6 +420,53 @@ function calculateFare(schedule, discountType) {
     return base * (1 - Number(percent) / 100);
   }
   return base;
+}
+
+// A schedule's seats are "held" by any booking that's actually paid, still
+// under admin review after a refund request, OR unpaid but still inside its
+// payment window. A booking whose QR expired unpaid, or that's cancelled /
+// declined / refunded, releases its seats back into availability. Without
+// this, an abandoned pending_payment booking would squat on seats forever —
+// nothing else in the app ever flips Booking.status away from
+// 'pending_payment' on its own (only the child Payment.status becomes
+// 'expired'; see /api/bookings/payment-status).
+const SEAT_HOLDING_WHERE = {
+  OR: [
+    { status: 'confirmed' },
+    { status: 'refund_requested' },
+    {
+      status: 'pending_payment',
+      OR: [{ payment: null }, { payment: { expiresAt: { gt: new Date() } } }],
+    },
+  ],
+};
+
+// Counts passengers (= seats), not bookings, since one booking can carry
+// several passengers. `client` is either the plain `prisma` client or a
+// `tx` transaction client — both expose the same `.booking` API, so this
+// works unmodified inside the transactional capacity check in POST
+// /api/bookings.
+async function getBookedSeatCount(client, scheduleId) {
+  const rows = await client.booking.findMany({
+    where: { scheduleId, ...SEAT_HOLDING_WHERE },
+    select: { _count: { select: { passengers: true } } },
+  });
+  return rows.reduce((sum, r) => sum + r._count.passengers, 0);
+}
+
+// Batched version for schedule list endpoints, to avoid one query per
+// schedule (N+1). Returns a plain { [scheduleId]: bookedSeats } map.
+async function getBookedSeatCountsForSchedules(client, scheduleIds) {
+  if (scheduleIds.length === 0) return {};
+  const rows = await client.booking.findMany({
+    where: { scheduleId: { in: scheduleIds }, ...SEAT_HOLDING_WHERE },
+    select: { scheduleId: true, _count: { select: { passengers: true } } },
+  });
+  const counts = {};
+  for (const r of rows) {
+    counts[r.scheduleId] = (counts[r.scheduleId] || 0) + r._count.passengers;
+  }
+  return counts;
 }
 
 function generateReferenceCode() {
@@ -933,9 +999,40 @@ app.get('/api/schedules', validate(schedulesQuerySchema, 'query'), async (req, r
       direction,
       departureDatetime: { gte: startOfDay, lte: endOfDay },
     },
+    include: { ferry: true },
     orderBy: { departureDatetime: 'asc' },
   });
-  res.json(schedules);
+  const bookedCounts = await getBookedSeatCountsForSchedules(prisma, schedules.map((s) => s.id));
+  const withAvailability = schedules.map((s) => {
+    const booked = bookedCounts[s.id] || 0;
+    return { ...s, availableSeats: Math.max(0, s.ferry.seatCapacity - booked) };
+  });
+  res.json(withAvailability);
+});
+
+// Lightweight companion to GET /api/schedules — just the distinct calendar
+// dates (Manila-local, not UTC) that have at least one upcoming sailing in
+// this direction. Used by the search widget's date picker to point
+// customers at days that are actually worth looking at, without making them
+// fetch a full day's schedule for every date they might click.
+app.get('/api/schedules/upcoming-dates', validate(upcomingDatesQuerySchema, 'query'), async (req, res) => {
+  const { direction } = req.query;
+  const schedules = await prisma.schedule.findMany({
+    where: { direction, departureDatetime: { gte: new Date() } },
+    select: { departureDatetime: true },
+    orderBy: { departureDatetime: 'asc' },
+  });
+  const seen = new Set();
+  const dates = [];
+  for (const s of schedules) {
+    // en-CA gives YYYY-MM-DD directly, already in Manila's calendar day.
+    const dateStr = s.departureDatetime.toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+    if (!seen.has(dateStr)) {
+      seen.add(dateStr);
+      dates.push(dateStr);
+    }
+  }
+  res.json(dates.slice(0, 30));
 });
 
 // ---------------------------------------------------------------------------
@@ -1079,38 +1176,68 @@ app.post('/api/bookings', writeLimiter, attachCustomerIfPresent, validate(create
   }));
   const totalFare = passengersWithFare.reduce((sum, p) => sum + p.fare, 0);
 
-  const booking = await prisma.booking.create({
-    data: {
-      scheduleId: schedule_id,
-      referenceCode,
-      contactEmail: contact_email,
-      contactNumber: contact_number,
-      totalFare,
-      // Tags the booking to the logged-in customer, if any, so it shows up
-      // in their dashboard's booking history. Guests (no token) leave this null.
-      customerId: req.customerId || null,
-      passengers: {
-        create: passengersWithFare.map((p) => ({
-          firstName: p.first_name,
-          middleName: p.middle_name || null,
-          lastName: p.last_name,
-          suffix: p.suffix || null,
-          sex: p.sex,
-          nationality: p.nationality,
-          barangay: p.barangay,
-          cityMunicipality: p.city_municipality,
-          province: p.province,
-          zipCode: p.zip_code,
-          country: p.country,
-          email: p.email || null,
-          contactNumber: p.contact_number,
-          discountType: p.discount_type,
-          fare: p.fare,
-        })),
-      },
-    },
-    include: { passengers: true },
-  });
+  // Capacity check + insert happen inside one transaction so a second
+  // request racing for the last few seats sees the first request's booking
+  // before deciding whether there's still room. Not a hard guarantee under
+  // very high concurrency (Postgres's default Read Committed isolation
+  // still allows a narrow race window), but for this app's scale it closes
+  // the gap that mattered: two people clicking Book around the same moment.
+  let booking;
+  try {
+    booking = await prisma.$transaction(async (tx) => {
+      const ferry = await tx.ferry.findUnique({ where: { id: schedule.ferryId } });
+      const bookedSeats = await getBookedSeatCount(tx, schedule_id);
+      const requestedSeats = passengersWithFare.length;
+      if (bookedSeats + requestedSeats > ferry.seatCapacity) {
+        const remaining = Math.max(0, ferry.seatCapacity - bookedSeats);
+        const err = new Error(
+          remaining === 0
+            ? 'This sailing is fully booked.'
+            : `Only ${remaining} seat${remaining === 1 ? '' : 's'} left on this sailing.`
+        );
+        err.code = 'NOT_ENOUGH_SEATS';
+        throw err;
+      }
+
+      return tx.booking.create({
+        data: {
+          scheduleId: schedule_id,
+          referenceCode,
+          contactEmail: contact_email,
+          contactNumber: contact_number,
+          totalFare,
+          // Tags the booking to the logged-in customer, if any, so it shows up
+          // in their dashboard's booking history. Guests (no token) leave this null.
+          customerId: req.customerId || null,
+          passengers: {
+            create: passengersWithFare.map((p) => ({
+              firstName: p.first_name,
+              middleName: p.middle_name || null,
+              lastName: p.last_name,
+              suffix: p.suffix || null,
+              sex: p.sex,
+              nationality: p.nationality,
+              barangay: p.barangay,
+              cityMunicipality: p.city_municipality,
+              province: p.province,
+              zipCode: p.zip_code,
+              country: p.country,
+              email: p.email || null,
+              contactNumber: p.contact_number,
+              discountType: p.discount_type,
+              fare: p.fare,
+            })),
+          },
+        },
+        include: { passengers: true },
+      });
+    });
+  } catch (err) {
+    if (err.code === 'NOT_ENOUGH_SEATS') {
+      return res.status(409).json({ error: err.message, code: 'NOT_ENOUGH_SEATS' });
+    }
+    throw err;
+  }
 
   res.json({ message: 'Booking created', booking });
 });
@@ -1390,12 +1517,64 @@ app.post('/api/admin/schedules', requireAuth, adminLimiter, validate(addSchedule
   res.json({ message: 'Schedule created', schedule });
 });
 
+// Editing a schedule that already has bookings only changes future
+// calculations (new fare quotes, the invoice PDF's own snapshot of the
+// booking's totalFare, etc.) — it deliberately does NOT touch any existing
+// Booking/BookingPassenger rows, which already recorded their own fare at
+// booking time. That matches how fares already worked (each schedule keeps
+// whatever discount rates were in effect when it was created), so an edit
+// here reads the same way a brand new schedule would going forward.
+app.patch(
+  '/api/admin/schedules/:id',
+  requireAuth,
+  adminLimiter,
+  validate(idParamSchema, 'params'),
+  validate(editScheduleSchema),
+  async (req, res) => {
+    const existing = await prisma.schedule.findUnique({ where: { id: req.params.id } });
+    if (!existing) {
+      return res.status(404).json({ error: 'Schedule not found' });
+    }
+    const {
+      ferry_id, direction, departure_datetime, base_fare,
+      senior_discount_percent, pwd_discount_percent, student_discount_percent,
+    } = req.body;
+
+    if (ferry_id) {
+      const ferry = await prisma.ferry.findUnique({ where: { id: ferry_id } });
+      if (!ferry) {
+        return res.status(400).json({ error: 'Ferry not found' });
+      }
+    }
+
+    const schedule = await prisma.schedule.update({
+      where: { id: req.params.id },
+      data: {
+        ...(ferry_id !== undefined && { ferryId: ferry_id }),
+        ...(direction !== undefined && { direction }),
+        ...(departure_datetime !== undefined && { departureDatetime: new Date(departure_datetime) }),
+        ...(base_fare !== undefined && { baseFare: base_fare }),
+        ...(senior_discount_percent !== undefined && { seniorDiscountPercent: senior_discount_percent }),
+        ...(pwd_discount_percent !== undefined && { pwdDiscountPercent: pwd_discount_percent }),
+        ...(student_discount_percent !== undefined && { studentDiscountPercent: student_discount_percent }),
+      },
+      include: { ferry: true },
+    });
+    res.json({ message: 'Schedule updated', schedule });
+  }
+);
+
 app.get('/api/admin/schedules', requireAuth, adminLimiter, async (req, res) => {
   const schedules = await prisma.schedule.findMany({
     include: { ferry: true },
     orderBy: { departureDatetime: 'asc' },
   });
-  res.json(schedules);
+  const bookedCounts = await getBookedSeatCountsForSchedules(prisma, schedules.map((s) => s.id));
+  const withAvailability = schedules.map((s) => {
+    const booked = bookedCounts[s.id] || 0;
+    return { ...s, bookedSeats: booked, availableSeats: Math.max(0, s.ferry.seatCapacity - booked) };
+  });
+  res.json(withAvailability);
 });
 
 // Blocked if any booking already references this schedule, rather than
@@ -1426,6 +1605,44 @@ app.get('/api/admin/bookings', requireAuth, adminLimiter, async (req, res) => {
   });
   res.json(bookings);
 });
+
+// A direct admin override, separate from the customer-initiated
+// cancel -> refund-request -> mark-refunded/reject review flow above (that
+// flow still exists and is unchanged). This is for cases the admin needs to
+// act on unilaterally — e.g. a sailing gets cancelled outright and every
+// booking on it needs clearing, or a booking needs voiding for a reason
+// that didn't come through the customer's own cancellation request. Bookings
+// that already reached a final state (cancelled/refunded) can't be
+// cancelled again.
+app.post(
+  '/api/admin/bookings/:id/cancel',
+  requireAuth,
+  adminLimiter,
+  validate(idParamSchema, 'params'),
+  async (req, res) => {
+    const booking = await prisma.booking.findUnique({ where: { id: req.params.id } });
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+    if (booking.status === 'cancelled' || booking.status === 'refunded') {
+      return res.status(400).json({ error: 'This booking is already cancelled or refunded.' });
+    }
+    // No payment was ever taken for these — a plain cancel is enough, same
+    // rule the customer-facing cancel route already uses. Anything that did
+    // involve money (confirmed, or already mid refund-review) goes to
+    // refund_requested instead, so it still shows up for an admin to
+    // formally mark as refunded once the money is actually sent back.
+    const noPaymentTaken = booking.status === 'pending_payment' || booking.status === 'payment_declined';
+    const updated = await prisma.booking.update({
+      where: { id: req.params.id },
+      data: {
+        status: noPaymentTaken ? 'cancelled' : 'refund_requested',
+        cancellationReason: booking.cancellationReason || 'Cancelled by admin.',
+      },
+    });
+    res.json({ message: 'Booking cancelled.', booking: updated });
+  }
+);
 
 // Refunds are never sent automatically — a customer's cancellation just
 // queues the booking here with their stated reason. An admin reviews it and

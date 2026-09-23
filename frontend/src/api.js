@@ -90,6 +90,9 @@ export const api = {
   getSchedules: (direction, date) =>
     request(`/schedules?direction=${direction}&date=${date}`),
 
+  getUpcomingScheduleDates: (direction) =>
+    request(`/schedules/upcoming-dates?direction=${direction}`),
+
   // Attaches the customer's token if they're logged in (so the backend can
   // check whether their profile is discount-verified), but works fine
   // without one too — guests can still book, as long as `payload` includes
@@ -246,9 +249,18 @@ export const api = {
 
   getAdminSchedules: () => adminRequest('/admin/schedules'),
 
+  editSchedule: (id, payload) =>
+    adminRequest(`/admin/schedules/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
+
   deleteSchedule: (id) => adminRequest(`/admin/schedules/${id}`, { method: 'DELETE' }),
 
   getAllBookings: () => adminRequest('/admin/bookings'),
+
+  adminCancelBooking: (id) => adminRequest(`/admin/bookings/${id}/cancel`, { method: 'POST' }),
 
   getRefundRequests: () => adminRequest('/admin/refund-requests'),
 

@@ -3,7 +3,18 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../api.js'
 import BookingSteps from '../components/BookingSteps.jsx'
 
-const today = new Date().toISOString().split('T')[0]
+// Local calendar date, not UTC — new Date().toISOString() reports the UTC
+// date, which lags a full day behind Philippine time (UTC+8) for the first
+// several hours of every local day. That made "today" (and therefore the
+// date picker's minimum) compute as yesterday overnight, letting an already
+// past date still be selected. Same class of bug as the email invoice
+// timezone fix elsewhere in this app.
+function todayLocalDateString() {
+  const d = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+const today = todayLocalDateString()
 
 // Approximate Padre Burgos <-> Limasawa crossing time. The schedule table
 // only stores a departure time, not an arrival time, so this is used to
@@ -245,10 +256,18 @@ function TripCard({ schedule, fromLabel, toLabel, onBook }) {
   )
 }
 
+// Short "Sep 24" style label for the upcoming-sailings hint below the
+// departure date field — deliberately terser than formatDateLabel (which
+// includes weekday + year) since several of these get listed side by side.
+function formatShortDate(dateStr) {
+  const d = new Date(`${dateStr}T00:00:00`)
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
 function SearchFormFields({
   tripType, setTripType, direction, ports, swapDirection,
   date, setDate, returnDate, setReturnDate,
-  onSearch, onCancel, loading, error,
+  onSearch, onCancel, loading, error, upcomingDates,
 }) {
   return (
     <>
@@ -322,6 +341,7 @@ function SearchFormFields({
           <input
             type="date"
             value={date}
+            min={today}
             onChange={(e) => setDate(e.target.value)}
             className="w-full rounded-md border border-gray-300 px-4 py-3 text-lg"
           />
@@ -333,7 +353,7 @@ function SearchFormFields({
             <input
               type="date"
               value={returnDate}
-              min={date}
+              min={date || today}
               onChange={(e) => setReturnDate(e.target.value)}
               className="w-full rounded-md border border-gray-300 px-4 py-3 text-lg"
             />
@@ -397,8 +417,20 @@ export default function Search() {
   const [loading, setLoading] = useState(false)
   const [heroIndex, setHeroIndex] = useState(0)
   const galleryScrollRef = useRef(null)
+  const [upcomingDates, setUpcomingDates] = useState([])
 
   const ports = PORT_NAMES[direction]
+
+  // Refetched whenever the direction flips (via Swap), since "upcoming
+  // sailings" is direction-specific — a date with a PB→Limasawa sailing
+  // might have nothing going the other way.
+  useEffect(() => {
+    let cancelled = false
+    api.getUpcomingScheduleDates(direction)
+      .then((dates) => { if (!cancelled) setUpcomingDates(dates) })
+      .catch(() => { if (!cancelled) setUpcomingDates([]) })
+    return () => { cancelled = true }
+  }, [direction])
 
   // Auto-advance the hero background slider; still manually jumpable via
   // the dots below the photo.
@@ -656,6 +688,7 @@ export default function Search() {
                     onSearch={handleSearch}
                     loading={loading}
                     error={error}
+                    upcomingDates={upcomingDates}
                   />
                 </div>
               </div>

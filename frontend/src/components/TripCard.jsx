@@ -9,6 +9,14 @@ export default function TripCard({ schedule, fromLabel, toLabel, onBook }) {
   const departure = new Date(schedule.departureDatetime)
   const arrival = new Date(departure.getTime() + CROSSING_DURATION_HOURS * 60 * 60 * 1000)
 
+  // availableSeats comes from the backend (Ferry.seatCapacity minus seats
+  // actively held by other bookings on this sailing) — undefined only if an
+  // older/cached response shape somehow reaches this component, in which
+  // case the seats line just doesn't render rather than showing "undefined".
+  const seatsKnown = typeof schedule.availableSeats === 'number'
+  const soldOut = seatsKnown && schedule.availableSeats <= 0
+  const lowSeats = seatsKnown && !soldOut && schedule.availableSeats <= 5
+
   return (
     <div className="flex flex-col gap-4 rounded-md border border-gray-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex flex-1 items-center gap-3 sm:gap-6">
@@ -33,12 +41,20 @@ export default function TripCard({ schedule, fromLabel, toLabel, onBook }) {
       </div>
 
       <div className="flex items-center justify-between gap-4 border-t border-gray-100 pt-3 sm:justify-end sm:border-t-0 sm:pt-0">
-        <p className="text-lg font-bold text-teal-700">&#8369;{schedule.baseFare}</p>
+        <div className="text-right">
+          <p className="text-lg font-bold text-teal-700">&#8369;{schedule.baseFare}</p>
+          {seatsKnown && (
+            <p className={`text-xs font-medium ${soldOut ? 'text-red-600' : lowSeats ? 'text-amber-600' : 'text-gray-400'}`}>
+              {soldOut ? 'Fully booked' : `${schedule.availableSeats} seat${schedule.availableSeats === 1 ? '' : 's'} left`}
+            </p>
+          )}
+        </div>
         <button
           onClick={onBook}
-          className="rounded-md bg-teal-700 px-5 py-2 text-sm font-medium text-white hover:bg-teal-800"
+          disabled={soldOut}
+          className="rounded-md bg-teal-700 px-5 py-2 text-sm font-medium text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 disabled:hover:bg-gray-300"
         >
-          Book
+          {soldOut ? 'Full' : 'Book'}
         </button>
       </div>
     </div>

@@ -12,9 +12,9 @@ import BookingSteps from '../components/BookingSteps.jsx'
 import SearchFormFields from '../components/SearchFormFields.jsx'
 import TripCard from '../components/TripCard.jsx'
 import DateNavHeader from '../components/DateNavHeader.jsx'
-import { PORT_NAMES, oppositeDirection, shiftDate } from '../lib/portUtils.js'
+import { PORT_NAMES, oppositeDirection, shiftDate, todayLocalDateString } from '../lib/portUtils.js'
 
-const today = new Date().toISOString().split('T')[0]
+const today = todayLocalDateString()
 
 function IconEdit(props) {
   return (
@@ -117,6 +117,7 @@ export default function SearchResults() {
 
   async function changeDepartureDate(deltaDays) {
     const newDate = shiftDate(dateRef.current, deltaDays)
+    if (newDate < today) return
     dateRef.current = newDate
     setDate(newDate)
     setLoading(true)
@@ -132,6 +133,10 @@ export default function SearchResults() {
 
   async function changeReturnDate(deltaDays) {
     const newDate = shiftDate(returnDateRef.current, deltaDays)
+    // Can't go earlier than the outbound departure date — mirrors the
+    // "Return date must be on or after the departure date" rule enforced
+    // when the search is first submitted.
+    if (newDate < dateRef.current) return
     returnDateRef.current = newDate
     setReturnDate(newDate)
     setLoading(true)
@@ -240,6 +245,7 @@ export default function SearchResults() {
               onPrev={() => changeDepartureDate(-1)}
               onNext={() => changeDepartureDate(1)}
               disabled={loading}
+              prevDisabled={date <= today}
             />
           </div>
           {outboundResults.length === 0 ? (
@@ -271,6 +277,7 @@ export default function SearchResults() {
               onPrev={() => changeReturnDate(-1)}
               onNext={() => changeReturnDate(1)}
               disabled={loading}
+              prevDisabled={returnDate <= date}
             />
           </div>
           {returnResults.length === 0 ? (

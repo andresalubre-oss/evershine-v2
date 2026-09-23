@@ -949,12 +949,11 @@ export default function Booking() {
                     Passenger {i + 1}
                     {i === 0 && !customer && (
                       <span className="ml-2 text-xs font-normal text-gray-500">
-                        (booking contact — enter your email &amp; number below)
+                        
                       </span>
                     )}
                   </h3>
                   <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-gray-500">{formatPeso(estimateFare(p))}</span>
                     {i === 0 && customer && (
                       <label className="flex items-center gap-2 text-sm text-gray-700">
                         <input
@@ -975,27 +974,25 @@ export default function Booking() {
                 )}
 
                 <h4 className="mt-4 text-sm font-semibold text-gray-700">Personal Info</h4>
-                {!(i === 0 && lockPassengerOneFields) && (
-                  <p className="mt-1 text-xs text-gray-500">Spell each name exactly as it appears on a valid, government-issued ID.</p>
-                )}
+              
                 <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label className="block text-sm text-gray-600">First Name<Required /></label>
-                    <input type="text" placeholder="e.g. Juan" value={p.first_name}
+                    <input type="text" placeholder="Juan" value={p.first_name}
                       disabled={i === 0 && lockPassengerOneFields}
                       onChange={(e) => updatePassenger(i, 'first_name', e.target.value)}
                       className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-100 disabled:text-gray-500" />
                   </div>
                   <div>
                     <label className="block text-sm text-gray-600">Middle Name (optional)</label>
-                    <input type="text" placeholder="e.g. Santos" value={p.middle_name}
+                    <input type="text" placeholder="Santos" value={p.middle_name}
                       disabled={i === 0 && lockPassengerOneFields}
                       onChange={(e) => updatePassenger(i, 'middle_name', e.target.value)}
                       className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-100 disabled:text-gray-500" />
                   </div>
                   <div>
                     <label className="block text-sm text-gray-600">Last Name<Required /></label>
-                    <input type="text" placeholder="e.g. Dela Cruz" value={p.last_name}
+                    <input type="text" placeholder="Dela Cruz" value={p.last_name}
                       disabled={i === 0 && lockPassengerOneFields}
                       onChange={(e) => updatePassenger(i, 'last_name', e.target.value)}
                       className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-100 disabled:text-gray-500" />
@@ -1025,7 +1022,7 @@ export default function Booking() {
                 <h4 className="mt-4 text-sm font-semibold text-gray-700">Address</h4>
                 {!(i === 0 && lockPassengerOneFields) && (
                   <>
-                    <p className="mt-1 text-xs text-gray-600">Where does this passenger live?</p>
+                   
                     <div className="mt-1.5 inline-flex rounded-md border border-gray-300 bg-white p-0.5">
                       <button
                         type="button"
@@ -1050,11 +1047,7 @@ export default function Booking() {
                         Outside the Philippines
                       </button>
                     </div>
-                    <p className="mt-2 text-xs text-gray-500">
-                      {(addressCodes[i] || emptyAddressCodes()).foreign
-                        ? "Enter the address as it appears on this passenger's ID or travel documents."
-                        : 'Type to search, or browse the list. Region narrows Province, Province narrows City/Municipality, and so on.'}
-                    </p>
+                
                   </>
                 )}
                 <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -1070,25 +1063,25 @@ export default function Booking() {
                         <>
                           <div>
                             <label className="block text-sm text-gray-600">Street Address<Required /></label>
-                            <input type="text" placeholder="e.g. 221B Baker Street" value={p.barangay}
+                            <input type="text" placeholder="221B Baker Street" value={p.barangay}
                               onChange={(e) => updatePassenger(i, 'barangay', e.target.value)}
                               className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2" />
                           </div>
                           <div>
                             <label className="block text-sm text-gray-600">City<Required /></label>
-                            <input type="text" placeholder="e.g. London" value={p.city_municipality}
+                            <input type="text" placeholder="London" value={p.city_municipality}
                               onChange={(e) => updatePassenger(i, 'city_municipality', e.target.value)}
                               className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2" />
                           </div>
                           <div>
                             <label className="block text-sm text-gray-600">State / Province / Region<Required /></label>
-                            <input type="text" placeholder="e.g. Greater London" value={p.province}
+                            <input type="text" placeholder="Greater London" value={p.province}
                               onChange={(e) => updatePassenger(i, 'province', e.target.value)}
                               className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2" />
                           </div>
                           <div>
                             <label className="block text-sm text-gray-600">Postal Code<Required /></label>
-                            <input type="text" placeholder="e.g. SW1A 1AA" value={p.zip_code}
+                            <input type="text" placeholder="SW1A 1AA" value={p.zip_code}
                               onChange={(e) => handleZipCodeChange(i, e.target.value, true)}
                               className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2" />
                           </div>
@@ -1130,7 +1123,7 @@ export default function Booking() {
                               value={codes.regionCode}
                               options={regions.map((r) => ({ value: r.code, label: r.name }))}
                               onChange={(code) => handleRegionSelect(i, code)}
-                              placeholder="Type to search…"
+                              placeholder="Eastern Visayas (Region VIII)"
                               disabled={regions.length === 0}
                               disabledPlaceholder="Loading regions…"
                             />
@@ -1158,9 +1151,9 @@ export default function Booking() {
                               value={codes.provinceCode}
                               options={(provinceData?.list || []).map((prov) => ({ value: prov.code, label: prov.name }))}
                               onChange={(code) => handleProvinceSelect(i, code)}
-                              placeholder="Type to search…"
+                              placeholder="Southern Leyte"
                               disabled={!codes.regionCode || provinceData?.loading || !(provinceData?.list || []).length}
-                              disabledPlaceholder={!codes.regionCode ? 'Select region first' : provinceData?.loading ? 'Loading…' : 'Type to search…'}
+                              disabledPlaceholder={!codes.regionCode ? 'Southern Leyte' : provinceData?.loading ? 'Loading…' : 'Type to search…'}
                             />
                           )}
                         </div>
@@ -1183,11 +1176,11 @@ export default function Booking() {
                               value={codes.cityCode}
                               options={(cityData?.list || []).map((c) => ({ value: c.code, label: c.name }))}
                               onChange={(code) => handleCitySelect(i, code)}
-                              placeholder="Type to search…"
+                              placeholder="City of Maasin"
                               disabled={!citiesKey || cityData?.loading || !(cityData?.list || []).length}
                               disabledPlaceholder={
                                 !codes.regionCode
-                                  ? 'Select region first'
+                                  ? 'City of Maasin'
                                   : !citiesKey
                                   ? 'Select province first'
                                   : cityData?.loading
@@ -1219,9 +1212,9 @@ export default function Booking() {
                                 const barangay = (barangayData?.list || []).find((b) => b.code === code)
                                 updatePassenger(i, 'barangay', barangay ? barangay.name : '')
                               }}
-                              placeholder="Type to search…"
+                              placeholder="Ibarra"
                               disabled={!codes.cityCode || barangayData?.loading || !(barangayData?.list || []).length}
-                              disabledPlaceholder={!codes.cityCode ? 'Select city/municipality first' : barangayData?.loading ? 'Loading…' : 'Type to search…'}
+                              disabledPlaceholder={!codes.cityCode ? 'Ibarra' : barangayData?.loading ? 'Loading…' : 'Type to search…'}
                             />
                           )}
                         </div>
@@ -1238,7 +1231,7 @@ export default function Booking() {
                       return (
                         <div>
                           <label className="block text-sm text-gray-600">Country<Required /></label>
-                          <input type="text" placeholder="e.g. United Kingdom" value={p.country}
+                          <input type="text" placeholder="United Kingdom" value={p.country}
                             onChange={(e) => updatePassenger(i, 'country', e.target.value)}
                             className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2" />
                         </div>
@@ -1249,11 +1242,11 @@ export default function Booking() {
                       <>
                         <div>
                           <label className="block text-sm text-gray-600">Zip Code<Required /></label>
-                          <input type="text" inputMode="numeric" maxLength={4} placeholder="e.g. 6414" value={p.zip_code}
+                          <input type="text" inputMode="numeric" maxLength={4} placeholder="6600" value={p.zip_code}
                             disabled={locked}
                             onChange={(e) => handleZipCodeChange(i, e.target.value, false)}
                             className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-100 disabled:text-gray-500" />
-                          {!locked && <p className="mt-1 text-xs text-gray-500">4-digit postal code.</p>}
+                          {!locked && <p className="mt-1 text-xs text-gray-500"></p>}
                         </div>
                         <div>
                           <label className="block text-sm text-gray-600">Country<Required /></label>
@@ -1261,7 +1254,7 @@ export default function Booking() {
                             className="mt-1 w-full rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-gray-500" />
                           {!locked && (
                             <p className="mt-1 text-xs text-gray-500">
-                              Check the box above if this passenger's address is outside the Philippines.
+                             
                             </p>
                           )}
                         </div>
@@ -1273,9 +1266,7 @@ export default function Booking() {
                 <h4 className="mt-4 text-sm font-semibold text-gray-700">Contact &amp; Discount</h4>
                 {!(i === 0 && lockPassengerOneFields) && (
                   <p className="mt-1 text-xs text-gray-500">
-                    {i === 0 && !customer
-                      ? 'Your booking confirmation, e-ticket, and any updates about this trip go to this email and number.'
-                      : "This passenger's own contact details — used if we need to reach them directly."}
+                  
                   </p>
                 )}
                 <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -1284,7 +1275,7 @@ export default function Booking() {
                       Email{i === 0 && !customer ? ' (used as your booking contact)' : ''}
                       {i === 0 && !customer && <Required />}
                     </label>
-                    <input type="email" placeholder="e.g. juandelacruz@email.com" value={p.email}
+                    <input type="email" placeholder="juandelacruz@email.com" value={p.email}
                       disabled={i === 0 && lockPassengerOneFields}
                       onChange={(e) => updatePassenger(i, 'email', e.target.value)}
                       className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-100 disabled:text-gray-500" />
@@ -1299,7 +1290,7 @@ export default function Booking() {
                           type="tel"
                           inputMode={foreign ? 'tel' : 'numeric'}
                           maxLength={foreign ? 20 : 11}
-                          placeholder={foreign ? 'e.g. +44 7911 123456' : '09171234567'}
+                          placeholder={foreign ? '+44 7911 123456' : '09171234567'}
                           value={p.contact_number}
                           disabled={locked}
                           onChange={(e) => handleContactNumberChange(i, e.target.value, foreign)}
@@ -1309,7 +1300,7 @@ export default function Booking() {
                           <p className="mt-1 text-xs text-gray-500">
                             {foreign
                               ? 'Include your country code, e.g. +44 for the UK.'
-                              : 'Philippine mobile number — 11 digits, starts with 09.'}
+                              : 'Philippine mobile number 11 digits, starts with 09.'}
                           </p>
                         )}
                       </div>
@@ -1360,7 +1351,7 @@ export default function Booking() {
                       <>
                         <p className="text-sm text-gray-700">
                           Booking as a guest requires verifying your email first. You'll be sent a 6-digit code on
-                          the next page — your details here are saved, so you'll come right back to them.
+                          the next page your details here are saved, so you'll come right back to them.
                         </p>
                         <button
                           type="button"

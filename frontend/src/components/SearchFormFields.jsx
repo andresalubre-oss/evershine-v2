@@ -1,6 +1,14 @@
 // Save as: frontend/src/components/SearchFormFields.jsx
 
-const today = new Date().toISOString().split('T')[0]
+// Local calendar date, not UTC — see the matching comment in Search.jsx for
+// why toISOString() is the wrong tool here (it lags a day behind Philippine
+// time for the first several hours of each local day).
+function todayLocalDateString() {
+  const d = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+const today = todayLocalDateString()
 
 // The actual search controls (trip type, From/To + swap, dates, Search
 // button). Used on the landing page and reused (with an onCancel) on the

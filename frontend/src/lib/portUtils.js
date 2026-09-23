@@ -13,6 +13,19 @@ export const PORT_NAMES = {
 // show an estimated arrival — adjust here if the real crossing time differs.
 export const CROSSING_DURATION_HOURS = 1
 
+// Local calendar date, not UTC — new Date().toISOString() reports the UTC
+// date, which lags a full day behind Philippine time (UTC+8) for the first
+// several hours of every local day. Using that as "today" made date pickers
+// (and the min= bound on them) compute yesterday overnight, letting an
+// already-past date still be selected/navigated to. Same class of bug as
+// the email invoice timezone fix elsewhere in this app — centralized here
+// so every page computes "today" the same, correct way.
+export function todayLocalDateString() {
+  const d = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
 export function oppositeDirection(direction) {
   return direction === 'PB_TO_LIMASAWA' ? 'LIMASAWA_TO_PB' : 'PB_TO_LIMASAWA'
 }

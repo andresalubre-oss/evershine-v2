@@ -255,9 +255,8 @@ function generateInvoicePdf(booking) {
       // every other section on this document rather than a colored callout,
       // per the site's "no colored boxes/light effects" design language.
       const noticeLines = [
-        'Arrive at the terminal at least 30 minutes before departure.',
+        'Arrive at the terminal at least 1 hour before departure.',
         "Bring a valid government ID matching each passenger's name above.",
-        'Discount ID (Senior, PWD, or Student) is required for a discounted fare.',
       ];
       y = sectionHeading(doc, 'Before You Board', marginX, y, contentWidth);
       noticeLines.forEach((line) => {

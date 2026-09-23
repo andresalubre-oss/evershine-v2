@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, Fragment } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api.js'
+import { exportAnalyticsPdf, exportAnalyticsExcel, exportAnalyticsPptx } from '../lib/analyticsExport.js'
 
 const statusColors = {
   confirmed: 'bg-green-100 dark:bg-green-500/15 text-green-800 dark:text-green-300',
@@ -420,6 +421,14 @@ export default function Admin() {
   const [schedules, setSchedules] = useState([])
   const [schedulesMessage, setSchedulesMessage] = useState('')
 
+  // Which schedule row (if any) has its inline edit form open, plus the
+  // draft field values for it. Reuses the same shape as the "add schedule"
+  // fields above, just scoped to one existing row instead of the create form.
+  const [editingScheduleId, setEditingScheduleId] = useState(null)
+  const [editDraft, setEditDraft] = useState(null) // { ferry_id, direction, date, time, fare, senior, pwd, student }
+  const [editScheduleMessage, setEditScheduleMessage] = useState('')
+  const [editScheduleError, setEditScheduleError] = useState(false)
+
   const [pendingDiscounts, setPendingDiscounts] = useState([])
   const [discountsMessage, setDiscountsMessage] = useState('')
   const [expiryDates, setExpiryDates] = useState({}) // customerId -> 'YYYY-MM-DD'
@@ -559,6 +568,60 @@ export default function Admin() {
     }
   }
 
+  // Opens the inline edit form for one schedule row, seeded from its
+  // current values — mirrors the add-schedule fields above but scoped to
+  // this one row's draft state instead of the create form.
+  function openEditSchedule(s) {
+    const dep = new Date(s.departureDatetime)
+    const pad = (n) => String(n).padStart(2, '0')
+    setEditingScheduleId(s.id)
+    setEditDraft({
+      ferry_id: s.ferry?.id || s.ferryId,
+      direction: s.direction,
+      date: `${dep.getFullYear()}-${pad(dep.getMonth() + 1)}-${pad(dep.getDate())}`,
+      time: `${pad(dep.getHours())}:${pad(dep.getMinutes())}`,
+      fare: String(s.baseFare),
+      senior: String(s.seniorDiscountPercent),
+      pwd: String(s.pwdDiscountPercent),
+      student: String(s.studentDiscountPercent),
+    })
+    setEditScheduleMessage('')
+    setEditScheduleError(false)
+  }
+
+  function cancelEditSchedule() {
+    setEditingScheduleId(null)
+    setEditDraft(null)
+    setEditScheduleMessage('')
+    setEditScheduleError(false)
+  }
+
+  async function saveScheduleEdit(id) {
+    setEditScheduleMessage('')
+    setEditScheduleError(false)
+    if (!editDraft.date || !editDraft.time || !editDraft.fare) {
+      setEditScheduleMessage('Please fill in all fields.')
+      setEditScheduleError(true)
+      return
+    }
+    try {
+      await api.editSchedule(id, {
+        ferry_id: editDraft.ferry_id,
+        direction: editDraft.direction,
+        departure_datetime: `${editDraft.date} ${editDraft.time}:00`,
+        base_fare: parseFloat(editDraft.fare),
+        senior_discount_percent: parseFloat(editDraft.senior),
+        pwd_discount_percent: parseFloat(editDraft.pwd),
+        student_discount_percent: parseFloat(editDraft.student),
+      })
+      cancelEditSchedule()
+      loadSchedules()
+    } catch (err) {
+      setEditScheduleMessage(err.message)
+      setEditScheduleError(true)
+    }
+  }
+
   async function loadCustomers() {
     setCustomersMessage('')
     try {
@@ -655,6 +718,26 @@ export default function Admin() {
     }
   }
 
+  const [cancellingBookingId, setCancellingBookingId] = useState(null)
+
+  // Direct admin override — separate from the customer-initiated
+  // cancel/refund-request flow the Refunds tab handles. Paid bookings go to
+  // refund_requested (so they still show up there for the admin to actually
+  // mark as refunded once the money's sent back); unpaid ones cancel outright.
+  async function adminCancelBooking(id) {
+    if (!window.confirm('Cancel this booking? This cannot be undone.')) return
+    setBookingsMessage('')
+    setCancellingBookingId(id)
+    try {
+      await api.adminCancelBooking(id)
+      await loadAllBookings()
+    } catch (err) {
+      setBookingsMessage(err.message)
+    } finally {
+      setCancellingBookingId(null)
+    }
+  }
+
   async function loadManifest() {
     setManifestMessage('')
     if (!manifestScheduleId) return
@@ -673,6 +756,26 @@ export default function Admin() {
       setAnalytics(data)
     } catch (err) {
       setAnalyticsMessage(err.message)
+    }
+  }
+
+  // Which export is currently running ('pdf' | 'excel' | 'pptx' | null) —
+  // disables its button and swaps the label so a slow client-side export
+  // (mainly the PowerPoint one, which pulls in a heavier library) doesn't
+  // look like a dead click.
+  const [exportingAnalytics, setExportingAnalytics] = useState(null)
+
+  async function handleAnalyticsExport(format, rows, summary) {
+    setAnalyticsMessage('')
+    setExportingAnalytics(format)
+    try {
+      if (format === 'pdf') await exportAnalyticsPdf(rows, summary)
+      else if (format === 'excel') await exportAnalyticsExcel(rows, summary)
+      else if (format === 'pptx') await exportAnalyticsPptx(rows, summary)
+    } catch (err) {
+      setAnalyticsMessage(`Export failed: ${err.message}`)
+    } finally {
+      setExportingAnalytics(null)
     }
   }
 
@@ -1484,11 +1587,16 @@ export default function Admin() {
                 {schedules.length === 0 ? (
                   <p className="mt-4 text-sm text-gray-500 dark:text-slate-500">No sailings scheduled yet.</p>
                 ) : (
-                  <DataTable headers={['Date/Time', 'Direction', 'Fare', 'Discounts', 'Ferry', 'Status', 'Actions']}>
+                  <DataTable headers={['Date/Time', 'Direction', 'Fare', 'Discounts', 'Ferry', 'Seats', 'Status', 'Actions']}>
                     {schedules.map((s) => {
                       const isPast = new Date(s.departureDatetime) < now
+                      const isEditing = editingScheduleId === s.id
+                      const capacity = s.ferry?.seatCapacity
+                      const available = s.availableSeats
+                      const lowSeats = typeof available === 'number' && capacity && available <= capacity * 0.15
                       return (
-                        <tr key={s.id} className="border-t border-gray-100 dark:border-slate-800 hover:bg-teal-50/50 dark:hover:bg-teal-900/30">
+                        <Fragment key={s.id}>
+                        <tr className="border-t border-gray-100 dark:border-slate-800 hover:bg-teal-50/50 dark:hover:bg-teal-900/30">
                           <td className="px-3 py-1.5 text-gray-700 dark:text-slate-300">
                             {new Date(s.departureDatetime).toLocaleString('en-US', {
                               month: 'short',
@@ -1505,6 +1613,13 @@ export default function Admin() {
                           </td>
                           <td className="px-3 py-1.5 text-gray-600 dark:text-slate-400">{s.ferry ? `${s.ferry.name} (cap. ${s.ferry.seatCapacity})` : '—'}</td>
                           <td className="px-3 py-1.5">
+                            {typeof available === 'number' ? (
+                              <span className={`font-medium ${lowSeats ? 'text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-slate-300'}`}>
+                                {available} / {capacity} left
+                              </span>
+                            ) : '—'}
+                          </td>
+                          <td className="px-3 py-1.5">
                             <span
                               className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                                 isPast
@@ -1516,16 +1631,129 @@ export default function Admin() {
                             </span>
                           </td>
                           <td className="px-3 py-1.5">
-                            <button
-                              onClick={() => {
-                                if (window.confirm('Delete this schedule? This cannot be undone.')) deleteSchedule(s.id)
-                              }}
-                              className="text-xs font-medium text-red-600 hover:text-red-800 hover:underline dark:text-red-400 dark:hover:text-red-300"
-                            >
-                              Delete
-                            </button>
+                            <div className="flex items-center gap-3">
+                              <button
+                                onClick={() => (isEditing ? cancelEditSchedule() : openEditSchedule(s))}
+                                className="text-xs font-medium text-teal-700 hover:text-teal-900 hover:underline dark:text-teal-400 dark:hover:text-teal-300"
+                              >
+                                {isEditing ? 'Cancel' : 'Edit'}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (window.confirm('Delete this schedule? This cannot be undone.')) deleteSchedule(s.id)
+                                }}
+                                className="text-xs font-medium text-red-600 hover:text-red-800 hover:underline dark:text-red-400 dark:hover:text-red-300"
+                              >
+                                Delete
+                              </button>
+                            </div>
                           </td>
                         </tr>
+                        {isEditing && (
+                          <tr className="border-t border-gray-100 dark:border-slate-800 bg-gray-50 dark:bg-slate-900/40">
+                            <td colSpan={8} className="px-3 py-4">
+                              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                <label className="text-xs text-gray-600 dark:text-slate-400">
+                                  Ferry
+                                  <select
+                                    value={editDraft.ferry_id}
+                                    onChange={(e) => setEditDraft({ ...editDraft, ferry_id: e.target.value })}
+                                    className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-sm text-gray-800 dark:text-slate-200"
+                                  >
+                                    {ferries.map((f) => (
+                                      <option key={f.id} value={f.id}>{f.name}</option>
+                                    ))}
+                                  </select>
+                                </label>
+                                <label className="text-xs text-gray-600 dark:text-slate-400">
+                                  Direction
+                                  <select
+                                    value={editDraft.direction}
+                                    onChange={(e) => setEditDraft({ ...editDraft, direction: e.target.value })}
+                                    className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-sm text-gray-800 dark:text-slate-200"
+                                  >
+                                    <option value="PB_TO_LIMASAWA">Padre Burgos → Limasawa</option>
+                                    <option value="LIMASAWA_TO_PB">Limasawa → Padre Burgos</option>
+                                  </select>
+                                </label>
+                                <label className="text-xs text-gray-600 dark:text-slate-400">
+                                  Date
+                                  <input
+                                    type="date"
+                                    value={editDraft.date}
+                                    onChange={(e) => setEditDraft({ ...editDraft, date: e.target.value })}
+                                    className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-sm text-gray-800 dark:text-slate-200"
+                                  />
+                                </label>
+                                <label className="text-xs text-gray-600 dark:text-slate-400">
+                                  Time
+                                  <input
+                                    type="time"
+                                    value={editDraft.time}
+                                    onChange={(e) => setEditDraft({ ...editDraft, time: e.target.value })}
+                                    className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-sm text-gray-800 dark:text-slate-200"
+                                  />
+                                </label>
+                                <label className="text-xs text-gray-600 dark:text-slate-400">
+                                  Fare (PHP)
+                                  <input
+                                    type="number"
+                                    value={editDraft.fare}
+                                    onChange={(e) => setEditDraft({ ...editDraft, fare: e.target.value })}
+                                    className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-sm text-gray-800 dark:text-slate-200"
+                                  />
+                                </label>
+                                <label className="text-xs text-gray-600 dark:text-slate-400">
+                                  Senior %
+                                  <input
+                                    type="number"
+                                    value={editDraft.senior}
+                                    onChange={(e) => setEditDraft({ ...editDraft, senior: e.target.value })}
+                                    className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-sm text-gray-800 dark:text-slate-200"
+                                  />
+                                </label>
+                                <label className="text-xs text-gray-600 dark:text-slate-400">
+                                  PWD %
+                                  <input
+                                    type="number"
+                                    value={editDraft.pwd}
+                                    onChange={(e) => setEditDraft({ ...editDraft, pwd: e.target.value })}
+                                    className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-sm text-gray-800 dark:text-slate-200"
+                                  />
+                                </label>
+                                <label className="text-xs text-gray-600 dark:text-slate-400">
+                                  Student %
+                                  <input
+                                    type="number"
+                                    value={editDraft.student}
+                                    onChange={(e) => setEditDraft({ ...editDraft, student: e.target.value })}
+                                    className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-sm text-gray-800 dark:text-slate-200"
+                                  />
+                                </label>
+                              </div>
+                              {editScheduleMessage && (
+                                <p className={`mt-3 text-sm ${editScheduleError ? 'text-red-600 dark:text-red-400' : 'text-teal-700 dark:text-teal-400'}`}>
+                                  {editScheduleMessage}
+                                </p>
+                              )}
+                              <div className="mt-3 flex gap-3">
+                                <button
+                                  onClick={() => saveScheduleEdit(s.id)}
+                                  className="rounded-md bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800"
+                                >
+                                  Save Changes
+                                </button>
+                                <button
+                                  onClick={cancelEditSchedule}
+                                  className="rounded-md border border-gray-300 dark:border-slate-700 px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                        </Fragment>
                       )
                     })}
                   </DataTable>
@@ -1561,7 +1789,7 @@ export default function Admin() {
                         : 'bg-gray-50/60 dark:bg-slate-800/40 hover:bg-gray-100 dark:hover:bg-slate-800'
                     }`}
                   >
-                    <p className={`text-lg font-bold leading-none ${discountTypeFilter === 'student' ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`}>{pendingByDiscountTypeCount.student}</p>
+                    <p className={`text-lg font-bold leading-none ${discountTypeFilter === 'student' ? 'text-white' : 'text-gray-900 dark:text-white'}`}>{pendingByDiscountTypeCount.student}</p>
                     <p className={`mt-1 text-[11px] font-medium uppercase tracking-wide ${discountTypeFilter === 'student' ? 'text-teal-50' : 'text-gray-500 dark:text-slate-500'}`}>Student</p>
                   </button>
                   <button
@@ -1573,7 +1801,7 @@ export default function Admin() {
                         : 'bg-gray-50/60 dark:bg-slate-800/40 hover:bg-gray-100 dark:hover:bg-slate-800'
                     }`}
                   >
-                    <p className={`text-lg font-bold leading-none ${discountTypeFilter === 'senior' ? 'text-white' : 'text-purple-600 dark:text-purple-400'}`}>{pendingByDiscountTypeCount.senior}</p>
+                    <p className={`text-lg font-bold leading-none ${discountTypeFilter === 'senior' ? 'text-white' : 'text-gray-900 dark:text-white'}`}>{pendingByDiscountTypeCount.senior}</p>
                     <p className={`mt-1 text-[11px] font-medium uppercase tracking-wide ${discountTypeFilter === 'senior' ? 'text-teal-50' : 'text-gray-500 dark:text-slate-500'}`}>Senior</p>
                   </button>
                   <button
@@ -1585,7 +1813,7 @@ export default function Admin() {
                         : 'bg-gray-50/60 dark:bg-slate-800/40 hover:bg-gray-100 dark:hover:bg-slate-800'
                     }`}
                   >
-                    <p className={`text-lg font-bold leading-none ${discountTypeFilter === 'pwd' ? 'text-white' : 'text-amber-600 dark:text-amber-400'}`}>{pendingByDiscountTypeCount.pwd}</p>
+                    <p className={`text-lg font-bold leading-none ${discountTypeFilter === 'pwd' ? 'text-white' : 'text-gray-900 dark:text-white'}`}>{pendingByDiscountTypeCount.pwd}</p>
                     <p className={`mt-1 text-[11px] font-medium uppercase tracking-wide ${discountTypeFilter === 'pwd' ? 'text-teal-50' : 'text-gray-500 dark:text-slate-500'}`}>PWD</p>
                   </button>
                 </div>
@@ -1800,7 +2028,7 @@ export default function Admin() {
                         : 'bg-gray-50/60 dark:bg-slate-800/40 hover:bg-gray-100 dark:hover:bg-slate-800'
                     }`}
                   >
-                <p className={`text-lg font-bold leading-none ${customerStatusFilter === 'verified' ? 'text-white' : 'text-green-600 dark:text-green-400'}`}>{verifiedCustomerCount}</p>
+                <p className={`text-lg font-bold leading-none ${customerStatusFilter === 'verified' ? 'text-white' : 'text-gray-900 dark:text-white'}`}>{verifiedCustomerCount}</p>
 <p className={`mt-1 text-[11px] font-medium uppercase tracking-wide ${customerStatusFilter === 'verified' ? 'text-teal-50' : 'text-gray-500 dark:text-slate-500'}`}>Verified</p>
                   </button>
                   <button
@@ -1812,7 +2040,7 @@ export default function Admin() {
                         : 'bg-gray-50/60 dark:bg-slate-800/40 hover:bg-gray-100 dark:hover:bg-slate-800'
                     }`}
                   >
-                   <p className={`text-lg font-bold leading-none ${customerStatusFilter === 'unverified' ? 'text-white' : 'text-amber-600 dark:text-amber-400'}`}>{customers.length - verifiedCustomerCount}</p>
+                   <p className={`text-lg font-bold leading-none ${customerStatusFilter === 'unverified' ? 'text-white' : 'text-gray-900 dark:text-white'}`}>{customers.length - verifiedCustomerCount}</p>
 <p className={`mt-1 text-[11px] font-medium uppercase tracking-wide ${customerStatusFilter === 'unverified' ? 'text-teal-50' : 'text-gray-500 dark:text-slate-500'}`}>Not Verified</p>
                   </button>
                 </div>
@@ -2034,12 +2262,12 @@ export default function Admin() {
                 <div className="mt-3 grid grid-cols-2 divide-x divide-gray-200 dark:divide-slate-800 overflow-hidden rounded-md border border-gray-200 dark:border-slate-800 sm:grid-cols-4 lg:grid-cols-7">
                   {[
                     { key: 'all', label: 'All', count: allBookings.length, tone: 'text-gray-900 dark:text-white' },
-                    { key: 'refund_requested', label: 'Refund Req.', count: bookingStatusCounts.refund_requested || 0, tone: 'text-blue-600 dark:text-blue-400' },
-                    { key: 'pending_payment', label: 'Pending Pmt.', count: bookingStatusCounts.pending_payment || 0, tone: 'text-yellow-600 dark:text-yellow-400' },
-                    { key: 'payment_declined', label: 'Declined', count: bookingStatusCounts.payment_declined || 0, tone: 'text-red-600 dark:text-red-400' },
-                    { key: 'confirmed', label: 'Confirmed', count: bookingStatusCounts.confirmed || 0, tone: 'text-green-600 dark:text-green-400' },
-                    { key: 'refunded', label: 'Refunded', count: bookingStatusCounts.refunded || 0, tone: 'text-blue-600 dark:text-blue-400' },
-                    { key: 'cancelled', label: 'Cancelled', count: bookingStatusCounts.cancelled || 0, tone: 'text-gray-500 dark:text-slate-400' },
+                    { key: 'refund_requested', label: 'Refund Req.', count: bookingStatusCounts.refund_requested || 0, tone: 'text-gray-900 dark:text-white' },
+                    { key: 'pending_payment', label: 'Pending Pmt.', count: bookingStatusCounts.pending_payment || 0, tone: 'text-gray-900 dark:text-white' },
+                    { key: 'payment_declined', label: 'Declined', count: bookingStatusCounts.payment_declined || 0, tone: 'text-gray-900 dark:text-white' },
+                    { key: 'confirmed', label: 'Confirmed', count: bookingStatusCounts.confirmed || 0, tone: 'text-gray-900 dark:text-white' },
+                    { key: 'refunded', label: 'Refunded', count: bookingStatusCounts.refunded || 0, tone: 'text-gray-900 dark:text-white' },
+                    { key: 'cancelled', label: 'Cancelled', count: bookingStatusCounts.cancelled || 0, tone: 'text-gray-900 dark:text-white' },
                   ].map((tile) => {
                     const active = bookingStatusFilter === tile.key
                     return (
@@ -2180,6 +2408,18 @@ export default function Admin() {
                               {b.passengers.map((p) => fullName(p)).join(', ')}
                             </p>
                           </div>
+
+                          {b.status !== 'cancelled' && b.status !== 'refunded' && (
+                            <div className="mt-3 flex justify-end">
+                              <button
+                                onClick={() => adminCancelBooking(b.id)}
+                                disabled={cancellingBookingId === b.id}
+                                className="rounded-md border border-red-300 dark:border-red-500/30 px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50"
+                              >
+                                {cancellingBookingId === b.id ? 'Cancelling…' : 'Cancel Booking'}
+                              </button>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -2200,11 +2440,11 @@ export default function Admin() {
                     <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-slate-500">Pending</p>
                   </div>
                   <div className="px-3 py-2.5 text-center">
-                    <p className="text-lg font-bold leading-none text-blue-600 dark:text-blue-400">{formatPeso(refundTotalAmount)}</p>
+                    <p className="text-lg font-bold leading-none text-gray-900 dark:text-white">{formatPeso(refundTotalAmount)}</p>
                     <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-slate-500">Awaiting Refund</p>
                   </div>
                   <div className="px-3 py-2.5 text-center">
-                    <p className="text-lg font-bold leading-none text-amber-600 dark:text-amber-400">{oldestRefundDays}</p>
+                    <p className="text-lg font-bold leading-none text-gray-900 dark:text-white">{oldestRefundDays}</p>
                     <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-slate-500">Days (Oldest)</p>
                   </div>
                 </div>
@@ -2664,6 +2904,32 @@ export default function Admin() {
                   >
                     Refresh
                   </button>
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-slate-500">Export:</span>
+                  {[
+                    { key: 'pdf', label: 'PDF' },
+                    { key: 'excel', label: 'Excel' },
+                    { key: 'pptx', label: 'PowerPoint' },
+                  ].map((f) => (
+                    <button
+                      key={f.key}
+                      disabled={filteredAnalytics.length === 0 || exportingAnalytics !== null}
+                      onClick={() =>
+                        handleAnalyticsExport(f.key, analyticsWithChange, {
+                          totalRevenue,
+                          totalBookings: totalBookingsInRange,
+                          avgMonthlyRevenue,
+                          bestMonth,
+                          rangeLabel: analyticsRangeLabel,
+                        })
+                      }
+                      className="rounded-md border border-gray-300 dark:border-slate-700 px-3.5 py-1.5 text-sm font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {exportingAnalytics === f.key ? 'Exporting…' : f.label}
+                    </button>
+                  ))}
                 </div>
                 {analyticsMessage && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{analyticsMessage}</p>}
 
