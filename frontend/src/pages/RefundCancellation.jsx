@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom'
 const STEPS = [
   { n: 1, label: 'Go to Manage Booking', detail: 'Open Manage Booking from the menu above.' },
   { n: 2, label: 'Enter your details', detail: 'Your reference code and the email used at checkout.' },
-  { n: 3, label: 'Submit your reason', detail: "Select \"Cancel This Booking\" and tell us why, within 24 hours of booking." },
+  { n: 3, label: 'Submit your reason', detail: 'Select "Cancel This Booking" and tell us why, before your scheduled departure.' },
   { n: 4, label: 'Wait for review', detail: 'Our team verifies your request and sends the refund manually once approved.' },
 ]
 
@@ -53,32 +53,36 @@ export default function RefundCancellation() {
           customer-initiated cancellation policy (same solid-color-accent
           pattern used on Manage Booking's cards; no icons, no gradients). */}
       <div className="mt-6 rounded-lg border border-gray-200 bg-white p-6 text-justify shadow-sm sm:p-8">
-        <h2 className="text-2xl font-semibold text-gray-800">Cancellation Policy</h2>
+        <h2 className="text-2xl font-semibold text-gray-800">Cancellation &amp; Refund Policy</h2>
         <div className="mt-3 overflow-hidden rounded-md border border-gray-200">
           <table className="w-full text-lg">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-5 py-3.5 text-left font-semibold text-gray-600">When you request cancellation</th>
-                <th className="px-5 py-3.5 text-left font-semibold text-gray-600">Outcome</th>
+                <th className="px-5 py-3.5 text-left font-semibold text-gray-600">Refund</th>
               </tr>
             </thead>
             <tbody>
               <tr className="border-t border-gray-100">
-                <td className="px-5 py-3.5">Within 24 hours of making the booking</td>
-                <td className="px-5 py-3.5 font-medium text-teal-700">Eligible for a refund, pending review</td>
+                <td className="px-5 py-3.5">More than 24 hours before departure</td>
+                <td className="px-5 py-3.5 font-medium text-teal-700">80% of the fare, pending review</td>
               </tr>
               <tr className="border-t border-gray-100">
-                <td className="px-5 py-3.5">More than 24 hours after booking</td>
+                <td className="px-5 py-3.5">Within 24 hours of departure</td>
+                <td className="px-5 py-3.5 font-medium text-amber-600">60% of the fare, pending review</td>
+              </tr>
+              <tr className="border-t border-gray-100">
+                <td className="px-5 py-3.5">After the scheduled departure</td>
                 <td className="px-5 py-3.5 font-medium text-red-600">Not eligible for cancellation or refund</td>
               </tr>
             </tbody>
           </table>
         </div>
         <p className="mt-3 text-lg leading-relaxed text-gray-600">
-          The cancellation window is based on when you made the booking, not how far away departure is. Manage
-          Booking will only show a "Cancel This Booking" option while you're still within 24 hours of your
-          original purchase. Once that window has passed, or your booking has already been cancelled, it can no
-          longer be changed.
+          The refund rate is based on how far away your trip's departure is at the moment you submit the
+          cancellation, not when you originally made the booking. Manage Booking will show you the exact
+          percentage and peso amount you're eligible for before you submit. Once departure has passed, or your
+          booking has already been cancelled, it can no longer be changed.
         </p>
         <p className="mt-2 text-lg leading-relaxed text-gray-600">
           Refunds are <span className="font-medium text-gray-800">not automatic</span>. Submitting a cancellation

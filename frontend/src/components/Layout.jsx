@@ -47,7 +47,7 @@ export default function Layout() {
   // The admin dashboard and the Coast Guard portal both have their own
   // header/Log Out — the customer-facing nav (Book, Refund & Cancellation,
   // Travel Info, etc.) doesn't belong on either of those staff-only screens.
-  const isAdminDashboard = location.pathname === '/admin' || location.pathname === '/coastguard'
+  const isAdminDashboard = location.pathname === '/admin/dashboard' || location.pathname === '/coastguard'
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [travelInfoOpen, setTravelInfoOpen] = useState(false)

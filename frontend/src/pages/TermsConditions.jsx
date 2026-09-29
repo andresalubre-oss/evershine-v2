@@ -1,9 +1,10 @@
 // Save as: frontend/src/pages/TermsConditions.jsx
 //
 // PLACEHOLDER CONTENT — mirrors the behavior actually enforced elsewhere in
-// the app (24-hour cancellation cutoff, Profile Verification requirement,
-// no ticket transfers, etc.) but has not been reviewed by a lawyer. Confirm
-// wording and any liability language before publishing.
+// the app (tiered departure-based cancellation/refund policy, Profile
+// Verification requirement, no ticket transfers, etc.) but has not been
+// reviewed by a lawyer. Confirm wording and any liability language before
+// publishing.
 
 function Section({ title, children }) {
   return (
@@ -19,7 +20,7 @@ export default function TermsConditions() {
     <div className="mx-auto max-w-3xl">
       <h1 className="text-2xl font-bold text-gray-800">Terms &amp; Conditions</h1>
       <p className="mt-1 text-sm text-gray-600">
-        These terms govern your use of Evershine Booking. This is a general placeholder pending legal review —
+        These terms govern your use of Evershine Booking. This is a general placeholder pending legal review,
         please confirm it matches your actual policies before publishing.
       </p>
 

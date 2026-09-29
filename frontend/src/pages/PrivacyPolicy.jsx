@@ -21,7 +21,7 @@ export default function PrivacyPolicy() {
       <h1 className="text-2xl font-bold text-gray-800">Privacy Policy</h1>
       <p className="mt-1 text-sm text-gray-600">
         This page explains what information Evershine Booking collects and how it's used. It is a general
-        placeholder pending legal review — please confirm it matches your actual data practices before publishing.
+        placeholder pending legal review, please confirm it matches your actual data practices before publishing.
       </p>
 
       <div className="mt-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm sm:p-8">

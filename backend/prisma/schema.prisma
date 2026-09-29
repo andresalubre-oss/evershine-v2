@@ -179,6 +179,16 @@ model Booking {
   // an admin confirmed the money was actually sent.
   cancellationReason String?          @map("cancellation_reason")
   refundedAt         DateTime?        @map("refunded_at")
+  // Set once, at the moment a cancellation is requested — the refund rate
+  // this booking is entitled to (0-100), per the OceanJet-style tiered
+  // policy (see computeRefundEligibility in index.js): 80% if cancelled
+  // more than 24h before departure, 60% within 24h, 100% when Evershine
+  // cancels the trip itself rather than the customer. Stored rather than
+  // recalculated later so the rate an admin sees always matches what was
+  // actually true at request time, even if they review it days afterward
+  // (by which point "hours until departure" would've changed, or the
+  // sailing may have already passed).
+  refundPercent      Int?             @map("refund_percent")
 
   @@map("bookings")
 }

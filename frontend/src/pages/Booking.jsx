@@ -385,7 +385,7 @@ export default function Booking() {
     try {
       const data = await api.resendVerification()
       setResendStatus('sent')
-      setResendMessage(data.message || 'Verification email sent — check your inbox.')
+      setResendMessage(data.message || 'Verification email sent, check your inbox.')
     } catch (err) {
       setResendStatus('error')
       setResendMessage(err.message)
@@ -618,7 +618,7 @@ export default function Booking() {
   function goToReview() {
     setError('')
     if (emailNeedsVerification) {
-      setError('Please verify your email before booking — see above.')
+      setError('Please verify your email before booking, see above.')
       return
     }
     if (!contactEmail || passengers.some((p) => !p.first_name || !p.last_name)) {
@@ -659,7 +659,7 @@ export default function Booking() {
         return !codes.foreign && passengers[i].contact_number && passengers[i].contact_number.length !== 11
       })
     ) {
-      setError('Contact Number must be 11 digits starting with 09 (e.g. 09171234567).')
+      setError('Contact Number must be 11 digits starting with 09 (09171234567).')
       return
     }
     setPhase('review')
@@ -884,7 +884,7 @@ export default function Booking() {
           {customer && emailNeedsVerification && (
             <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
               <p>
-                Please verify your email before booking under this account — check <b>{customer.email}</b> for the
+                Please verify your email before booking under this account, check <b>{customer.email}</b> for the
                 verification link we sent when you registered.
               </p>
               <button
@@ -969,7 +969,7 @@ export default function Booking() {
                 </div>
                 {i === 0 && customer && !bookingForSelf && (
                   <p className="mt-1 text-xs text-gray-500">
-                    Enter this passenger's own details below — they won't be saved to your account.
+                    Enter this passenger's own details below, they won't be saved to your account.
                   </p>
                 )}
 
@@ -1013,7 +1013,7 @@ export default function Booking() {
                   </div>
                   <div>
                     <label className="block text-sm text-gray-600">Nationality<Required /></label>
-                    <input type="text" placeholder="e.g. Filipino" value={p.nationality}
+                    <input type="text" placeholder="Filipino" value={p.nationality}
                       onChange={(e) => updatePassenger(i, 'nationality', e.target.value)}
                       className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2" />
                   </div>
@@ -1115,7 +1115,7 @@ export default function Booking() {
                               <input type="text" value="Unavailable" disabled
                                 className="mt-1 w-full rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-gray-400" />
                               <p className="mt-1 text-xs text-gray-500">
-                                Couldn't load the region list — fill in Province, City/Municipality and Barangay below instead.
+                                Couldn't load the region list, fill in Province, City/Municipality and Barangay below instead.
                               </p>
                             </>
                           ) : (
@@ -1140,7 +1140,7 @@ export default function Booking() {
                                 onChange={(e) => updatePassenger(i, 'province', e.target.value)}
                                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2" />
                               {provinceData?.error && (
-                                <p className="mt-1 text-xs text-gray-500">Couldn't load the list — you can type it in.</p>
+                                <p className="mt-1 text-xs text-gray-500">Couldn't load the list, you can type it in.</p>
                               )}
                             </>
                           ) : regionHasNoProvince ? (
@@ -1168,7 +1168,7 @@ export default function Booking() {
                                 onChange={(e) => updatePassenger(i, 'city_municipality', e.target.value)}
                                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2" />
                               {cityData?.error && (
-                                <p className="mt-1 text-xs text-gray-500">Couldn't load the list — you can type it in.</p>
+                                <p className="mt-1 text-xs text-gray-500">Couldn't load the list, you can type it in.</p>
                               )}
                             </>
                           ) : (
@@ -1201,7 +1201,7 @@ export default function Booking() {
                                 onChange={(e) => updatePassenger(i, 'barangay', e.target.value)}
                                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2" />
                               {barangayData?.error && (
-                                <p className="mt-1 text-xs text-gray-500">Couldn't load the list — you can type it in.</p>
+                                <p className="mt-1 text-xs text-gray-500">Couldn't load the list, you can type it in.</p>
                               )}
                             </>
                           ) : (
@@ -1299,7 +1299,7 @@ export default function Booking() {
                         {!locked && (
                           <p className="mt-1 text-xs text-gray-500">
                             {foreign
-                              ? 'Include your country code, e.g. +44 for the UK.'
+                              ? 'Include your country code, +44 for the UK.'
                               : 'Philippine mobile number 11 digits, starts with 09.'}
                           </p>
                         )}
@@ -1345,7 +1345,7 @@ export default function Booking() {
                         <span className="rounded-md bg-teal-700 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-white">
                           Verified
                         </span>
-                        <p className="text-sm font-medium text-teal-700">Email confirmed — you're clear to book.</p>
+                        <p className="text-sm font-medium text-teal-700">Email confirmed, you're clear to book.</p>
                       </div>
                     ) : (
                       <>

@@ -141,7 +141,7 @@ function SelfieCapture({ file, onChange }) {
           className="flex w-full flex-col items-center justify-center gap-2 px-4 py-7 text-center transition-colors hover:border-teal-400 hover:bg-teal-50"
         >
           <span className="text-base font-medium text-teal-700">Turn on camera to take a live selfie</span>
-          <span className="text-sm text-gray-500">Required for verification — camera only, no gallery uploads</span>
+          <span className="text-sm text-gray-500">Required for verification, camera only, no gallery uploads</span>
         </button>
       )}
       <canvas ref={canvasRef} className="hidden" />
@@ -368,7 +368,7 @@ function ProfileVerificationCard({ customer, onUpdated }) {
           </>
         )}
         {customer.discountStatus === 'pending' && (
-          <>Your Profile Verification is under review. Check back later — you're not yet eligible for the <span className="capitalize">{customer.discountType}</span> discount until it's approved.</>
+          <>Your Profile Verification is under review. Check back later, you're not yet eligible for the <span className="capitalize">{customer.discountType}</span> discount until it's approved.</>
         )}
         {customer.discountStatus === 'rejected' && 'Your last Profile Verification request was not approved. You can submit a new one below.'}
         {customer.discountStatus === 'none' && "You're not Profile Verified yet. Verifying is required to become eligible for a Senior, PWD, or Student discount."}

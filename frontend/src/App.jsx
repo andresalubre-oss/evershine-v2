@@ -67,8 +67,8 @@ export default function App() {
             </Suspense>
           }
         />
-        <Route path="/login" element={<Login />} />
-        <Route path="/admin" element={<Admin />} />
+        <Route path="/admin" element={<Login />} />
+        <Route path="/admin/dashboard" element={<Admin />} />
         <Route path="/coastguard" element={<CoastGuardPortal />} />
         <Route path="/register" element={<Register />} />
         <Route path="/account/login" element={<CustomerLogin />} />

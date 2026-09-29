@@ -128,9 +128,9 @@ function AddressCombobox({
             {loading ? (
               <p className="px-3 py-2 text-sm text-gray-400">Loading...</p>
             ) : loadError ? (
-              <p className="px-3 py-2 text-sm text-gray-400">Couldn't load suggestions — you can still type this in yourself.</p>
+              <p className="px-3 py-2 text-sm text-gray-400">Couldn't load suggestions, you can still type this in yourself.</p>
             ) : shown.length === 0 ? (
-              <p className="px-3 py-2 text-sm text-gray-400">{emptyHint || 'No matches — you can still type your own.'}</p>
+              <p className="px-3 py-2 text-sm text-gray-400">{emptyHint || 'No matches, you can still type your own.'}</p>
             ) : (
               shown.map((o) => (
                 <button
@@ -331,7 +331,7 @@ export default function Register() {
       return
     }
     if (!/^09\d{9}$/.test(contactNumber)) {
-      setError('Enter a valid Philippine mobile number (11 digits, starting with 09, e.g. 09171234567).')
+      setError('Enter a valid Philippine mobile number (11 digits, starting with 09, 09171234567).')
       return
     }
     setSubmitting(true)

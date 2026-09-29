@@ -300,7 +300,7 @@ export default function SearchResults() {
 
       {!editing && tripType === 'roundtrip' && (outboundResults || returnResults) && (
         <p className="mt-4 pb-6 text-xs text-gray-500">
-          Book your departure and return trips one at a time — each gets its own reference code and payment.
+          Book your departure and return trips one at a time, each gets its own reference code and payment.
         </p>
       )}
     </div>

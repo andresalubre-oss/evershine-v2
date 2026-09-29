@@ -267,7 +267,7 @@ export default function Directions() {
                 draggable
                 eventHandlers={{ dragend: handleOriginDrag }}
               >
-                <Popup>You are here — drag if this looks wrong</Popup>
+                <Popup>You are here, drag if this looks wrong</Popup>
               </Marker>
               <CircleMarker
                 center={[destination.lat, destination.lng]}

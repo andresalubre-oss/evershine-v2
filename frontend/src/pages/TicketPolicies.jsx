@@ -107,11 +107,6 @@ export default function TicketPolicies() {
           ))}
         </ol>
       </div>
-
-      <p className="mt-4 text-base text-gray-400">
-        This page summarizes our ticket terms for general reference. Figures such as baggage weight and liability
-        limits should be reviewed against current Philippine maritime transport regulations before publishing.
-      </p>
     </div>
   )
 }

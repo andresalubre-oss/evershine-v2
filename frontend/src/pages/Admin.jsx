@@ -485,7 +485,7 @@ export default function Admin() {
 
   useEffect(() => {
     if (!localStorage.getItem('adminToken')) {
-      navigate('/login')
+      navigate('/admin')
     }
   }, [navigate])
 
@@ -496,7 +496,7 @@ export default function Admin() {
       // best-effort — log out locally regardless of whether the server call succeeded
     }
     localStorage.removeItem('adminToken')
-    navigate('/login')
+    navigate('/admin')
   }
 
   const idleTimerRef = useRef(null)
@@ -1074,7 +1074,7 @@ export default function Admin() {
       // leaving every tab silently broken.
       if (err.message === 'Not logged in') {
         const token = localStorage.getItem('adminToken')
-        navigate(token ? '/coastguard' : '/login')
+        navigate(token ? '/coastguard' : '/admin')
       }
     }
   }
@@ -1172,7 +1172,12 @@ export default function Admin() {
     acc[d.discountType] = (acc[d.discountType] || 0) + 1
     return acc
   }, {})
-  const refundTotalAmount = refundRequests.reduce((sum, b) => sum + Number(b.totalFare), 0)
+  // Actual refund owed, not the full fare — refundPercent (80/60/100, set
+  // when the cancellation was requested per the tiered policy) determines
+  // how much of totalFare is actually due back. Falls back to 100% for any
+  // pre-policy-change row that somehow has no refundPercent stored.
+  const refundAmountOf = (b) => (Number(b.totalFare) * (b.refundPercent ?? 100)) / 100
+  const refundTotalAmount = refundRequests.reduce((sum, b) => sum + refundAmountOf(b), 0)
   const oldestRefund = refundRequests.length > 0
     ? refundRequests.reduce((oldest, b) => (new Date(b.createdAt) < new Date(oldest.createdAt) ? b : oldest))
     : null
@@ -1194,15 +1199,28 @@ export default function Admin() {
     pwd: pendingDiscounts.filter((d) => d.discountType === 'pwd').length,
   }
 
+  // Per the adviser's note: All Bookings only shows trips that departed
+  // within the last 7 days — older sailings drop out of this tab entirely
+  // (they're still in the database, just not surfaced here). Scoped once
+  // here so the summary tiles, trip filter dropdown, and the list itself
+  // all agree on the same window.
+  const recentBookings = allBookings.filter((b) => {
+    if (!b.schedule) return false
+    const departure = new Date(b.schedule.departureDatetime)
+    const now = new Date()
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    return departure >= sevenDaysAgo && departure <= now
+  })
+
   // All Bookings summary tiles — how many bookings sit in each status.
-  const bookingStatusCounts = allBookings.reduce((acc, b) => {
+  const bookingStatusCounts = recentBookings.reduce((acc, b) => {
     acc[b.status] = (acc[b.status] || 0) + 1
     return acc
   }, {})
   // Distinct sailings that actually have bookings, soonest first, for the
   // "filter to one trip" dropdown.
   const bookingTripOptions = Object.values(
-    allBookings.reduce((acc, b) => {
+    recentBookings.reduce((acc, b) => {
       if (b.schedule && !acc[b.scheduleId]) acc[b.scheduleId] = b.schedule
       return acc
     }, {})
@@ -1505,7 +1523,7 @@ export default function Admin() {
                         <>
                           <b>{pendingDiscounts.length}</b> profile verification request{pendingDiscounts.length === 1 ? '' : 's'} waiting
                           {Object.keys(pendingByType).length > 0 && (
-                            <> — {['senior', 'pwd', 'student'].filter((t) => pendingByType[t]).map((t) => `${pendingByType[t]} ${t}`).join(', ')}</>
+                            <>, {['senior', 'pwd', 'student'].filter((t) => pendingByType[t]).map((t) => `${pendingByType[t]} ${t}`).join(', ')}</>
                           )}
                           .{' '}
                           <button onClick={() => setActiveTab('discounts')} className="font-medium text-teal-700 dark:text-teal-300 underline underline-offset-2">
@@ -1534,7 +1552,7 @@ export default function Admin() {
                   {expandedOverviewStat === 'revenue' && (
                     <p className="text-sm text-gray-700 dark:text-slate-300">
                       <b>{formatPeso(thisMonthRevenue)}</b> collected this month from {thisMonthCount} booking{thisMonthCount === 1 ? '' : 's'}
-                      {thisMonthCount > 0 && <> — averaging <b>{formatPeso(avgFareThisMonth)}</b> per booking</>}.
+                      {thisMonthCount > 0 && <>, averaging <b>{formatPeso(avgFareThisMonth)}</b> per booking</>}.
                       {prevMonthEntry && (
                         <>
                           {' '}Last month brought in {formatPeso(Number(prevMonthEntry.revenue))}
@@ -1554,14 +1572,14 @@ export default function Admin() {
                   )}
                   {expandedOverviewStat === 'customers' && (
                     <p className="text-sm text-gray-700 dark:text-slate-300">
-                      <b>{customers.length}</b> registered customer{customers.length === 1 ? '' : 's'} — <b>{verifiedCustomerCount}</b> discount-verified,{' '}
+                      <b>{customers.length}</b> registered customer{customers.length === 1 ? '' : 's'}: <b>{verifiedCustomerCount}</b> discount-verified,{' '}
                       <b>{customerPendingCount}</b> pending review, {customerOtherCount} with no active discount.
                     </p>
                   )}
                   {expandedOverviewStat === 'alltime' && (
                     <p className="text-sm text-gray-700 dark:text-slate-300">
                       <b>{allTimeBookings}</b> confirmed booking{allTimeBookings === 1 ? '' : 's'} all-time, totaling <b>{formatPeso(allTimeRevenue)}</b>
-                      {allTimeBookings > 0 && <> — averaging <b>{formatPeso(avgFareAllTime)}</b> per booking</>}
+                      {allTimeBookings > 0 && <>, averaging <b>{formatPeso(avgFareAllTime)}</b> per booking</>}
                       {analytics.length > 0 && (
                         <> across {analytics.length} month{analytics.length === 1 ? '' : 's'} of recorded sales (~{avgBookingsPerMonth.toFixed(1)}/month)</>
                       )}
@@ -1697,7 +1715,7 @@ export default function Admin() {
                       <label className="block text-sm font-medium text-gray-600 dark:text-slate-400">Ferry Name</label>
                       <input
                         type="text"
-                        placeholder="e.g. MV Evershine 3"
+                        placeholder="MV Evershine 3"
                         value={ferryName}
                         onChange={(e) => setFerryName(e.target.value)}
                         className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
@@ -1707,7 +1725,7 @@ export default function Admin() {
                       <label className="block text-sm font-medium text-gray-600 dark:text-slate-400">Seat Capacity</label>
                       <input
                         type="number"
-                        placeholder="e.g. 80"
+                        placeholder="80"
                         value={ferryCapacity}
                         onChange={(e) => setFerryCapacity(e.target.value)}
                         className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
@@ -1785,7 +1803,7 @@ export default function Admin() {
                         <label className="block text-sm font-medium text-gray-600 dark:text-slate-400">Fare (&#8369;)</label>
                         <input
                           type="number"
-                          placeholder="e.g. 150"
+                          placeholder="150"
                           value={scheduleFare}
                           onChange={(e) => setScheduleFare(e.target.value)}
                           className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
@@ -1853,9 +1871,7 @@ export default function Admin() {
               <Card title="All Schedules">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <p className="text-sm text-gray-600 dark:text-slate-400">
-                    <span className="font-semibold text-gray-800 dark:text-slate-100">{schedules.length}</span> total sailing{schedules.length === 1 ? '' : 's'}
-                    {' '}&middot;{' '}
-                    <span className="font-semibold text-gray-800 dark:text-slate-100">{upcomingSchedules.length}</span> upcoming
+                    <span className="font-semibold text-gray-800 dark:text-slate-100">{upcomingSchedules.length}</span> upcoming sailing{upcomingSchedules.length === 1 ? '' : 's'}
                   </p>
                   <button
                     onClick={loadSchedules}
@@ -1866,11 +1882,11 @@ export default function Admin() {
                 </div>
                 {schedulesMessage && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{schedulesMessage}</p>}
 
-                {schedules.length === 0 ? (
-                  <p className="mt-4 text-sm text-gray-500 dark:text-slate-500">No sailings scheduled yet.</p>
+                {upcomingSchedules.length === 0 ? (
+                  <p className="mt-4 text-sm text-gray-500 dark:text-slate-500">No upcoming sailings scheduled.</p>
                 ) : (
                   <DataTable headers={['Date/Time', 'Direction', 'Fare', 'Discounts', 'Ferry', 'Seats', 'Status', 'Actions']}>
-                    {schedules.map((s) => {
+                    {upcomingSchedules.map((s) => {
                       const isPast = new Date(s.departureDatetime) < now
                       const isEditing = editingScheduleId === s.id
                       const capacity = s.ferry?.seatCapacity
@@ -2046,7 +2062,7 @@ export default function Admin() {
 
           {activeTab === 'weather' && (
             <div className="space-y-5">
-              <Card title="Weather & Sea Conditions — Padre Burgos ↔ Limasawa">
+              <Card title="Weather & Sea Conditions: Padre Burgos ↔ Limasawa">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <p className="text-sm text-gray-600 dark:text-slate-400">
                     Live conditions from Open-Meteo for the crossing. This is a general indicator to help you plan
@@ -2093,7 +2109,7 @@ export default function Admin() {
                           )}
                           {pagasaBulletin.stale && (
                             <span className="rounded-full bg-amber-600 px-2.5 py-1 text-xs font-semibold text-white">
-                              Showing last known bulletin — couldn't reach PAGASA just now
+                              Showing last known bulletin, couldn't reach PAGASA just now
                             </span>
                           )}
                           <p className="text-sm font-semibold text-gray-800 dark:text-slate-100">
@@ -2129,11 +2145,7 @@ export default function Admin() {
                             </button>
                           )}
                         </div>
-                        <p className="mt-3 text-xs text-gray-400 dark:text-slate-500">
-                          Unofficial — pulled directly from PAGASA's public bulletin page (not an API), checked every 5
-                          minutes while this tab is open. Last checked{' '}
-                          {new Date(pagasaBulletin.fetchedAt).toLocaleString('en-US', { timeZone: 'Asia/Manila' })}.
-                        </p>
+                        
                       </div>
                     ) : (
                       pagasaMessage && <p className="text-sm text-red-600 dark:text-red-400">{pagasaMessage}</p>
@@ -2195,7 +2207,7 @@ export default function Admin() {
                             <p className="text-xs text-gray-500 dark:text-slate-500">{weather.current.wavePeriodS.toFixed(0)}s period</p>
                           )}
                           <p className="mt-0.5 text-[11px] text-gray-400 dark:text-slate-500">
-                            Wave height is derived from wind — treat as an estimate, not an exact reading
+                            Wave height is derived from wind, treat as an estimate, not an exact reading
                           </p>
                         </div>
                       </div>
@@ -2204,7 +2216,7 @@ export default function Admin() {
                         Updated {new Date(weather.generatedAt).toLocaleString('en-US', { timeZone: 'Asia/Manila' })} (Manila time)
                         {weather.stale && (
                           <span className="ml-1.5 rounded-full bg-amber-100 dark:bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
-                            Showing last known reading — live refresh temporarily unavailable
+                            Showing last known reading, live refresh temporarily unavailable
                           </span>
                         )}
                       </p>
@@ -2905,13 +2917,10 @@ export default function Admin() {
               <Card title="All Bookings">
               
 
-                <div className="mt-3 grid grid-cols-2 divide-x divide-gray-200 dark:divide-slate-800 overflow-hidden rounded-md border border-gray-200 dark:border-slate-800 sm:grid-cols-4 lg:grid-cols-7">
+                <div className="mt-3 grid grid-cols-2 divide-x divide-gray-200 dark:divide-slate-800 overflow-hidden rounded-md border border-gray-200 dark:border-slate-800 sm:grid-cols-4">
                   {[
-                    { key: 'all', label: 'All', count: allBookings.length, tone: 'text-gray-900 dark:text-white' },
+                    { key: 'all', label: 'All', count: recentBookings.length, tone: 'text-gray-900 dark:text-white' },
                     { key: 'refund_requested', label: 'Refund Req.', count: bookingStatusCounts.refund_requested || 0, tone: 'text-gray-900 dark:text-white' },
-                    { key: 'pending_payment', label: 'Pending Pmt.', count: bookingStatusCounts.pending_payment || 0, tone: 'text-gray-900 dark:text-white' },
-                    { key: 'payment_declined', label: 'Declined', count: bookingStatusCounts.payment_declined || 0, tone: 'text-gray-900 dark:text-white' },
-                    { key: 'confirmed', label: 'Confirmed', count: bookingStatusCounts.confirmed || 0, tone: 'text-gray-900 dark:text-white' },
                     { key: 'refunded', label: 'Refunded', count: bookingStatusCounts.refunded || 0, tone: 'text-gray-900 dark:text-white' },
                     { key: 'cancelled', label: 'Cancelled', count: bookingStatusCounts.cancelled || 0, tone: 'text-gray-900 dark:text-white' },
                   ].map((tile) => {
@@ -2940,7 +2949,7 @@ export default function Admin() {
                     type="text"
                     value={bookingSearch}
                     onChange={(e) => setBookingSearch(e.target.value)}
-                    placeholder="Search by reference, email, contact number, or passenger..."
+                    placeholder="Search bookings..."
                     className="min-w-0 flex-1 rounded-md border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
                   />
                   <select
@@ -2970,14 +2979,14 @@ export default function Admin() {
                     </button>
                   )}
                   <span className="whitespace-nowrap rounded-full bg-gray-100 dark:bg-slate-800 px-3 py-1 text-xs font-semibold text-gray-600 dark:text-slate-400">
-                    {allBookings.length} total
+                    {recentBookings.length} total
                   </span>
                 </div>
                 {bookingsMessage && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{bookingsMessage}</p>}
 
                 {(() => {
                   const query = bookingSearch.trim().toLowerCase()
-                  const statusFiltered = bookingStatusFilter === 'all' ? allBookings : allBookings.filter((b) => b.status === bookingStatusFilter)
+                  const statusFiltered = bookingStatusFilter === 'all' ? recentBookings : recentBookings.filter((b) => b.status === bookingStatusFilter)
                   const tripFiltered = bookingTripFilter === 'all' ? statusFiltered : statusFiltered.filter((b) => b.scheduleId === bookingTripFilter)
                   const filtered = !query
                     ? tripFiltered
@@ -2991,20 +3000,26 @@ export default function Admin() {
                         )
                       })
 
-                  // Needs-attention statuses first, then soonest trip within
-                  // the same tier — mirrors the "attention first" ordering
-                  // used for customers and verification requests.
+                  // With a specific trip selected, every row shares the same
+                  // sailing anyway, so needs-attention statuses are surfaced
+                  // first (mirrors the "attention first" ordering used for
+                  // customers and verification requests). With "All trips"
+                  // selected there's no shared sailing to group by, so the
+                  // admin just wants the most recent bookings on top.
                   const sorted = [...filtered].sort((a, b) => {
+                    const da = a.schedule ? new Date(a.schedule.departureDatetime).getTime() : -Infinity
+                    const db = b.schedule ? new Date(b.schedule.departureDatetime).getTime() : -Infinity
+                    if (bookingTripFilter === 'all') {
+                      return db - da
+                    }
                     const pa = bookingStatusPriority[a.status] ?? 6
                     const pb = bookingStatusPriority[b.status] ?? 6
                     if (pa !== pb) return pa - pb
-                    const da = a.schedule ? new Date(a.schedule.departureDatetime).getTime() : Infinity
-                    const db = b.schedule ? new Date(b.schedule.departureDatetime).getTime() : Infinity
                     return da - db
                   })
 
-                  return allBookings.length === 0 ? (
-                    <p className="mt-4 text-sm text-gray-500 dark:text-slate-500">No bookings yet.</p>
+                  return recentBookings.length === 0 ? (
+                    <p className="mt-4 text-sm text-gray-500 dark:text-slate-500">No bookings for trips in the last 7 days.</p>
                   ) : sorted.length === 0 ? (
                     <p className="mt-4 text-sm text-gray-500 dark:text-slate-500">
                       {query ? 'No bookings match that search.' : 'No bookings match this filter.'}
@@ -3055,17 +3070,6 @@ export default function Admin() {
                             </p>
                           </div>
 
-                          {b.status !== 'cancelled' && b.status !== 'refunded' && (
-                            <div className="mt-3 flex justify-end">
-                              <button
-                                onClick={() => adminCancelBooking(b.id)}
-                                disabled={cancellingBookingId === b.id}
-                                className="rounded-md border border-red-300 dark:border-red-500/30 px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50"
-                              >
-                                {cancellingBookingId === b.id ? 'Cancelling…' : 'Cancel Booking'}
-                              </button>
-                            </div>
-                          )}
                         </div>
                       ))}
                     </div>
@@ -3128,7 +3132,7 @@ export default function Admin() {
                             </div>
                             <div className="text-left sm:text-right">
                               <span className="whitespace-nowrap rounded-full bg-blue-100 dark:bg-blue-500/15 px-3 py-1 text-xs font-semibold text-blue-700 dark:text-blue-300">
-                                {formatPeso(b.totalFare)} to refund
+                                {formatPeso(refundAmountOf(b))} to refund ({b.refundPercent ?? 100}%)
                               </span>
                               <p className="mt-1 text-xs text-gray-400 dark:text-slate-500">
                                 Waiting {waitingDays === 0 ? 'less than a day' : `${waitingDays} day${waitingDays === 1 ? '' : 's'}`}
@@ -3170,16 +3174,16 @@ export default function Admin() {
                             const openAction = openRefundAction[b.id]
                             const checked = Boolean(refundConfirmChecked[b.id])
                             const passengerName = b.passengers[0] ? fullName(b.passengers[0]) : 'there'
-                            const fareStr = Number(b.totalFare).toLocaleString()
+                            const fareStr = refundAmountOf(b).toLocaleString()
 
                             const approveMailto =
-                              `mailto:${b.contactEmail}?subject=${encodeURIComponent(`Confirming your refund details — ${b.referenceCode}`)}` +
+                              `mailto:${b.contactEmail}?subject=${encodeURIComponent(`Confirming your refund details: ${b.referenceCode}`)}` +
                               `&body=${encodeURIComponent(
-                                `Hi ${passengerName},\n\nWe're processing your refund of ₱${fareStr} for booking ${b.referenceCode}. Since your payment was made through a QR code, we don't automatically see which GCash, Maya, or bank account it came from — could you reply with the account name, number, and provider you'd like the refund sent to?\n\nThanks,\nEvershine Booking`
+                                `Hi ${passengerName},\n\nWe're processing your refund of ₱${fareStr} (${b.refundPercent ?? 100}% of your fare, per our cancellation policy) for booking ${b.referenceCode}. Since your payment was made through a QR code, we don't automatically see which GCash, Maya, or bank account it came from. Could you reply with the account name, number, and provider you'd like the refund sent to?\n\nThanks,\nEvershine Booking`
                               )}`
 
                             const rejectMailto =
-                              `mailto:${b.contactEmail}?subject=${encodeURIComponent(`Update on your cancellation request — ${b.referenceCode}`)}` +
+                              `mailto:${b.contactEmail}?subject=${encodeURIComponent(`Update on your cancellation request: ${b.referenceCode}`)}` +
                               `&body=${encodeURIComponent(
                                 `Hi ${passengerName},\n\nWe've reviewed your cancellation request for booking ${b.referenceCode} and are unable to approve the refund at this time.\n\n[Add your reason here]\n\nIf you have questions, feel free to reply to this email.\n\nThanks,\nEvershine Booking`
                               )}`
@@ -3277,7 +3281,7 @@ export default function Admin() {
                                   <div className="rounded-md border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 p-4">
                                     <p className="text-sm font-semibold text-red-800 dark:text-red-300">Reject This Request</p>
                                     <p className="mt-0.5 text-xs text-red-700/80 dark:text-red-400/80">
-                                      Rejecting won't notify the customer automatically — let them know yourself first.
+                                      Rejecting won't notify the customer automatically, let them know yourself first.
                                     </p>
 
                                     <div className="mt-3 flex gap-3 rounded-md border border-red-200/70 dark:border-red-500/20 bg-white dark:bg-slate-900 p-3">
@@ -3399,7 +3403,7 @@ export default function Admin() {
                       <div className="mt-3">
                         {cgAccounts.length === 0 ? (
                           <p className="text-sm text-gray-500 dark:text-slate-500">
-                            No Coast Guard accounts yet — add one from the Coast Guard tab, or just send to an email below.
+                            No Coast Guard accounts yet, add one from the Coast Guard tab, or just send to an email below.
                           </p>
                         ) : (
                           <div className="space-y-1.5">
@@ -3539,7 +3543,7 @@ export default function Admin() {
                     <p className="text-sm text-gray-700 dark:text-slate-300">
                       <b>{formatPeso(totalRevenue)}</b> in confirmed booking fares across <b>{analyticsRangeLabel}</b>
                       {filteredAnalytics.length > 0 && (
-                        <> — spread over {filteredAnalytics.length} month{filteredAnalytics.length === 1 ? '' : 's'} with sales.</>
+                        <>, spread over {filteredAnalytics.length} month{filteredAnalytics.length === 1 ? '' : 's'} with sales.</>
                       )}
                     </p>
                   )}
@@ -3547,7 +3551,7 @@ export default function Admin() {
                     <p className="text-sm text-gray-700 dark:text-slate-300">
                       <b>{totalBookingsInRange}</b> confirmed booking{totalBookingsInRange === 1 ? '' : 's'} in {analyticsRangeLabel}
                       {filteredAnalytics.length > 0 && (
-                        <> — about {(totalBookingsInRange / filteredAnalytics.length).toFixed(1)} per month on average.</>
+                        <>, about {(totalBookingsInRange / filteredAnalytics.length).toFixed(1)} per month on average.</>
                       )}
                     </p>
                   )}
@@ -3564,7 +3568,7 @@ export default function Admin() {
                         {bestMonth.count} booking{bestMonth.count === 1 ? '' : 's'}
                         {avgMonthlyRevenue > 0 && (
                           <>
-                            {' '}— {Math.abs(((Number(bestMonth.revenue) - avgMonthlyRevenue) / avgMonthlyRevenue) * 100).toFixed(0)}%{' '}
+                            {', '}{Math.abs(((Number(bestMonth.revenue) - avgMonthlyRevenue) / avgMonthlyRevenue) * 100).toFixed(0)}%{' '}
                             {Number(bestMonth.revenue) >= avgMonthlyRevenue ? 'above' : 'below'} the range average.
                           </>
                         )}

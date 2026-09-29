@@ -86,9 +86,10 @@ export default function Policies() {
           <p>
             You can look up a booking anytime from{' '}
             <a href="/manage-booking" className="text-teal-700 hover:underline">Manage Booking</a> using your
-            reference code and contact email. Cancellation requests must be submitted within{' '}
-            <span className="font-medium text-gray-800">24 hours of making the booking</span> this window is
-            based on when you booked, not how far away departure is.
+            reference code and contact email. Cancellation requests can be submitted any time before your
+            scheduled departure. The refund rate depends on how far away departure is:{' '}
+            <span className="font-medium text-gray-800">80% more than 24 hours before departure, 60% within 24
+            hours</span>, and no refund once departure has passed.
           </p>
           <p>
             Refunds aren't automatic: submitting a cancellation puts your booking under manual review, and an

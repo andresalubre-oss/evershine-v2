@@ -24,6 +24,22 @@ const statusColors = {
   refunded: 'bg-blue-100 text-blue-800',
 }
 
+// A reason category (dropdown) rather than free text alone — same pattern
+// OceanJet's refund form uses, and far easier for an admin to scan a queue
+// of requests by than a pile of differently-worded prose. "Other" is the
+// only option that requires its own free-text detail; every other category
+// is specific enough to stand on its own, though the detail field is still
+// offered to anyone who wants to add context regardless of category.
+const CANCEL_REASON_OPTIONS = [
+  { value: '', label: 'Select a reason' },
+  { value: 'Change of Plans', label: 'Change of Plans' },
+  { value: 'Booked the Wrong Date or Trip', label: 'Booked the Wrong Date or Trip' },
+  { value: 'Medical Emergency', label: 'Medical Emergency' },
+  { value: 'Duplicate Booking', label: 'Duplicate Booking' },
+  { value: 'Weather or Safety Concern', label: 'Weather or Safety Concern' },
+  { value: 'Other', label: 'Other (please specify)' },
+]
+
 function StatusBadge({ status }) {
   return (
     <span className={`inline-block whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-semibold capitalize ${statusColors[status] || 'bg-gray-100 text-gray-700'}`}>
@@ -140,7 +156,15 @@ export default function ManageBooking() {
   const [looking, setLooking] = useState(false)
 
   const [confirmingCancel, setConfirmingCancel] = useState(false)
+  // A reason category (dropdown) rather than a free-text field alone — same
+  // pattern OceanJet's refund form uses, and much easier for an admin to
+  // scan a queue of requests by than a pile of differently-worded prose.
+  // "Other" is the only option that needs its own free-text detail; every
+  // other category is specific enough to stand on its own, though the
+  // detail field is still offered to anyone who wants to add context.
+  const [cancelReasonCategory, setCancelReasonCategory] = useState('')
   const [cancelReason, setCancelReason] = useState('')
+  const [cancelConsent, setCancelConsent] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   const [cancelMessage, setCancelMessage] = useState('')
   const [cancelError, setCancelError] = useState(false)
@@ -195,16 +219,37 @@ export default function ManageBooking() {
   async function confirmCancelBooking() {
     setCancelMessage('')
     setCancelError(false)
-    if (!cancelReason.trim()) {
+    if (!cancelReasonCategory) {
+      setCancelMessage('Please select a reason for cancelling.')
+      setCancelError(true)
+      return
+    }
+    if (cancelReasonCategory === 'Other' && !cancelReason.trim()) {
       setCancelMessage('Please tell us why you want to cancel.')
       setCancelError(true)
       return
     }
+    if (!cancelConsent) {
+      setCancelMessage('Please confirm you understand this cancellation is subject to our Refund & Cancellation policy.')
+      setCancelError(true)
+      return
+    }
+    // Combines the category with any optional detail into one string for
+    // the backend/admin view — the admin's Refund Requests tab (and the
+    // reason shown there) doesn't need to know this was ever two fields.
+    const combinedReason = cancelReasonCategory === 'Other'
+      ? cancelReason.trim()
+      : cancelReason.trim()
+        ? `${cancelReasonCategory}: ${cancelReason.trim()}`
+        : cancelReasonCategory
+
     setCancelling(true)
     try {
-      const data = await api.cancelBooking(booking.referenceCode, booking.contactEmail, cancelReason.trim())
+      const data = await api.cancelBooking(booking.referenceCode, booking.contactEmail, combinedReason)
       setConfirmingCancel(false)
+      setCancelReasonCategory('')
       setCancelReason('')
+      setCancelConsent(false)
       await lookupBooking()
       setCancelMessage(data.message || 'Your cancellation request has been submitted.')
     } catch (err) {
@@ -216,15 +261,17 @@ export default function ManageBooking() {
   }
 
   const departureTime = booking ? new Date(booking.schedule.departureDatetime) : null
-  const purchasedAt = booking ? new Date(booking.createdAt) : null
-  // Cancellation eligibility is a 24-hour window from PURCHASE, not how far
-  // away departure is — a short-notice booking is still cancellable right
-  // after it's made, but an old booking can't be cancelled just because
-  // departure happens to still be far off.
-  const hoursSincePurchase = purchasedAt ? (new Date() - purchasedAt) / (1000 * 60 * 60) : 0
+  // Eligibility (and refund rate) is based on how far away departure is, not
+  // when the booking was made — adapted from OceanJet's published refund
+  // policy (80% more than 24h before departure, 60% within 24h; not
+  // accepted once departure has passed). The actual rate is decided and
+  // stored server-side when the request is submitted — this is just a
+  // preview so the customer knows what to expect before they submit.
+  const hoursUntilDeparture = departureTime ? (departureTime - new Date()) / (1000 * 60 * 60) : 0
   const alreadyResolved = booking && ['cancelled', 'refund_requested', 'refunded'].includes(booking.status)
-  const canCancel = booking && !alreadyResolved && hoursSincePurchase <= 24
-  const hoursLeftInWindow = Math.max(0, 24 - hoursSincePurchase)
+  const canCancel = booking && !alreadyResolved && hoursUntilDeparture > 0
+  const previewRefundPercent = hoursUntilDeparture > 24 ? 80 : 60
+  const hoursLeftInWindow = Math.max(0, hoursUntilDeparture - 24)
   const hoursLeft = Math.floor(hoursLeftInWindow)
   const minutesLeft = Math.max(0, Math.round((hoursLeftInWindow - hoursLeft) * 60))
 
@@ -350,7 +397,7 @@ export default function ManageBooking() {
               {booking.status === 'refund_requested' && (
                 <div className="rounded-lg bg-blue-600 p-4 text-base text-white">
                   Your cancellation request has been submitted and is awaiting review. Our team verifies each
-                  request manually and sends the refund once approved — this isn't instant.
+                  request manually and sends the refund once approved. This isn't instant.
                 </div>
               )}
 
@@ -362,9 +409,11 @@ export default function ManageBooking() {
 
               {!alreadyResolved && canCancel && !confirmingCancel && (
                 <>
-                 <div className="rounded-lg bg-teal-700 p-4 text-base text-white">
-                    You're within the 24-hour cancellation window — <b>{hoursLeft}h {minutesLeft}m</b> left to
-                    request a cancellation.
+                  <div className="rounded-lg bg-teal-700 p-4 text-base leading-relaxed text-white">
+                    You're eligible for a <b>{previewRefundPercent}% refund</b> ({formatPeso(booking.totalFare * previewRefundPercent / 100)}) if
+                    you cancel now: {previewRefundPercent === 80
+                      ? <>more than 24 hours before departure. That drops to 60% inside the final 24 hours, and <b>{hoursLeft}h {minutesLeft}m</b> left before it does.</>
+                      : <>you're within 24 hours of departure, the lowest tier. Cancellations are no longer accepted once departure has passed.</>}
                   </div>
                   <button
                     onClick={() => setConfirmingCancel(true)}
@@ -376,32 +425,68 @@ export default function ManageBooking() {
               )}
 
               {!alreadyResolved && canCancel && confirmingCancel && (
-               <div className="rounded-lg bg-red-600 p-4">
-  <p className="text-base font-semibold text-white">Request a cancellation?</p>
-  <p className="mt-1 text-base text-red-50">
-    This submits a cancellation request for manual review it isn't instant. Our team will verify
-    your reason and sends the refund once approved.
-  </p>
+                <div className="rounded-lg border-2 border-red-200 bg-red-50 p-4 sm:p-5">
+                  <p className="text-lg font-bold text-red-800">Request a cancellation?</p>
+                  <p className="mt-1.5 text-base leading-relaxed text-gray-700">
+                    This submits a cancellation request for manual review it isn't instant. Based on the current
+                    time before departure, you're eligible for a{' '}
+                    <span className="font-semibold text-red-700">
+                      {previewRefundPercent}% refund ({formatPeso(booking.totalFare * previewRefundPercent / 100)})
+                    </span>. Our team will verify your reason and send the refund once approved.
+                  </p>
 
-  <label className="mt-3 block text-sm font-medium uppercase tracking-wide text-red-50">
-    Reason for cancellation
-  </label>
-                  <textarea
-                    value={cancelReason}
-                    onChange={(e) => setCancelReason(e.target.value)}
-                    rows={3}
-                    placeholder="e.g. Change of plans, booked the wrong date, medical emergency..."
-                    className="mt-1 w-full rounded-md border border-red-200 bg-white px-3 py-2 text-base text-gray-800 placeholder:text-gray-400"
-                  />
+                  <div className="mt-4">
+                    <label className="block text-xs font-semibold uppercase tracking-wide text-gray-600">
+                      Reason for cancellation
+                    </label>
+                    <select
+                      value={cancelReasonCategory}
+                      onChange={(e) => setCancelReasonCategory(e.target.value)}
+                      className="mt-1.5 w-full rounded-md border border-gray-300 bg-white px-3 py-2.5 text-base text-gray-800 focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-400"
+                    >
+                      {CANCEL_REASON_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
 
-                  <div className="mt-3 flex gap-2">
+                  <div className="mt-3.5">
+                    <label className="block text-xs font-semibold uppercase tracking-wide text-gray-600">
+                      {cancelReasonCategory === 'Other' ? 'Please specify' : 'Additional details (optional)'}
+                    </label>
+                    <textarea
+                      value={cancelReason}
+                      onChange={(e) => setCancelReason(e.target.value)}
+                      rows={3}
+                      placeholder={cancelReasonCategory === 'Other' ? 'Tell us why you want to cancel...' : 'Anything else we should know? (optional)'}
+                      className="mt-1.5 w-full rounded-md border border-gray-300 bg-white px-3 py-2.5 text-base text-gray-800 placeholder:text-gray-400 focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-400"
+                    />
+                  </div>
+
+                  <label className="mt-4 flex items-start gap-2.5 text-sm leading-relaxed text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={cancelConsent}
+                      onChange={(e) => setCancelConsent(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 flex-shrink-0 accent-red-600"
+                    />
+                    <span>
+                      I understand this cancellation is subject to Evershine Booking's{' '}
+                      <Link to="/refund-cancellation" target="_blank" className="font-medium text-red-700 underline">
+                        Refund &amp; Cancellation Policy
+                      </Link>
+                      , and cannot be reversed once submitted.
+                    </span>
+                  </label>
+
+                  <div className="mt-4 flex flex-col gap-2.5 sm:flex-row">
                     <button
                       onClick={confirmCancelBooking}
-                      disabled={cancelling || !cancelReason.trim()}
-                      className="flex items-center gap-2 rounded-md bg-red-600 px-5 py-2.5 text-base font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={cancelling || !cancelReasonCategory || (cancelReasonCategory === 'Other' && !cancelReason.trim()) || !cancelConsent}
+                      className="flex items-center justify-center gap-2 rounded-md bg-red-600 px-5 py-2.5 text-base font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
                     >
                       {cancelling && (
-                        <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <svg className="h-4 w-4 flex-shrink-0 animate-spin" viewBox="0 0 24 24" fill="none">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
                         </svg>
@@ -409,9 +494,9 @@ export default function ManageBooking() {
                       {cancelling ? 'Submitting...' : 'Submit Cancellation Request'}
                     </button>
                     <button
-                      onClick={() => { setConfirmingCancel(false); setCancelReason('') }}
+                      onClick={() => { setConfirmingCancel(false); setCancelReasonCategory(''); setCancelReason(''); setCancelConsent(false) }}
                       disabled={cancelling}
-                      className="rounded-md border border-gray-300 px-5 py-2.5 text-base font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                      className="rounded-md border border-gray-300 bg-white px-5 py-2.5 text-base font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
                     >
                       No, Keep Booking
                     </button>
@@ -421,8 +506,8 @@ export default function ManageBooking() {
 
               {!alreadyResolved && !canCancel && (
                <div className="rounded-lg bg-amber-600 p-4 text-base text-white">
-  This booking can no longer be cancelled cancellations must be requested within 24 hours of
-  booking, and that window has passed. See our{' '}
+  This booking can no longer be cancelled. Cancellations are only accepted before the scheduled
+  departure, and that has already passed. See our{' '}
   <Link to="/refund-cancellation" className="font-medium text-white underline">
     Refund &amp; Cancellation
   </Link>{' '}

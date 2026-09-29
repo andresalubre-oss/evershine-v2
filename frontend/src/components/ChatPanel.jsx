@@ -30,7 +30,7 @@ function formatMessageTime(dateStr) {
 }
 
 function roleLabel(role, station) {
-  if (role === 'coast_guard') return station ? `Coast Guard — ${station}` : 'Coast Guard'
+  if (role === 'coast_guard') return station ? `Coast Guard · ${station}` : 'Coast Guard'
   return 'Evershine Admin'
 }
 
@@ -39,7 +39,7 @@ function ConnectionStatus({ status }) {
     connected: { color: 'bg-green-600', label: 'Live' },
     connecting: { color: 'bg-amber-600', label: 'Connecting…' },
     reconnecting: { color: 'bg-amber-600', label: 'Reconnecting…' },
-    disconnected: { color: 'bg-gray-400', label: 'Offline — messages will send once reconnected' },
+    disconnected: { color: 'bg-gray-400', label: 'Offline, messages will send once reconnected' },
   }[status] || { color: 'bg-gray-400', label: status }
 
   return (

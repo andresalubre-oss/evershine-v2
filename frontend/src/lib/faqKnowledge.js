@@ -54,17 +54,18 @@ export const FAQS = [
   },
   {
     q: 'What is the cancellation policy? Can I cancel my booking?',
-    a: `You can request a cancellation from Manage Booking within 24 hours of making the booking; this window is
-      based on when you booked, not how far away departure is. Refunds aren't automatic: your request goes to an
-      admin for manual review, and the refund is sent once your reason is verified. See our Refund & Cancellation
-      page for the full details.`,
-    keywords: ['cancel', 'cancellation', '24 hours', 'refund policy'],
+    a: `You can request a cancellation from Manage Booking any time before your scheduled departure. The refund
+      rate depends on how far away departure is when you submit the request: 80% of the fare more than 24 hours
+      before departure, 60% within 24 hours, and no refund once departure has passed. Refunds aren't automatic:
+      your request goes to an admin for manual review, and the refund is sent once your reason is verified. See
+      our Refund & Cancellation page for the full details.`,
+    keywords: ['cancel', 'cancellation', '24 hours', 'refund policy', 'refund percentage'],
   },
   {
     q: 'How do I cancel or look up my booking?',
     a: `Go to Manage Booking and enter your reference code plus the email you used at checkout. From there you
-      can view your booking details and submit a cancellation request if you're still within 24 hours of when
-      you booked; an admin will review it and process the refund manually.`,
+      can view your booking details and submit a cancellation request any time before departure; an admin will
+      review it and process the refund manually.`,
     keywords: ['manage booking', 'look up', 'find my booking', 'reference code'],
   },
   {

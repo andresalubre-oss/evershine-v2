@@ -143,6 +143,16 @@ const publicLimiter = rateLimit({
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
+  // Authenticated dashboard requests (admin or coast_guard bearer token)
+  // already go through adminLimiter's own, separately-keyed budget below —
+  // counting them against this IP-wide public budget too meant the admin
+  // dashboard's own polling (PAGASA bulletin every 5 min, chat
+  // reconnect/history reloads, plus React StrictMode's double-fetching in
+  // dev) could exhaust a real visitor's public-route budget just from admin
+  // use on the same machine/IP. This limiter is meant for anonymous traffic
+  // (search, booking, contact form, etc.), not staff who are already
+  // rate-limited elsewhere.
+  skip: (req) => Boolean(req.headers.authorization),
   message: { error: 'Too many requests, please try again later.' },
 });
 
@@ -173,7 +183,11 @@ const writeLimiter = rateLimit({
 
 const adminLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 50,
+  // Raised from 50 — a single admin session with the dashboard open (Weather
+  // tab's own polling, PAGASA bulletin polling every 5 min, Coast Guard chat
+  // reconnect/history reloads, plus several tabs' worth of on-mount fetches)
+  // adds up quickly on its own, well before any actual abuse.
+  max: 300,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => `${ipKeyGenerator(req.ip)}:${req.admin?.id || 'unknown'}`,
@@ -513,6 +527,28 @@ async function getBookedSeatCountsForSchedules(client, scheduleIds) {
     counts[r.scheduleId] = (counts[r.scheduleId] || 0) + r._count.passengers;
   }
   return counts;
+}
+
+// Customer-initiated cancellation policy — adapted from OceanJet's published
+// refund rates (oceanjet.net/manage-booking). Their real table has a second
+// dimension (checked-in vs. not-checked-in) that doesn't apply here since
+// Evershine has no physical check-in step; every booking is effectively
+// "not checked in" from the system's point of view, so this uses that half
+// of their table: 80% more than 24h before departure, 60% within 24h.
+// Unlike OceanJet (who still refund 60% after departure, assuming the
+// passenger never actually boarded), this app has no way to verify a no-show
+// after the fact, so cancellation simply isn't accepted once departure has
+// passed — the safer, more defensible rule for a system with no boarding
+// verification.
+function computeRefundEligibility(departureDatetime) {
+  const hoursUntilDeparture = (new Date(departureDatetime).getTime() - Date.now()) / (1000 * 60 * 60);
+  if (hoursUntilDeparture <= 0) {
+    return { eligible: false, percent: null, reason: 'Cancellations are not accepted once the scheduled departure has passed.' };
+  }
+  if (hoursUntilDeparture > 24) {
+    return { eligible: true, percent: 80 };
+  }
+  return { eligible: true, percent: 60 };
 }
 
 function generateReferenceCode() {
@@ -1401,31 +1437,36 @@ app.post('/api/bookings/cancel', writeLimiter, validate(cancelBookingSchema), as
     return res.status(400).json({ error: 'This booking has already been cancelled.' });
   }
 
-  // Cancellation window is 24 hours from when the booking was PURCHASED,
-  // not how far away departure is — a deliberate policy choice so a
-  // last-minute booking can still be cancelled shortly after it's made.
-  const hoursSincePurchase = (Date.now() - booking.createdAt.getTime()) / (1000 * 60 * 60);
-  if (hoursSincePurchase > 24) {
-    return res.status(400).json({ error: 'Cancellations must be requested within 24 hours of booking.' });
-  }
-
   // No money has changed hands yet for an unpaid booking, so there's
   // nothing for an admin to refund — cancel it outright instead of putting
-  // it in the manual refund-review queue.
+  // it in the manual refund-review queue. This case skips the
+  // time-before-departure check below entirely: there's no refund at stake,
+  // so there's no reason to block someone from clearing out a booking they
+  // never paid for.
   const noPaymentTaken = booking.status === 'pending_payment' || booking.status === 'payment_declined';
+
+  let refundPercent = null;
+  if (!noPaymentTaken) {
+    const eligibility = computeRefundEligibility(booking.schedule.departureDatetime);
+    if (!eligibility.eligible) {
+      return res.status(400).json({ error: eligibility.reason });
+    }
+    refundPercent = eligibility.percent;
+  }
 
   await prisma.booking.update({
     where: { id: booking.id },
     data: {
       status: noPaymentTaken ? 'cancelled' : 'refund_requested',
       cancellationReason: reason,
+      refundPercent,
     },
   });
 
   res.json({
     message: noPaymentTaken
       ? 'Booking cancelled.'
-      : "Cancellation request submitted. Our team will review it and process your refund.",
+      : `Cancellation request submitted. You're eligible for a ${refundPercent}% refund — our team will review it and process your refund once approved.`,
   });
 });
 
@@ -1830,11 +1871,17 @@ app.post(
     // refund_requested instead, so it still shows up for an admin to
     // formally mark as refunded once the money is actually sent back.
     const noPaymentTaken = booking.status === 'pending_payment' || booking.status === 'payment_declined';
+    // This route is for Evershine-initiated cancellations (a sailing pulled
+    // outright, etc.), not a customer's own request — per the "If We Cancel
+    // Your Trip" policy that's always a full refund, not the tiered
+    // 80%/60% rate computeRefundEligibility applies to customer-requested
+    // cancellations.
     const updated = await prisma.booking.update({
       where: { id: req.params.id },
       data: {
         status: noPaymentTaken ? 'cancelled' : 'refund_requested',
         cancellationReason: booking.cancellationReason || 'Cancelled by admin.',
+        refundPercent: noPaymentTaken ? null : 100,
       },
     });
     res.json({ message: 'Booking cancelled.', booking: updated });
@@ -1884,9 +1931,12 @@ app.post(
     }
     // Denying the request means the cancellation itself didn't hold up —
     // reinstate the booking as confirmed rather than leaving it in limbo.
+    // Clears refundPercent too, since it no longer applies to a booking
+    // that's back to normal — if the customer requests again later, a fresh
+    // rate gets computed based on however much time is left by then.
     await prisma.booking.update({
       where: { id: req.params.id },
-      data: { status: 'confirmed' },
+      data: { status: 'confirmed', refundPercent: null },
     });
     res.json({ message: 'Refund request rejected — booking reinstated as confirmed.' });
   }

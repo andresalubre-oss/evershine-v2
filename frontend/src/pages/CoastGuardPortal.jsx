@@ -83,7 +83,7 @@ export default function CoastGuardPortal() {
   useEffect(() => {
     const token = localStorage.getItem('adminToken')
     if (!token) {
-      navigate('/login')
+      navigate('/admin')
       return
     }
     ;(async () => {
@@ -100,7 +100,7 @@ export default function CoastGuardPortal() {
         setMessage(err.message)
         if (err.message?.toLowerCase().includes('log in')) {
           localStorage.removeItem('adminToken')
-          navigate('/login')
+          navigate('/admin')
         }
       } finally {
         setLoading(false)
@@ -124,7 +124,7 @@ export default function CoastGuardPortal() {
   function handleLogout() {
     api.adminLogout().catch(() => {})
     localStorage.removeItem('adminToken')
-    navigate('/login')
+    navigate('/admin')
   }
 
   const now = new Date()

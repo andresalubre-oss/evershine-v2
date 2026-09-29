@@ -106,7 +106,7 @@ export async function exportAnalyticsPdf(rows, summary) {
 // ---------------------------------------------------------------------------
 export async function exportAnalyticsExcel(rows, summary) {
   const summaryBlock = [
-    ['Evershine Booking — Revenue & Booking Analytics'],
+    ['Evershine Booking: Revenue & Booking Analytics'],
     [`Range: ${summary.rangeLabel}`],
     [`Generated: ${new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' })}`],
     [],

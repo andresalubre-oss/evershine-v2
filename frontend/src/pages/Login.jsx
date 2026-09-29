@@ -30,7 +30,7 @@ export default function Login() {
     if (data.admin?.role === 'coast_guard') {
       navigate('/coastguard')
     } else {
-      navigate('/admin')
+      navigate('/admin/dashboard')
     }
   }
   

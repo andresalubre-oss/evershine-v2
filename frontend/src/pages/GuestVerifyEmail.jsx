@@ -25,7 +25,7 @@ export default function GuestVerifyEmail() {
     try {
       const data = await api.sendGuestCode(email)
       setStatus('sent')
-      setMessage(data.message || 'Code sent — check your inbox.')
+      setMessage(data.message || 'Code sent, check your inbox.')
     } catch (err) {
       setStatus('error')
       setMessage(err.message)

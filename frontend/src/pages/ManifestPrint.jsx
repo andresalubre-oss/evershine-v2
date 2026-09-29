@@ -32,7 +32,7 @@ export default function ManifestPrint() {
 
   useEffect(() => {
     if (!localStorage.getItem('adminToken')) {
-      navigate('/login')
+      navigate('/admin')
       return
     }
     if (!scheduleId) {

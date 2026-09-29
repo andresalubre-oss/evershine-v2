@@ -67,9 +67,9 @@ function AddressCombobox({ label, required, value, onChange, onSelect, options, 
             {loading ? (
               <p className="px-3 py-2 text-sm text-gray-400">Loading...</p>
             ) : loadError ? (
-              <p className="px-3 py-2 text-sm text-gray-400">Couldn't load suggestions — you can still type this in yourself.</p>
+              <p className="px-3 py-2 text-sm text-gray-400">Couldn't load suggestions, you can still type this in yourself.</p>
             ) : shown.length === 0 ? (
-              <p className="px-3 py-2 text-sm text-gray-400">{emptyHint || 'No matches — you can still type your own.'}</p>
+              <p className="px-3 py-2 text-sm text-gray-400">{emptyHint || 'No matches, you can still type your own.'}</p>
             ) : (
               shown.map((o) => (
                 <button
@@ -347,7 +347,7 @@ export default function EditProfile() {
               <input
                 value={suffix}
                 onChange={(e) => setSuffix(e.target.value)}
-                placeholder="e.g. Jr., III"
+                placeholder="Jr., III"
                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
               />
             </div>
@@ -360,7 +360,7 @@ export default function EditProfile() {
             <input
               value={contactNumber}
               onChange={(e) => setContactNumber(e.target.value)}
-              placeholder="e.g. 09171234567"
+              placeholder="09171234567"
               className="w-full rounded-md border border-gray-300 px-3 py-2"
             />
           </div>
@@ -369,7 +369,7 @@ export default function EditProfile() {
         <section>
           <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-700">Address</h2>
           <p className="mt-0.5 text-xs text-gray-500">
-            Start typing to see suggestions from official PSA data — or type your own if it's not listed.
+            Start typing to see suggestions from official PSA data, or type your own if it's not listed.
           </p>
           <div className="mt-3 space-y-4">
             <AddressCombobox
@@ -425,7 +425,7 @@ export default function EditProfile() {
                   value={zipCode}
                   onChange={(e) => setZipCode(e.target.value.replace(/\D/g, '').slice(0, 4))}
                   inputMode="numeric"
-                  placeholder="e.g. 6600"
+                  placeholder="6600"
                   className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
                 />
               </div>
