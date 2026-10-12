@@ -603,6 +603,12 @@ export default function Booking() {
     if (validSoFar) updatePassenger(index, 'contact_number', digits)
   }
 
+  // Mirrors calculateFare in backend/index.js: the schedule's fare is
+  // VAT-exclusive, 12% VAT is added, and senior/PWD passengers are VAT-exempt
+  // (RA 9994 / RA 10754). The server recomputes this; it's only a preview.
+  const VAT_RATE = 0.12
+  const round2 = (n) => Math.round(n * 100) / 100
+
   function estimateFare(p) {
     const base = Number(fare)
     const percentByType = {
@@ -611,9 +617,13 @@ export default function Booking() {
       student: studentDiscountPercent,
     }
     const percent = percentByType[p.discount_type]
-    return percent != null ? base * (1 - percent / 100) : base
+    const net = round2(percent != null ? base * (1 - percent / 100) : base)
+    const vat = p.discount_type === 'senior' || p.discount_type === 'pwd' ? 0 : round2(net * VAT_RATE)
+    return { net, vat, total: round2(net + vat) }
   }
-  const estimatedTotal = passengers.reduce((sum, p) => sum + estimateFare(p), 0)
+  const estimatedSubtotal = round2(passengers.reduce((sum, p) => sum + estimateFare(p).net, 0))
+  const estimatedVat = round2(passengers.reduce((sum, p) => sum + estimateFare(p).vat, 0))
+  const estimatedTotal = round2(estimatedSubtotal + estimatedVat)
 
   function goToReview() {
     setError('')
@@ -1387,7 +1397,7 @@ export default function Booking() {
                     {p.discount_type === 'none' ? 'Regular fare' : `${p.discount_type} discount`}
                   </p>
                 </div>
-                <p className="font-semibold text-teal-700">&#8369;{estimateFare(p).toFixed(2)}</p>
+                <p className="font-semibold text-teal-700">&#8369;{estimateFare(p).net.toFixed(2)}</p>
               </div>
             ))}
           </div>
@@ -1397,7 +1407,13 @@ export default function Booking() {
             <p className="mt-1"><span className="font-medium">Contact number:</span> {contactNumber || '—'}</p>
           </div>
 
-          <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-3">
+          <div className="mt-4 space-y-1 border-t border-gray-100 pt-3 text-sm text-gray-600">
+            <div className="flex justify-between"><span>Subtotal</span><span>&#8369;{estimatedSubtotal.toFixed(2)}</span></div>
+            <div className="flex justify-between"><span>VAT (12%)</span><span>&#8369;{estimatedVat.toFixed(2)}</span></div>
+            <p className="text-xs text-gray-500">Senior Citizens and PWDs are VAT-exempt.</p>
+          </div>
+
+          <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3">
             <p className="font-semibold text-gray-800">Estimated Total</p>
             <p className="text-xl font-bold text-teal-700">&#8369;{estimatedTotal.toFixed(2)}</p>
           </div>

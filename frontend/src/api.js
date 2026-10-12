@@ -280,6 +280,18 @@ export const api = {
 
   getMonthlySales: () => adminRequest('/admin/analytics/monthly-sales'),
 
+  // from / to are YYYY-MM-DD (Asia/Manila calendar days, inclusive).
+  getAccounting: (from, to) => adminRequest(`/admin/accounting?from=${from}&to=${to}`),
+
+  addExpense: (payload) =>
+    adminRequest('/admin/expenses', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
+
+  deleteExpense: (id) => adminRequest(`/admin/expenses/${id}`, { method: 'DELETE' }),
+
   getWeather: () => adminRequest('/admin/weather'),
 
   getPagasaBulletin: () => adminRequest('/admin/pagasa-bulletin'),

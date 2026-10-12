@@ -75,7 +75,11 @@ async function sendGuestVerificationCode(toEmail, code) {
     console.warn(`(RESEND_API_KEY not set) Would have sent guest verification code to ${toEmail}: ${code}`);
     return;
   }
-  await resend.emails.send({
+  // The Resend SDK reports API failures (e.g. an unverified recipient while
+  // sending from onboarding@resend.dev) by RETURNING { error } rather than
+  // throwing, so it has to be checked explicitly or a failed send looks
+  // exactly like a successful one.
+  const { error } = await resend.emails.send({
     from: FROM,
     to: toEmail,
     subject: `${code} is your Evershine Booking verification code`,
@@ -91,6 +95,7 @@ async function sendGuestVerificationCode(toEmail, code) {
       </div>
     `,
   });
+  if (error) throw new Error(`Resend rejected the guest verification email: ${error.message || JSON.stringify(error)}`);
 }
 
 // Where a visitor's "Contact Us" message gets delivered. Defaults to the
@@ -136,6 +141,29 @@ const TERMINAL_NAME = 'Padre Burgos Terminal';
 const TERMINAL_ADDRESS = 'Padre Burgos Port, Southern Leyte, 6600 Philippines';
 const SUPPORT_PHONE = '+63 924565632';
 const SUPPORT_EMAIL = 'evershine.booking@gmail.com';
+
+// Policy text printed on the invoice, in both the email and the PDF. Kept in
+// one place so the two never disagree. Mirrors the website's Policies and
+// Refund & Cancellation pages and the rates enforced in index.js
+// (computeRefundEligibility); update all of them together if the policy changes.
+const CANCELLATION_RATES = [
+  { when: 'More than 24 hours before departure', refund: '80% refund' },
+  { when: 'Within 24 hours of departure', refund: '60% refund' },
+  { when: 'After the scheduled departure', refund: 'No refund' },
+];
+const CANCELLATION_NOTES = [
+  'Cancel any time before departure from Manage Booking on our website, using your reference code and contact email.',
+  'The refund rate depends on when you submit the request and is fixed at that moment. It is applied to the total you paid, VAT included.',
+  'Refunds are reviewed manually. Our team sends the refund once your request is verified, so it is not instant.',
+  'If Evershine cancels or suspends a sailing, for example because of weather, you receive a full refund or free rebooking to the next available trip.',
+];
+const GOOD_TO_KNOW = [
+  'Arrive at the terminal at least 30 minutes before departure. Boarding closes shortly before departure, and late arrivals may forfeit their seat without a refund.',
+  "Bring a valid government-issued ID matching each passenger's name.",
+  'Senior Citizen, PWD and Student fares need the ID used for Profile Verification. Terminal staff may ask to see it.',
+  'Baggage: one hand-carried piece per passenger. Flammable, explosive and other hazardous items are not allowed. Bulky cargo must be arranged with the terminal in advance.',
+  'Fares include 12% VAT, except Senior Citizen and PWD fares, which are VAT-exempt.',
+];
 
 function formatPeso(amount) {
   return `₱${Number(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -269,22 +297,47 @@ async function sendBookingInvoice(booking) {
                 </table>
                 <table role="presentation" width="100%" style="margin-bottom:28px;">
                   <tr>
+                    <td style="padding-top:10px;text-align:right;font-size:13px;color:#6b7280;">Subtotal (excluding VAT): ${formatPeso(Number(booking.totalFare) - Number(booking.vatAmount || 0))}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding-top:4px;text-align:right;font-size:13px;color:#6b7280;">VAT (12%): ${formatPeso(booking.vatAmount || 0)}</td>
+                  </tr>
+                  <tr>
                     <td style="padding-top:10px;text-align:right;font-size:16px;font-weight:800;color:#111827;">Total Paid: ${formatPeso(booking.totalFare)}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding-top:4px;text-align:right;font-size:11px;color:#9ca3af;">Senior Citizen and PWD fares are VAT-exempt.</td>
                   </tr>
                 </table>
 
-                <table role="presentation" width="100%" style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;">
+                <table role="presentation" width="100%" style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;margin-bottom:28px;">
                   <tr>
                     <td style="padding:16px 18px;">
                       <p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#92400e;">Before You Board</p>
                       <ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.7;color:#78350f;">
                         <li>Arrive at the terminal at least 30 minutes before departure.</li>
                         <li>Bring a valid government ID matching each passenger's name above.</li>
-                        <li>Discount ID (Senior, PWD, or Student) is required for a discounted fare.</li>
                       </ul>
                     </td>
                   </tr>
                 </table>
+
+                <h2 style="margin:0 0 12px;font-size:13px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:#111827;border-bottom:2px solid #111827;padding-bottom:8px;">Ticket Cancellation Policy</h2>
+                <table role="presentation" width="100%" style="border-collapse:collapse;margin-bottom:12px;font-size:14px;">
+                  ${CANCELLATION_RATES.map((r) => `
+                  <tr>
+                    <td style="padding:8px 0;border-bottom:1px solid #e5e7eb;color:#374151;">${r.when}</td>
+                    <td style="padding:8px 0;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:700;color:#111827;">${r.refund}</td>
+                  </tr>`).join('')}
+                </table>
+                <ul style="margin:0 0 28px;padding-left:18px;font-size:13px;line-height:1.7;color:#4b5563;">
+                  ${CANCELLATION_NOTES.map((n) => `<li>${n}</li>`).join('')}
+                </ul>
+
+                <h2 style="margin:0 0 12px;font-size:13px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:#111827;border-bottom:2px solid #111827;padding-bottom:8px;">Good to Know</h2>
+                <ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.7;color:#4b5563;">
+                  ${GOOD_TO_KNOW.map((n) => `<li>${n}</li>`).join('')}
+                </ul>
 
                 <p style="margin:24px 0 0;font-size:13px;line-height:1.6;color:#6b7280;">
                   Need to look up, cancel, or get directions for this booking later? Visit
@@ -371,6 +424,9 @@ module.exports = {
   // exact same port names, terminal/support details, and formatting instead
   // of a second, driftable copy of the same constants.
   PORT_NAMES,
+  CANCELLATION_RATES,
+  CANCELLATION_NOTES,
+  GOOD_TO_KNOW,
   TERMINAL_NAME,
   TERMINAL_ADDRESS,
   SUPPORT_PHONE,

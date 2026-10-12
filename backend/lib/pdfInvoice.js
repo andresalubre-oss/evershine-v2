@@ -20,6 +20,9 @@ const path = require('path');
 const PDFDocument = require('pdfkit');
 const {
   PORT_NAMES,
+  CANCELLATION_RATES,
+  CANCELLATION_NOTES,
+  GOOD_TO_KNOW,
   TERMINAL_NAME,
   TERMINAL_ADDRESS,
   SUPPORT_PHONE,
@@ -135,7 +138,7 @@ function generateInvoicePdf(booking) {
           'Thank you for booking with Evershine Booking. Present this document, or just your reference code below, at the terminal during boarding.',
           marginX, y, { width: contentWidth, lineGap: 3 }
         );
-      y = doc.y + 18;
+      y = doc.y + 12;
 
       // ---- Reference code + status panel ------------------------------------
       const refBoxHeight = 72;
@@ -166,7 +169,7 @@ function generateInvoicePdf(booking) {
         .fontSize(8)
         .text(pillLabel, pillX, pillY + 4.5, { width: pillWidth, align: 'center', characterSpacing: 1 });
 
-      y += refBoxHeight + 28;
+      y += refBoxHeight + 18;
 
       // ---- Trip Details ------------------------------------------------------
       y = sectionHeading(doc, 'Trip Details', marginX, y, contentWidth);
@@ -174,13 +177,13 @@ function generateInvoicePdf(booking) {
       y = labelValueRow(doc, 'Departure', departure, marginX, y, contentWidth);
       y = labelValueRow(doc, 'Ferry', booking.schedule.ferry?.name || 'Not set', marginX, y, contentWidth);
       y = labelValueRow(doc, 'Booked On', bookedOn, marginX, y, contentWidth);
-      y += 18;
+      y += 10;
 
       // ---- Contact Details ----------------------------------------------------
       y = sectionHeading(doc, 'Booking Contact', marginX, y, contentWidth);
       y = labelValueRow(doc, 'Email', booking.contactEmail, marginX, y, contentWidth);
       y = labelValueRow(doc, 'Contact Number', booking.contactNumber || 'Not set', marginX, y, contentWidth);
-      y += 18;
+      y += 10;
 
       // ---- Passengers table -----------------------------------------------------
       y = sectionHeading(doc, `Passengers (${passengerCount})`, marginX, y, contentWidth);
@@ -221,7 +224,7 @@ function generateInvoicePdf(booking) {
         y += rowHeight;
       });
       doc.moveTo(marginX, y).lineTo(marginX + contentWidth, y).lineWidth(1).stroke(GRAY_BORDER);
-      y += 16;
+      y += 10;
 
       // ---- Payment summary ---------------------------------------------------
       doc
@@ -238,6 +241,15 @@ function generateInvoicePdf(booking) {
 
       doc.moveTo(marginX, y).lineTo(marginX + contentWidth, y).lineWidth(1).stroke(GRAY_BORDER);
       y += 10;
+      const vatAmount = Number(booking.vatAmount || 0);
+      y = labelValueRow(doc, 'Subtotal (excluding VAT)', formatPesoPdf(Number(booking.totalFare) - vatAmount), marginX, y, contentWidth);
+      y = labelValueRow(doc, 'VAT (12%)', formatPesoPdf(vatAmount), marginX, y, contentWidth);
+      doc
+        .fillColor(GRAY_FAINT)
+        .font('Helvetica')
+        .fontSize(8)
+        .text('Senior Citizen and PWD fares are VAT-exempt.', marginX, y - 4, { width: contentWidth, align: 'right' });
+      y += 14;
       doc
         .fillColor(INK)
         .font('Helvetica-Bold')
@@ -248,14 +260,14 @@ function generateInvoicePdf(booking) {
         .font('Helvetica-Bold')
         .fontSize(14)
         .text(formatPesoPdf(booking.totalFare), marginX, y, { width: contentWidth, align: 'right' });
-      y = doc.y + 22;
+      y = doc.y + 12;
 
       // ---- Before You Board ---------------------------------------------------
       // Plain white background, black text, no box — same flat treatment as
       // every other section on this document rather than a colored callout,
       // per the site's "no colored boxes/light effects" design language.
       const noticeLines = [
-        'Arrive at the terminal at least 1 hour before departure.',
+        'Arrive at the terminal at least 30 minutes before departure.',
         "Bring a valid government ID matching each passenger's name above.",
       ];
       y = sectionHeading(doc, 'Before You Board', marginX, y, contentWidth);
@@ -267,7 +279,7 @@ function generateInvoicePdf(booking) {
           .text(`-  ${line}`, marginX, y, { width: contentWidth, lineGap: 2 });
         y = doc.y + 4;
       });
-      y += 14;
+      y += 8;
 
       // ---- Generation note -----------------------------------------------------
       doc
@@ -279,27 +291,76 @@ function generateInvoicePdf(booking) {
           marginX, y, { width: contentWidth }
         );
 
-      // ---- Footer -----------------------------------------------------------
-      const footerHeight = 70;
-      const footerY = doc.page.height - footerHeight;
-      doc.rect(0, footerY, pageWidth, footerHeight).fill(TEAL_DARK);
+      drawFooter(doc, pageWidth, marginX);
+
+      // ---- Page 2: terms -------------------------------------------------------
+      // The cancellation policy and boarding information live on their own page
+      // so the invoice itself stays a clean one-page document.
+      doc.addPage();
+      doc.rect(0, 0, pageWidth, 60).fill(TEAL_DARK);
       doc
         .fillColor('#ffffff')
         .font('Helvetica-Bold')
-        .fontSize(11)
-        .text(TERMINAL_NAME, marginX, footerY + 16);
+        .fontSize(16)
+        .text('Terms and Policies', marginX, 24);
       doc
         .fillColor('#99f6e4')
         .font('Helvetica')
-        .fontSize(9)
-        .text(TERMINAL_ADDRESS, marginX, footerY + 34)
-        .text(`${SUPPORT_PHONE}  -  ${SUPPORT_EMAIL}`, marginX, footerY + 48);
+        .fontSize(10)
+        .text(`Booking ${booking.referenceCode}`, marginX, 26, { width: contentWidth, align: 'right' });
+
+      let y2 = 90;
+      y2 = sectionHeading(doc, 'Ticket Cancellation Policy', marginX, y2, contentWidth);
+      CANCELLATION_RATES.forEach((r) => {
+        y2 = labelValueRow(doc, r.when, r.refund, marginX, y2, contentWidth);
+      });
+      y2 += 6;
+      CANCELLATION_NOTES.forEach((line) => {
+        doc.fillColor(INK).font('Helvetica').fontSize(9.5).text(`-  ${line}`, marginX, y2, { width: contentWidth, lineGap: 2 });
+        y2 = doc.y + 5;
+      });
+      y2 += 16;
+
+      y2 = sectionHeading(doc, 'Good to Know', marginX, y2, contentWidth);
+      GOOD_TO_KNOW.forEach((line) => {
+        doc.fillColor(INK).font('Helvetica').fontSize(9.5).text(`-  ${line}`, marginX, y2, { width: contentWidth, lineGap: 2 });
+        y2 = doc.y + 5;
+      });
+      y2 += 16;
+
+      doc
+        .fillColor(GRAY_FAINT)
+        .font('Helvetica')
+        .fontSize(8)
+        .text(
+          'The full policies are available on the Refund and Cancellation page of our website.',
+          marginX, y2, { width: contentWidth }
+        );
+
+      drawFooter(doc, pageWidth, marginX);
 
       doc.end();
     } catch (err) {
       reject(err);
     }
   });
+}
+
+function drawFooter(doc, pageWidth, marginX) {
+  const footerHeight = 70;
+  const footerY = doc.page.height - footerHeight;
+  doc.rect(0, footerY, pageWidth, footerHeight).fill(TEAL_DARK);
+  doc
+    .fillColor('#ffffff')
+    .font('Helvetica-Bold')
+    .fontSize(11)
+    .text(TERMINAL_NAME, marginX, footerY + 16);
+  doc
+    .fillColor('#99f6e4')
+    .font('Helvetica')
+    .fontSize(9)
+    .text(TERMINAL_ADDRESS, marginX, footerY + 34)
+    .text(`${SUPPORT_PHONE}  -  ${SUPPORT_EMAIL}`, marginX, footerY + 48);
 }
 
 function sectionHeading(doc, text, x, y, width) {

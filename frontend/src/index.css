@@ -2,6 +2,29 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Tailwind v4 dropped the old default of a pointer cursor on buttons, so
+   every clickable control fell back to the plain arrow. Restore it once,
+   globally, for anything interactive, and show the standard "not allowed"
+   cursor on disabled controls. Declared in the base layer so any utility
+   class (e.g. cursor-default) can still override it per element. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  summary,
+  select:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled),
+  input[type="file"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  input:disabled,
+  select:disabled {
+    cursor: not-allowed;
+  }
+}
+
 .leaflet-tile-pane img {
   width: 256px !important;
   height: 256px !important;

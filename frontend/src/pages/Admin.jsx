@@ -5,6 +5,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { api } from '../api.js'
 import { exportAnalyticsPdf, exportAnalyticsExcel, exportAnalyticsPptx } from '../lib/analyticsExport.js'
+import AccountingTab from './AccountingTab.jsx'
 import ChatPanel from '../components/ChatPanel.jsx'
 
 const statusColors = {
@@ -419,6 +420,15 @@ function IconLifeRing(props) {
   )
 }
 
+function IconReceipt(props) {
+  return (
+    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 8h6M9 12h6M9 16h3" />
+    </svg>
+  )
+}
+
 const TABS = [
   { id: 'overview', label: 'Overview', icon: IconGrid },
   { id: 'ferries', label: 'Ferries & Schedules', icon: IconPin },
@@ -429,6 +439,7 @@ const TABS = [
   { id: 'bookings', label: 'All Bookings', icon: IconList },
   { id: 'refunds', label: 'Refund Requests', icon: IconRefund },
   { id: 'manifest', label: 'Manifest', icon: IconClipboard },
+  { id: 'accounting', label: 'Accounting', icon: IconReceipt },
   { id: 'analytics', label: 'Analytics', icon: IconChartBar },
 ]
 
@@ -437,7 +448,7 @@ const TABS = [
 const TAB_GROUPS = [
   { label: null, ids: ['overview'] },
   { label: 'Operations', ids: ['ferries', 'weather', 'coastguard', 'customers', 'discounts', 'bookings', 'refunds', 'manifest'] },
-  { label: 'Insights', ids: ['analytics'] },
+  { label: 'Insights', ids: ['accounting', 'analytics'] },
 ]
 
 export default function Admin() {
@@ -1199,17 +1210,16 @@ export default function Admin() {
     pwd: pendingDiscounts.filter((d) => d.discountType === 'pwd').length,
   }
 
-  // Per the adviser's note: All Bookings only shows trips that departed
-  // within the last 7 days — older sailings drop out of this tab entirely
-  // (they're still in the database, just not surfaced here). Scoped once
-  // here so the summary tiles, trip filter dropdown, and the list itself
-  // all agree on the same window.
+  // Per the adviser's note: All Bookings drops sailings that departed more
+  // than 7 days ago (they're still in the database, just not surfaced here).
+  // Upcoming sailings have no upper limit, since those are exactly the
+  // bookings an admin needs to see. Scoped once here so the summary tiles,
+  // trip filter dropdown, and the list itself all agree on the same window.
   const recentBookings = allBookings.filter((b) => {
     if (!b.schedule) return false
     const departure = new Date(b.schedule.departureDatetime)
-    const now = new Date()
-    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-    return departure >= sevenDaysAgo && departure <= now
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    return departure >= sevenDaysAgo
   })
 
   // All Bookings summary tiles — how many bookings sit in each status.
@@ -1800,7 +1810,7 @@ export default function Admin() {
                         </div>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-600 dark:text-slate-400">Fare (&#8369;)</label>
+                        <label className="block text-sm font-medium text-gray-600 dark:text-slate-400">Base Fare (&#8369;, excluding 12% VAT)</label>
                         <input
                           type="number"
                           placeholder="150"
@@ -1993,7 +2003,7 @@ export default function Admin() {
                                   />
                                 </label>
                                 <label className="text-xs text-gray-600 dark:text-slate-400">
-                                  Fare (PHP)
+                                  Base Fare (PHP, excluding VAT)
                                   <input
                                     type="number"
                                     value={editDraft.fare}
@@ -3019,7 +3029,7 @@ export default function Admin() {
                   })
 
                   return recentBookings.length === 0 ? (
-                    <p className="mt-4 text-sm text-gray-500 dark:text-slate-500">No bookings for trips in the last 7 days.</p>
+                    <p className="mt-4 text-sm text-gray-500 dark:text-slate-500">No bookings for upcoming trips or trips from the last 7 days.</p>
                   ) : sorted.length === 0 ? (
                     <p className="mt-4 text-sm text-gray-500 dark:text-slate-500">
                       {query ? 'No bookings match that search.' : 'No bookings match this filter.'}
@@ -3461,13 +3471,13 @@ export default function Admin() {
                         <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-slate-500">Passengers</p>
                       </div>
                       <div className="px-3 py-2.5 text-center">
-                        <p className="text-lg font-bold leading-none text-teal-600 dark:text-teal-400">
+                        <p className="text-lg font-bold leading-none text-gray-900 dark:text-white">
                           {selectedSchedule.ferry ? selectedSchedule.ferry.seatCapacity : '—'}
                         </p>
                         <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-slate-500">Seat Capacity</p>
                       </div>
                       <div className="px-3 py-2.5 text-center">
-                        <p className="text-lg font-bold leading-none text-amber-600 dark:text-amber-400">
+                        <p className="text-lg font-bold leading-none text-gray-900 dark:text-white">
                           {selectedSchedule.ferry ? Math.max(selectedSchedule.ferry.seatCapacity - manifestPassengers.length, 0) : '—'}
                         </p>
                         <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-slate-500">Seats Left</p>
@@ -3497,6 +3507,8 @@ export default function Admin() {
               </Card>
             </div>
           )}
+
+          {activeTab === 'accounting' && <AccountingTab Card={Card} StatCard={StatCard} DataTable={DataTable} />}
 
           {activeTab === 'analytics' && (
             <div className="space-y-5">

@@ -468,6 +468,11 @@ const sendManifestSchema = z.object({
 // Discount rate now comes from the schedule itself (set by the admin when
 // the fare was declared) rather than a single flat rate for every type, so
 // this needs the schedule row, not just its base fare.
+const VAT_RATE = 0.12;
+// RA 9994 (Senior Citizens) and RA 10754 (PWDs): VAT-exempt on domestic sea fares.
+const VAT_EXEMPT_DISCOUNT_TYPES = ['senior', 'pwd'];
+const round2 = (n) => Math.round(n * 100) / 100;
+
 function calculateFare(schedule, discountType) {
   const base = Number(schedule.baseFare);
   const percentByType = {
@@ -476,30 +481,42 @@ function calculateFare(schedule, discountType) {
     student: schedule.studentDiscountPercent,
   };
   const percent = percentByType[discountType];
-  if (percent != null) {
-    return base * (1 - Number(percent) / 100);
-  }
-  return base;
+  const net = round2(percent != null ? base * (1 - Number(percent) / 100) : base);
+  const vat = VAT_EXEMPT_DISCOUNT_TYPES.includes(discountType) ? 0 : round2(net * VAT_RATE);
+  return { net, vat, total: round2(net + vat) };
 }
 
-// A schedule's seats are "held" by any booking that's actually paid, still
-// under admin review after a refund request, OR unpaid but still inside its
-// payment window. A booking whose QR expired unpaid, or that's cancelled /
-// declined / refunded, releases its seats back into availability. Without
-// this, an abandoned pending_payment booking would squat on seats forever —
-// nothing else in the app ever flips Booking.status away from
-// 'pending_payment' on its own (only the child Payment.status becomes
-// 'expired'; see /api/bookings/payment-status).
-const SEAT_HOLDING_WHERE = {
-  OR: [
-    { status: 'confirmed' },
-    { status: 'refund_requested' },
-    {
-      status: 'pending_payment',
-      OR: [{ payment: null }, { payment: { expiresAt: { gt: new Date() } } }],
-    },
-  ],
-};
+// A schedule's seats are "held" by any booking that's actually paid, OR
+// unpaid but still inside its payment window. A booking whose QR expired
+// unpaid, or that's cancelled / declined / refunded, releases its seats back
+// into availability. So does one with a refund request pending: the moment a
+// passenger cancels, their seats reopen for other customers right away rather
+// than waiting for an admin to process the refund. Without releasing
+// abandoned pending_payment bookings, they'd squat on seats forever — nothing
+// else in the app ever flips Booking.status away from 'pending_payment' on
+// its own (only the child Payment.status becomes 'expired'; see
+// /api/bookings/payment-status).
+//
+// A function, not a constant: the payment-window cutoff has to be "now" at the
+// moment of each query. As a module-level object, new Date() was evaluated
+// once at server start, so holds never expired until the next restart.
+function seatHoldingWhere() {
+  return {
+    OR: [
+      { status: 'confirmed' },
+      {
+        status: 'pending_payment',
+        OR: [{ payment: null }, { payment: { expiresAt: { gt: new Date() } } }],
+      },
+    ],
+  };
+}
+
+// Bookings that must NOT appear on a sailing's passenger manifest: anyone who
+// cancelled (including a pending refund request, whose seat is already
+// released above), was refunded, or whose payment was declined. Without this
+// a passenger who cancelled would still be listed as boarding.
+const MANIFEST_EXCLUDED_STATUSES = ['cancelled', 'refund_requested', 'refunded', 'payment_declined'];
 
 // Counts passengers (= seats), not bookings, since one booking can carry
 // several passengers. `client` is either the plain `prisma` client or a
@@ -508,7 +525,7 @@ const SEAT_HOLDING_WHERE = {
 // /api/bookings.
 async function getBookedSeatCount(client, scheduleId) {
   const rows = await client.booking.findMany({
-    where: { scheduleId, ...SEAT_HOLDING_WHERE },
+    where: { scheduleId, ...seatHoldingWhere() },
     select: { _count: { select: { passengers: true } } },
   });
   return rows.reduce((sum, r) => sum + r._count.passengers, 0);
@@ -519,7 +536,7 @@ async function getBookedSeatCount(client, scheduleId) {
 async function getBookedSeatCountsForSchedules(client, scheduleIds) {
   if (scheduleIds.length === 0) return {};
   const rows = await client.booking.findMany({
-    where: { scheduleId: { in: scheduleIds }, ...SEAT_HOLDING_WHERE },
+    where: { scheduleId: { in: scheduleIds }, ...seatHoldingWhere() },
     select: { scheduleId: true, _count: { select: { passengers: true } } },
   });
   const counts = {};
@@ -1187,7 +1204,7 @@ app.post('/api/guest/send-code', guestCodeLimiter, validate(guestSendCodeSchema)
     return res.status(502).json({ error: "Couldn't send the verification email. Please try again shortly." });
   }
 
-  res.json({ message: 'Verification code sent — check your inbox.' });
+  res.json({ message: 'Verification code sent, check your inbox.' });
 });
 
 app.post('/api/guest/verify-code', guestCodeLimiter, validate(guestVerifyCodeSchema), async (req, res) => {
@@ -1297,7 +1314,8 @@ app.post('/api/bookings', writeLimiter, attachCustomerIfPresent, validate(create
     ...p,
     fare: calculateFare(schedule, p.discount_type),
   }));
-  const totalFare = passengersWithFare.reduce((sum, p) => sum + p.fare, 0);
+  const totalFare = round2(passengersWithFare.reduce((sum, p) => sum + p.fare.total, 0));
+  const vatAmount = round2(passengersWithFare.reduce((sum, p) => sum + p.fare.vat, 0));
 
   // Capacity check + insert happen inside one transaction so a second
   // request racing for the last few seats sees the first request's booking
@@ -1329,6 +1347,7 @@ app.post('/api/bookings', writeLimiter, attachCustomerIfPresent, validate(create
           contactEmail: contact_email,
           contactNumber: contact_number,
           totalFare,
+          vatAmount,
           // Tags the booking to the logged-in customer, if any, so it shows up
           // in their dashboard's booking history. Guests (no token) leave this null.
           customerId: req.customerId || null,
@@ -1348,7 +1367,7 @@ app.post('/api/bookings', writeLimiter, attachCustomerIfPresent, validate(create
               email: p.email || null,
               contactNumber: p.contact_number,
               discountType: p.discount_type,
-              fare: p.fare,
+              fare: p.fare.total,
             })),
           },
         },
@@ -1925,7 +1944,10 @@ app.post(
   adminLimiter,
   validate(idParamSchema, 'params'),
   async (req, res) => {
-    const booking = await prisma.booking.findUnique({ where: { id: req.params.id } });
+    const booking = await prisma.booking.findUnique({
+      where: { id: req.params.id },
+      include: { passengers: { select: { id: true } }, schedule: { include: { ferry: true } } },
+    });
     if (!booking || booking.status !== 'refund_requested') {
       return res.status(400).json({ error: 'This booking is not awaiting a refund.' });
     }
@@ -1934,17 +1956,36 @@ app.post(
     // Clears refundPercent too, since it no longer applies to a booking
     // that's back to normal — if the customer requests again later, a fresh
     // rate gets computed based on however much time is left by then.
-    await prisma.booking.update({
-      where: { id: req.params.id },
-      data: { status: 'confirmed', refundPercent: null },
-    });
-    res.json({ message: 'Refund request rejected — booking reinstated as confirmed.' });
+    //
+    // Cancelling released this booking's seats, and they may have been
+    // rebooked since. Reinstating has to re-check capacity (in the same
+    // transaction as the update) rather than silently overbooking the ferry.
+    try {
+      await prisma.$transaction(async (tx) => {
+        const bookedSeats = await getBookedSeatCount(tx, booking.scheduleId);
+        if (bookedSeats + booking.passengers.length > booking.schedule.ferry.seatCapacity) {
+          const err = new Error(
+            "The seats from this booking have since been taken by other passengers, so it can't be reinstated. Mark it as refunded instead, or free up seats first."
+          );
+          err.code = 'NOT_ENOUGH_SEATS';
+          throw err;
+        }
+        await tx.booking.update({
+          where: { id: req.params.id },
+          data: { status: 'confirmed', refundPercent: null },
+        });
+      });
+    } catch (err) {
+      if (err.code === 'NOT_ENOUGH_SEATS') return res.status(409).json({ error: err.message });
+      throw err;
+    }
+    res.json({ message: 'Refund request rejected, booking reinstated as confirmed.' });
   }
 );
 
 app.get('/api/admin/schedules/:id/manifest', requireAuth, adminLimiter, validate(idParamSchema, 'params'), async (req, res) => {
   const bookings = await prisma.booking.findMany({
-    where: { scheduleId: req.params.id, status: { not: 'cancelled' } },
+    where: { scheduleId: req.params.id, status: { notIn: MANIFEST_EXCLUDED_STATUSES } },
     include: { passengers: true },
   });
   const manifest = bookings.flatMap((b) => b.passengers);
@@ -1987,7 +2028,7 @@ app.post(
     }
 
     const bookings = await prisma.booking.findMany({
-      where: { scheduleId: schedule.id, status: { not: 'cancelled' } },
+      where: { scheduleId: schedule.id, status: { notIn: MANIFEST_EXCLUDED_STATUSES } },
       include: { passengers: true },
     });
     const passengers = bookings.flatMap((b) => b.passengers);
@@ -2071,7 +2112,7 @@ app.get(
     }
 
     const bookings = await prisma.booking.findMany({
-      where: { scheduleId: sent.scheduleId, status: { not: 'cancelled' } },
+      where: { scheduleId: sent.scheduleId, status: { notIn: MANIFEST_EXCLUDED_STATUSES } },
       include: { passengers: true },
     });
     const passengers = bookings.flatMap((b) => b.passengers);
@@ -2106,6 +2147,161 @@ app.get('/api/admin/analytics/monthly-sales', requireAuth, adminLimiter, async (
     .sort((a, b) => a.month.localeCompare(b.month));
   res.json(result);
 });
+
+// ---------------------------------------------------------------------------
+// Accounting — raw money movements for a date range (Asia/Manila calendar
+// days), from which the Admin Accounting tab derives its summary cards, VAT
+// report and exports client-side. Three lists:
+//   sales          every booking whose payment was received in the range
+//                  (Payment.paidAt), split into VAT-exclusive net, 12% VAT,
+//                  and the portion that was VAT-exempt (Senior/PWD fares,
+//                  RA 9994 / RA 10754).
+//   refunds        bookings an admin marked as refunded in the range, with the
+//                  refunded amount (totalFare x refundPercent) and the share
+//                  of VAT that goes back with it. The retained part of a
+//                  partial refund stays as revenue, so its VAT stays too.
+//   pendingRefunds refund requests still awaiting an admin, as of right now
+//                  (not limited to the range, since they're money still owed).
+// ---------------------------------------------------------------------------
+const accountingQuerySchema = z.object({
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+app.get(
+  '/api/admin/accounting',
+  requireAuth,
+  adminLimiter,
+  async (req, res) => {
+    // Parsed inline rather than through the validate() middleware: Express 5
+    // makes req.query read-only, and that middleware writes its result back.
+    const parsed = accountingQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Provide from and to as YYYY-MM-DD.' });
+    }
+    const { from, to } = parsed.data;
+    const start = new Date(`${from}T00:00:00+08:00`);
+    const end = new Date(`${to}T23:59:59.999+08:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
+      return res.status(400).json({ error: 'Invalid date range.' });
+    }
+
+    const refundAmounts = (b) => {
+      const pct = b.refundPercent ?? 100;
+      return {
+        percent: pct,
+        refundTotal: round2((Number(b.totalFare) * pct) / 100),
+        refundVat: round2((Number(b.vatAmount) * pct) / 100),
+      };
+    };
+
+    const [paidBookings, refundedBookings, pendingBookings, expenseRows] = await Promise.all([
+      prisma.booking.findMany({
+        where: { payment: { status: 'paid', paidAt: { gte: start, lte: end } } },
+        include: { payment: true, passengers: { select: { discountType: true, fare: true } } },
+        orderBy: { createdAt: 'asc' },
+      }),
+      prisma.booking.findMany({
+        where: { status: 'refunded', refundedAt: { gte: start, lte: end } },
+        orderBy: { refundedAt: 'asc' },
+      }),
+      prisma.booking.findMany({
+        where: { status: 'refund_requested' },
+        orderBy: { createdAt: 'asc' },
+      }),
+      prisma.expense.findMany({
+        where: { expenseDate: { gte: start, lte: end } },
+        orderBy: [{ expenseDate: 'asc' }, { createdAt: 'asc' }],
+      }),
+    ]);
+
+    const expenses = expenseRows.map((e) => ({
+      id: e.id,
+      expenseDate: e.expenseDate,
+      description: e.description,
+      amount: Number(e.amount),
+      inputVat: Number(e.inputVat),
+    }));
+
+    const sales = paidBookings
+      .map((b) => {
+        const total = Number(b.totalFare);
+        const vat = Number(b.vatAmount);
+        const net = round2(total - vat);
+        const exempt = round2(
+          b.passengers
+            .filter((p) => VAT_EXEMPT_DISCOUNT_TYPES.includes(p.discountType))
+            .reduce((sum, p) => sum + Number(p.fare), 0)
+        );
+        return {
+          id: b.id,
+          referenceCode: b.referenceCode,
+          paidAt: b.payment.paidAt,
+          passengerCount: b.passengers.length,
+          status: b.status,
+          net,
+          vat,
+          total,
+          exemptSales: exempt,
+          vatableSales: round2(net - exempt),
+        };
+      })
+      .sort((a, b) => new Date(a.paidAt) - new Date(b.paidAt));
+
+    const refunds = refundedBookings.map((b) => ({
+      id: b.id,
+      referenceCode: b.referenceCode,
+      refundedAt: b.refundedAt,
+      reason: b.cancellationReason,
+      ...refundAmounts(b),
+    }));
+
+    const pendingRefunds = pendingBookings.map((b) => ({
+      id: b.id,
+      referenceCode: b.referenceCode,
+      requestedAt: b.createdAt,
+      reason: b.cancellationReason,
+      ...refundAmounts(b),
+    }));
+
+    res.json({ from, to, sales, refunds, pendingRefunds, expenses });
+  }
+);
+
+const expenseSchema = z
+  .object({
+    expense_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    description: z.string().trim().min(1).max(200),
+    amount: z.coerce.number().positive().max(100000000),
+    input_vat: z.coerce.number().min(0).max(100000000).default(0),
+  })
+  .strict()
+  .refine((d) => d.input_vat <= d.amount, { message: 'VAT cannot be more than the amount paid', path: ['input_vat'] });
+
+app.post('/api/admin/expenses', requireAuth, adminLimiter, validate(expenseSchema), async (req, res) => {
+  const { expense_date, description, amount, input_vat } = req.body;
+  const date = new Date(`${expense_date}T00:00:00+08:00`);
+  if (Number.isNaN(date.getTime())) {
+    return res.status(400).json({ error: 'Invalid expense date.' });
+  }
+  const expense = await prisma.expense.create({
+    data: { expenseDate: date, description, amount: round2(amount), inputVat: round2(input_vat) },
+  });
+  res.json({ message: 'Expense recorded.', id: expense.id });
+});
+
+app.delete(
+  '/api/admin/expenses/:id',
+  requireAuth,
+  adminLimiter,
+  validate(idParamSchema, 'params'),
+  async (req, res) => {
+    const existing = await prisma.expense.findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ error: 'Expense not found.' });
+    await prisma.expense.delete({ where: { id: req.params.id } });
+    res.json({ message: 'Expense deleted.' });
+  }
+);
 
 // Weather/marine conditions for the Padre Burgos <-> Limasawa crossing —
 // see lib/weather.js for the data source, caching, and the important

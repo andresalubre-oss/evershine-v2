@@ -163,6 +163,7 @@ model Booking {
   contactEmail     String             @map("contact_email")
   contactNumber    String             @map("contact_number")
   totalFare        Decimal            @map("total_fare") @db.Decimal(10, 2)
+  vatAmount        Decimal            @default(0) @map("vat_amount") @db.Decimal(10, 2)
   receiptImagePath String?            @map("receipt_image_path")
   createdAt        DateTime           @default(now()) @map("created_at")
   passengers       BookingPassenger[]
@@ -295,6 +296,23 @@ model CoastGuardMessage {
 // to read. recipientAccountIds is a plain Postgres array (no join table
 // needed) — the Coast Guard portal queries with a `has` filter for its own
 // account id.
+// A business expense recorded by an admin from the Accounting tab. Needed for
+// the profit figure and for input VAT: VAT paid on purchases from
+// VAT-registered suppliers is credited against the output VAT collected on
+// fares, so only the difference is remitted to the BIR. `amount` is what was
+// actually paid (VAT included); `inputVat` is the VAT portion shown on the
+// receipt (0 when the supplier isn't VAT-registered, so no credit applies).
+model Expense {
+  id          String   @id @default(uuid())
+  expenseDate DateTime @map("expense_date")
+  description String
+  amount      Decimal  @db.Decimal(12, 2)
+  inputVat    Decimal  @default(0) @map("input_vat") @db.Decimal(12, 2)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("expenses")
+}
+
 model SentManifest {
   id                  String   @id @default(uuid())
   scheduleId          String   @map("schedule_id")
