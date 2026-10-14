@@ -24,7 +24,7 @@ function StatusBadge({ status }) {
 }
 
 function formatPeso(amount) {
-  return `₱${Number(amount).toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+  return `₱${Number(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 // Live camera-only capture (no gallery upload) — used for the mandatory
@@ -183,66 +183,62 @@ function formatDate(value) {
 // own dedicated page (EditProfile.jsx) rather than inline here, since the
 // full name + address form is long enough to deserve its own screen instead
 // of expanding awkwardly inside this card.
-function ProfileCard({ customer }) {
+function InfoField({ label, children, className = '' }) {
   return (
-   <div className="rounded-xl border border-gray-200 bg-white p-7">
+    <div className={className}>
+      <p className="text-sm font-medium uppercase tracking-wide text-gray-400">{label}</p>
+      <div className="mt-1 text-lg font-medium text-gray-800">{children}</div>
+    </div>
+  )
+}
+
+function ProfileCard({ customer }) {
+  const notSet = <span className="font-normal text-gray-400">Not set</span>
+  return (
+    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-md sm:p-7">
       <CardHeading
         action={
-          <Link to="/account/edit" className="text-base font-semibold text-teal-700 hover:underline">
-            Edit
+          <Link
+            to="/account/edit"
+            className="rounded-md bg-teal-700 px-5 py-2 text-base font-semibold text-white transition-colors hover:bg-teal-800"
+          >
+            Edit Profile
           </Link>
         }
       >
-        Profile
+        Profile Details
       </CardHeading>
 
-      <div className="mt-6 space-y-5">
-        <div>
-          <p className="text-sm font-medium uppercase tracking-wide text-gray-400">Full Name</p>
-          <p className="mt-1 text-lg font-medium text-gray-800">{fullLegalName(customer) || customer.name}</p>
-        </div>
-        <div>
-          <p className="text-sm font-medium uppercase tracking-wide text-gray-400">Email</p>
-          <p className="mt-1 text-lg font-medium text-gray-800">
-            {customer.email}{' '}
-            <span className={`ml-1 text-sm font-normal ${customer.emailVerified ? 'text-teal-700' : 'text-amber-700'}`}>
-              ({customer.emailVerified ? 'Verified' : 'Not verified'})
-            </span>
-          </p>
-        </div>
-        <div>
-          <p className="text-sm font-medium uppercase tracking-wide text-gray-400">Contact Number</p>
-          <p className="mt-1 text-lg font-medium text-gray-800">
-            {customer.contactNumber || <span className="font-normal text-gray-400">Not set</span>}
-          </p>
-        </div>
-        <div>
-          <p className="text-sm font-medium uppercase tracking-wide text-gray-400">Address</p>
-          <p className="mt-1 text-lg font-medium text-gray-800">
-            {fullAddress(customer) || <span className="font-normal text-gray-400">Not set</span>}
-          </p>
-        </div>
-        <div>
-          <p className="text-sm font-medium uppercase tracking-wide text-gray-400">Discount Eligibility</p>
-          <p className="mt-1 text-lg font-medium capitalize text-gray-800">
-            {customer.discountType === 'none' ? (
-              <span className="font-normal capitalize text-gray-400">None on file</span>
-            ) : (
-              <>
-                {customer.discountType} &middot; <span className="capitalize">{customer.discountStatus.replace('_', ' ')}</span>
-                {customer.discountStatus === 'verified' && customer.discountVerifiedUntil && (
-                  <span className="font-normal normal-case text-gray-500"> (valid until {formatDate(customer.discountVerifiedUntil)})</span>
-                )}
-              </>
-            )}
-          </p>
-        </div>
-        {formatDate(customer.createdAt) && (
-          <div>
-            <p className="text-sm font-medium uppercase tracking-wide text-gray-400">Member Since</p>
-            <p className="mt-1 text-lg font-medium text-gray-800">{formatDate(customer.createdAt)}</p>
-          </div>
-        )}
+      <div className="mt-6 grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2">
+        <InfoField label="Full Name">{fullLegalName(customer) || customer.name}</InfoField>
+        <InfoField label="Email">
+          <span className="break-all">{customer.email}</span>{' '}
+          <span
+            className={`ml-1 inline-block rounded-full border px-2.5 py-0.5 align-middle text-xs font-semibold ${
+              customer.emailVerified
+                ? 'border-teal-200 bg-teal-50 text-teal-800'
+                : 'border-amber-300 bg-amber-50 text-amber-800'
+            }`}
+          >
+            {customer.emailVerified ? 'Verified' : 'Not verified'}
+          </span>
+        </InfoField>
+        <InfoField label="Contact Number">{customer.contactNumber || notSet}</InfoField>
+        <InfoField label="Member Since">{formatDate(customer.createdAt) || notSet}</InfoField>
+        <InfoField label="Address" className="sm:col-span-2">{fullAddress(customer) || notSet}</InfoField>
+        <InfoField label="Discount Eligibility" className="sm:col-span-2">
+          {customer.discountType === 'none' ? (
+            <span className="font-normal text-gray-400">None on file</span>
+          ) : (
+            <>
+              <span className="capitalize">{customer.discountType}</span> &middot;{' '}
+              <span className="capitalize">{customer.discountStatus.replace('_', ' ')}</span>
+              {customer.discountStatus === 'verified' && customer.discountVerifiedUntil && (
+                <span className="font-normal text-gray-500"> (valid until {formatDate(customer.discountVerifiedUntil)})</span>
+              )}
+            </>
+          )}
+        </InfoField>
       </div>
     </div>
   )
@@ -347,7 +343,7 @@ function ProfileVerificationCard({ customer, onUpdated }) {
   }
 
   return (
-    <div id="profile-verification" className="scroll-mt-24 rounded-xl border border-gray-200 bg-white p-7">
+    <div id="profile-verification" className="scroll-mt-24 rounded-2xl border border-gray-100 bg-white p-5 shadow-md sm:p-7">
       <CardHeading>Profile Verification</CardHeading>
 
       <div className={`mt-5 rounded-lg border p-5 text-base ${statusStyles[customer.discountStatus] || statusStyles.none}`}>
@@ -412,23 +408,20 @@ function ProfileVerificationCard({ customer, onUpdated }) {
   )
 }
 
-function BookingHistoryCard() {
-  const [bookings, setBookings] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    let cancelled = false
-    api.getMyBookings()
-      .then((data) => { if (!cancelled) setBookings(data) })
-      .catch((err) => { if (!cancelled) setError(err.message) })
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
-  }, [])
-
+function BookingHistoryCard({ bookings, loading, error }) {
   return (
- <div className="rounded-xl border border-gray-200 bg-white p-7">
-      <CardHeading>My Bookings</CardHeading>
+    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-md sm:p-7">
+      <CardHeading
+        action={
+          !loading && bookings.length > 0 ? (
+            <span className="rounded-full bg-gray-100 px-3 py-1 text-sm font-semibold text-gray-600">
+              {bookings.length} total
+            </span>
+          ) : null
+        }
+      >
+        My Bookings
+      </CardHeading>
 
       {loading && <p className="mt-5 text-base text-gray-500">Loading your bookings...</p>}
       {error && <p className="mt-5 text-base text-red-600">{error}</p>}
@@ -444,34 +437,45 @@ function BookingHistoryCard() {
         <div className="mt-5 space-y-3">
           {bookings.map((b) => {
             const ports = PORT_NAMES[b.schedule?.direction] || { from: '', to: '' }
+            const departure = b.schedule?.departureDatetime ? new Date(b.schedule.departureDatetime) : null
+            const passengerCount = b.passengers?.length || 0
             return (
               <Link
                 key={b.id}
                 to={`/manage-booking?reference_code=${encodeURIComponent(b.referenceCode)}&contact_email=${encodeURIComponent(b.contactEmail)}`}
-                className="block rounded-lg border border-gray-200 p-5 transition-colors hover:border-teal-300 hover:bg-teal-50"
+                className="flex items-stretch gap-4 rounded-lg border border-gray-200 p-4 transition-colors hover:border-teal-300 hover:bg-teal-50/40 sm:gap-5 sm:p-5"
               >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
+                <div className="flex h-16 w-16 flex-shrink-0 flex-col items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-center">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-teal-700">
+                    {departure ? departure.toLocaleDateString('en-US', { month: 'short' }) : '--'}
+                  </span>
+                  <span className="text-2xl font-bold leading-none text-gray-800">
+                    {departure ? departure.getDate() : '--'}
+                  </span>
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1.5">
                     <p className="text-lg font-semibold text-gray-800">
                       {ports.from} &rarr; {ports.to}
                     </p>
-                    {b.schedule?.departureDatetime && (
-                      <p className="mt-1 text-base text-gray-500">
-                        {new Date(b.schedule.departureDatetime).toLocaleString('en-US', {
-                          month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
-                        })}
-                      </p>
-                    )}
+                    <StatusBadge status={b.status} />
                   </div>
-                  <StatusBadge status={b.status} />
-                </div>
-                <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-gray-100 pt-3 text-base text-gray-600">
-                  <span>Ref: <span className="font-medium text-gray-800">{b.referenceCode}</span></span>
-                  <span>{b.passengers?.length || 0} passenger{b.passengers?.length === 1 ? '' : 's'}</span>
-                  <span className="ml-auto text-xl font-semibold text-gray-800">{formatPeso(b.totalFare)}</span>
-                </div>
-                <div className="mt-3 border-t border-gray-100 pt-2.5 text-right text-base font-medium text-teal-700">
-                  View details &rarr;
+                  {departure && (
+                    <p className="mt-0.5 text-base text-gray-500">
+                      {departure.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                      {' '}&middot;{' '}
+                      {departure.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric' })}
+                    </p>
+                  )}
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-x-5 gap-y-1 border-t border-gray-100 pt-3 text-base text-gray-600">
+                    <span>
+                      Ref <span className="font-semibold tracking-wide text-gray-800">{b.referenceCode}</span>
+                      <span className="mx-2 text-gray-300">|</span>
+                      {passengerCount} passenger{passengerCount === 1 ? '' : 's'}
+                    </span>
+                    <span className="text-xl font-semibold text-gray-800">{formatPeso(b.totalFare)}</span>
+                  </div>
                 </div>
               </Link>
             )
@@ -541,98 +545,305 @@ const ACCOUNT_NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: IconNavDashboard },
   { id: 'profile', label: 'Profile', icon: IconNavProfile },
   { id: 'bookings', label: 'My Bookings', icon: IconNavBookings },
-  { id: 'verification', label: 'Profile Verification', icon: IconNavVerification },
-  { to: '/directions', label: 'Port Directions', icon: IconNavDirections },
+  { id: 'verification', label: 'Verification', icon: IconNavVerification },
 ]
 
-function AccountSidebar({ activeTab, onSelect }) {
+// Horizontal tab strip under the cover (replaces the old left sidebar): a
+// white rounded card with a teal underline on the active tab, scrollable
+// sideways on narrow screens. Port Directions is a real route rather than an
+// in-page tab, so it renders as a link styled the same way.
+function AccountTabs({ activeTab, onSelect, upcomingCount }) {
+  const tabBase =
+    'relative flex flex-1 flex-shrink-0 items-center justify-center gap-2 whitespace-nowrap px-2.5 py-3.5 text-sm font-semibold transition-colors sm:px-4 sm:py-4 sm:text-base'
   return (
-    <nav className="overflow-hidden rounded-xl border border-gray-200 bg-white lg:sticky lg:top-24">
+    <div className="no-scrollbar flex justify-between gap-1 overflow-x-auto rounded-2xl border border-gray-100 bg-white px-2 shadow-md sm:px-3">
       {ACCOUNT_NAV_ITEMS.map((item) => {
-        const Icon = item.icon
         if (item.to) {
           return (
-            <Link
-              key={item.to}
-              to={item.to}
-           className="flex w-full items-center gap-3 px-5 py-3.5 text-left text-base font-medium text-gray-600 transition-colors hover:bg-gray-50"
-            >
-              <Icon className="h-5 w-5 flex-shrink-0" />
+            <Link key={item.to} to={item.to} className={`${tabBase} text-gray-600 hover:text-gray-900`}>
               {item.label}
             </Link>
           )
         }
-       const active = activeTab === item.id
-return (
-  <button
-    key={item.id}
-    onClick={() => onSelect(item.id)}
-    className={`flex w-full items-center gap-3 px-5 py-3.5 text-left text-base font-medium transition-colors ${
-      active
-        ? 'bg-teal-700 text-white'
-        : 'text-gray-600 hover:bg-gray-50'
-    }`}
-  >
-    <Icon className="h-5 w-5 flex-shrink-0" />
-    {item.label}
-  </button>
-)
+        const active = activeTab === item.id
+        return (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => onSelect(item.id)}
+            className={`${tabBase} ${active ? 'text-teal-700' : 'text-gray-600 hover:text-gray-900'}`}
+          >
+            {item.label}
+            {item.id === 'bookings' && upcomingCount > 0 && (
+              <span className="rounded-full bg-teal-700 px-2 py-0.5 text-xs font-bold text-white">{upcomingCount}</span>
+            )}
+            {active && <span className="absolute inset-x-3 bottom-0 h-[3px] rounded-full bg-teal-700" />}
+          </button>
+        )
       })}
-    </nav>
+    </div>
   )
 }
 
-function DashboardSection({ customer, navigate }) {
+function initialsOf(name) {
+  return (name || '?')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0].toUpperCase())
+    .join('')
+}
+
+function DetailIcon({ name, className = 'h-5 w-5' }) {
+  const paths = {
+    pin: (
+      <>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 21s-7-6.2-7-11.5A7 7 0 0119 9.5C19 14.8 12 21 12 21z" />
+        <circle cx="12" cy="9.5" r="2.5" />
+      </>
+    ),
+    phone: (
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2z" />
+    ),
+    mail: (
+      <>
+        <rect x="3" y="5" width="18" height="14" rx="2" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 7l9 6 9-6" />
+      </>
+    ),
+    calendar: (
+      <>
+        <rect x="3" y="5" width="18" height="16" rx="2" />
+        <path strokeLinecap="round" d="M3 10h18M8 3v4M16 3v4" />
+      </>
+    ),
+    tag: (
+      <>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 12V4h8l10 10-8 8L3 12z" />
+        <circle cx="7.5" cy="8.5" r="1.2" />
+      </>
+    ),
+  }
   return (
-    <div className="space-y-6">
-      <div className="rounded-xl border border-gray-200 bg-white p-7">
-        <h2 className="text-2xl font-semibold text-gray-800">Welcome back, {customer.firstName || customer.name}</h2>
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div className="rounded-lg border border-gray-200 p-5">
-            <p className="text-sm font-medium uppercase tracking-wide text-gray-400">Email</p>
-            <p className={`mt-1.5 text-lg font-semibold ${customer.emailVerified ? 'text-teal-700' : 'text-amber-700'}`}>
-              {customer.emailVerified ? 'Verified' : 'Not verified'}
-            </p>
-          </div>
-          <div className="rounded-lg border border-gray-200 p-5">
-            <p className="text-sm font-medium uppercase tracking-wide text-gray-400">Discount Eligibility</p>
-            <p className="mt-1.5 text-lg font-semibold capitalize text-gray-800">
-              {customer.discountType === 'none'
-                ? 'None on file'
-                : `${customer.discountType} (${customer.discountStatus.replace('_', ' ')})`}
-            </p>
-          </div>
-          <div className="rounded-lg border border-gray-200 p-5">
-            <p className="text-sm font-medium uppercase tracking-wide text-gray-400">Member Since</p>
-            <p className="mt-1.5 text-lg font-semibold text-gray-800">{formatDate(customer.createdAt) || 'Not set'}</p>
-          </div>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
+      {paths[name]}
+    </svg>
+  )
+}
+
+function DetailRow({ icon, children, tone = 'text-gray-600' }) {
+  return (
+    <li className="flex items-start gap-3">
+      <DetailIcon name={icon} className="mt-0.5 h-5 w-5 flex-shrink-0 text-gray-400" />
+      <span className={`min-w-0 break-words text-base leading-snug ${tone}`}>{children}</span>
+    </li>
+  )
+}
+
+// The floating profile card: photo, name with a verified badge, the details
+// that matter at a glance, and the two things customers do most.
+function ProfileSideCard({ customer, photoUrl, navigate }) {
+  const name = fullLegalName(customer) || customer.name
+  const profileVerified = customer.discountStatus === 'verified'
+  const discountLine =
+    customer.discountType === 'none'
+      ? 'Regular fare, no discount on file'
+      : `${customer.discountType.charAt(0).toUpperCase()}${customer.discountType.slice(1)} discount (${customer.discountStatus.replace('_', ' ')})`
+  return (
+    <div>
+      <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-lg sm:p-6">
+        {/* Phones and tablets: photo beside the name. Desktop: the classic
+            stacked, centered card. */}
+        <div className="flex items-center gap-4 lg:flex-col lg:gap-0">
+        {photoUrl ? (
+          <img
+            src={photoUrl}
+            alt="Your profile photo"
+            className="h-20 w-20 flex-shrink-0 rounded-full border-4 border-white bg-white object-cover shadow-md sm:h-24 sm:w-24 lg:h-32 lg:w-32"
+          />
+        ) : (
+          <span className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-full border-4 border-white bg-teal-700 text-2xl font-bold text-white shadow-md sm:h-24 sm:w-24 sm:text-3xl lg:h-32 lg:w-32 lg:text-4xl">
+            {initialsOf(name)}
+          </span>
+        )}
+
+        <div className="min-w-0 lg:mt-5 lg:text-center">
+          <h1 className="flex items-center gap-1.5 text-xl font-bold text-gray-800 sm:text-2xl lg:justify-center">
+            <span className="break-words">{name}</span>
+            {profileVerified && (
+              <svg viewBox="0 0 24 24" className="h-6 w-6 flex-shrink-0 text-teal-700" fill="currentColor" aria-label="Profile verified">
+                <path d="M12 2l2.4 1.9 3-.2 1.1 2.8 2.6 1.5-.7 2.9L22 12l-1.6 2.1.7 2.9-2.6 1.5-1.1 2.8-3-.2L12 22l-2.4-1.9-3 .2-1.1-2.8-2.6-1.5.7-2.9L2 12l1.6-2.1-.7-2.9 2.6-1.5 1.1-2.8 3 .2L12 2z" />
+                <path d="M8.5 12.2l2.4 2.4 4.6-4.9" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+          </h1>
+          <p className="mt-0.5 break-all text-base text-gray-500">{customer.email}</p>
         </div>
+        </div>
+
+        <ul className="mt-5 grid grid-cols-1 gap-4 border-t border-gray-100 pt-5 sm:grid-cols-2 lg:mt-6 lg:grid-cols-1">
+          <DetailRow icon="pin">{fullAddress(customer) || <span className="text-gray-400">Address not set</span>}</DetailRow>
+          <DetailRow icon="phone">{customer.contactNumber || <span className="text-gray-400">Contact number not set</span>}</DetailRow>
+          <DetailRow icon="mail" tone={customer.emailVerified ? 'text-teal-700' : 'text-amber-700'}>
+            {customer.emailVerified ? 'Email verified' : 'Email not verified'}
+          </DetailRow>
+          <DetailRow icon="tag">{discountLine}</DetailRow>
+          {formatDate(customer.createdAt) && <DetailRow icon="calendar">Member since {formatDate(customer.createdAt)}</DetailRow>}
+        </ul>
       </div>
 
-      {/* Quick actions — both styled identically (solid teal) so neither
-          reads as the "active" or default choice; a plain solid fill on
-          both avoids the earlier problem where only one looked selected. */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1">
         <button
+          type="button"
           onClick={() => navigate('/')}
-          className="flex items-center justify-between rounded-xl border border-teal-700 bg-teal-700 p-6 text-left text-white transition-colors hover:bg-teal-800"
+          className="w-full rounded-full bg-teal-700 px-5 py-3 text-base font-semibold text-white shadow-sm transition-colors hover:bg-teal-800"
         >
-          <div className="min-w-0">
-            <p className="text-lg font-semibold">Book a New Trip</p>
-            <p className="mt-1 text-sm text-teal-100">Search sailings to Limasawa or Padre Burgos</p>
-          </div>
-          <span className="ml-4 flex-shrink-0 text-2xl">&rarr;</span>
+          Book a New Trip
         </button>
         <button
+          type="button"
           onClick={() => navigate('/manage-booking')}
-          className="flex items-center justify-between rounded-xl border border-teal-700 bg-teal-700 p-6 text-left text-white transition-colors hover:bg-teal-800"
+          className="w-full rounded-full bg-teal-700 px-5 py-3 text-base font-semibold text-white shadow-sm transition-colors hover:bg-teal-800"
         >
-          <div className="min-w-0">
-            <p className="text-lg font-semibold">Manage a Booking</p>
-            <p className="mt-1 text-sm text-teal-100">Look up any booking by reference code</p>
-          </div>
-          <span className="ml-4 flex-shrink-0 text-2xl">&rarr;</span>
+          Manage a Booking
         </button>
+        <Link
+          to="/account/edit"
+          className="flex items-center justify-center gap-2 pt-1 text-base font-semibold text-teal-700 hover:underline sm:col-span-2 lg:col-span-1"
+        >
+          Edit profile details &rarr;
+        </Link>
+      </div>
+    </div>
+  )
+}
+
+// Right-hand card: practical boarding reminders plus a shortcut to the port
+// directions page, so the dashboard is useful beyond showing account info.
+function TipsCard() {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-md">
+      <img src="/magallanes-port.png" alt="" className="h-36 w-full object-cover" />
+      <div className="p-6">
+        <h2 className="text-xl font-bold text-gray-800">Before you sail</h2>
+        <ul className="mt-3 space-y-2.5 text-base leading-snug text-gray-600">
+          <li>Arrive at the terminal at least 30 minutes before departure.</li>
+          <li>Bring a valid government ID matching each passenger.</li>
+          <li>Show your reference code at boarding.</li>
+        </ul>
+        <Link
+          to="/directions"
+          className="mt-5 block rounded-full border border-teal-700 px-5 py-2.5 text-center text-base font-semibold text-teal-700 transition-colors hover:bg-teal-50"
+        >
+          Get port directions
+        </Link>
+      </div>
+    </div>
+  )
+}
+
+function formatCountdown(ms) {
+  const totalMinutes = Math.max(0, Math.floor(ms / 60000))
+  const days = Math.floor(totalMinutes / 1440)
+  const hours = Math.floor((totalMinutes % 1440) / 60)
+  const minutes = totalMinutes % 60
+  if (days > 0) return `${days} day${days === 1 ? '' : 's'}, ${hours} hr${hours === 1 ? '' : 's'}`
+  if (hours > 0) return `${hours} hr${hours === 1 ? '' : 's'}, ${minutes} min`
+  return `${minutes} min`
+}
+
+// The soonest upcoming confirmed booking, front and center, since that's
+// what someone opening their dashboard most often wants: when do I sail,
+// and where's my reference code.
+function NextTripCard({ booking, loading, navigate }) {
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-md sm:p-7">
+        <p className="text-base text-gray-500">Loading your next trip...</p>
+      </div>
+    )
+  }
+
+  if (!booking) {
+    return (
+      <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-7 text-center">
+        <p className="text-lg font-semibold text-gray-800">No upcoming trips</p>
+        <p className="mt-1 text-base text-gray-500">When you book a sailing, your next trip will show up here.</p>
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          className="mt-4 rounded-md bg-teal-700 px-5 py-2.5 text-base font-semibold text-white transition-colors hover:bg-teal-800"
+        >
+          Book a New Trip
+        </button>
+      </div>
+    )
+  }
+
+  const ports = PORT_NAMES[booking.schedule?.direction] || { from: '', to: '' }
+  const departure = new Date(booking.schedule.departureDatetime)
+  const passengerCount = booking.passengers?.length || 0
+  return (
+    <div className="rounded-2xl border border-teal-700 bg-white p-5 shadow-md sm:p-7">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <p className="text-sm font-semibold uppercase tracking-wide text-teal-700">Your next trip</p>
+        <span className="rounded-full bg-teal-700 px-3 py-1 text-sm font-semibold text-white">
+          Departs in {formatCountdown(departure - new Date())}
+        </span>
+      </div>
+
+      <p className="mt-3 text-2xl font-bold text-gray-800">
+        {ports.from} &rarr; {ports.to}
+      </p>
+      <p className="mt-1 text-lg text-gray-600">
+        {departure.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+        {' '}at{' '}
+        {departure.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+      </p>
+
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-gray-100 pt-4">
+        <div className="text-base text-gray-600">
+          Reference <span className="font-bold tracking-wide text-gray-800">{booking.referenceCode}</span>
+          <span className="mx-2 text-gray-300">|</span>
+          {passengerCount} passenger{passengerCount === 1 ? '' : 's'}
+        </div>
+        <Link
+          to={`/manage-booking?reference_code=${encodeURIComponent(booking.referenceCode)}&contact_email=${encodeURIComponent(booking.contactEmail)}`}
+          className="rounded-md border border-teal-700 px-5 py-2.5 text-base font-semibold text-teal-700 transition-colors hover:bg-teal-50"
+        >
+          View details
+        </Link>
+      </div>
+    </div>
+  )
+}
+
+function StatTile({ label, value, className = '' }) {
+  return (
+    <div className={`rounded-2xl border border-gray-100 bg-white p-4 shadow-md sm:p-5 ${className}`}>
+      <p className="text-sm font-medium uppercase tracking-wide text-gray-400">{label}</p>
+      <p className="mt-1.5 text-2xl font-bold capitalize text-gray-800">{value}</p>
+    </div>
+  )
+}
+
+function DashboardSection({ customer, navigate, bookings, bookingsLoading, nextTrip, upcomingCount }) {
+  return (
+    <div className="space-y-6">
+      <NextTripCard booking={nextTrip} loading={bookingsLoading} navigate={navigate} />
+
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <StatTile label="Upcoming Trips" value={bookingsLoading ? '-' : upcomingCount} />
+        <StatTile label="Total Bookings" value={bookingsLoading ? '-' : bookings.length} />
+        <StatTile
+          className="col-span-2 sm:col-span-1"
+          label="Discount"
+          value={
+            customer.discountType === 'none'
+              ? 'None on file'
+              : `${customer.discountType} (${customer.discountStatus.replace('_', ' ')})`
+          }
+        />
       </div>
     </div>
   )
@@ -645,6 +856,43 @@ export default function Account() {
   const [resendingVerification, setResendingVerification] = useState(false)
   const [resendMessage, setResendMessage] = useState('')
   const [activeTab, setActiveTab] = useState('dashboard')
+
+  // Bookings and the profile photo are loaded once here and shared, since the
+  // profile card, the Dashboard's next-trip card, the tab badge and the My
+  // Bookings tab all read from them.
+  const [bookings, setBookings] = useState([])
+  const [bookingsLoading, setBookingsLoading] = useState(true)
+  const [bookingsError, setBookingsError] = useState('')
+  const [photoUrl, setPhotoUrl] = useState(null)
+
+  useEffect(() => {
+    if (!customer) return
+    let cancelled = false
+    setBookingsLoading(true)
+    api.getMyBookings()
+      .then((data) => { if (!cancelled) setBookings(data) })
+      .catch((err) => { if (!cancelled) setBookingsError(err.message) })
+      .finally(() => { if (!cancelled) setBookingsLoading(false) })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customer?.id])
+
+  useEffect(() => {
+    if (!customer) return
+    let cancelled = false
+    api.getMyPhotoUrl().then((url) => {
+      if (cancelled) {
+        if (url) URL.revokeObjectURL(url)
+        return
+      }
+      setPhotoUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev)
+        return url
+      })
+    })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customer?.id])
 
   async function handleResendVerification() {
     setResendingVerification(true)
@@ -666,62 +914,95 @@ export default function Account() {
     await refreshMe()
   }
 
+  const now = new Date()
+  const upcomingBookings = bookings
+    .filter((b) => b.status === 'confirmed' && b.schedule?.departureDatetime && new Date(b.schedule.departureDatetime) >= now)
+    .sort((a, b) => new Date(a.schedule.departureDatetime) - new Date(b.schedule.departureDatetime))
+  const nextTrip = upcomingBookings[0] || null
+
   return (
-    <div>
-      {/* Unverified-email notice — separate from Profile Verification below.
-          This just confirms the customer controls their inbox; it doesn't
-          block login or booking. */}
-      {!customer.emailVerified && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-5 py-4 text-base text-amber-900">
-          <span><strong>Action needed:</strong> Please verify your email address. Check your inbox at {customer.email} for a link.</span>
-          <div className="flex flex-shrink-0 items-center gap-3">
-            {resendMessage && <span className="text-sm text-amber-800">{resendMessage}</span>}
-            <button
-              onClick={handleResendVerification}
-              disabled={resendingVerification}
-              className="whitespace-nowrap rounded-md border border-amber-700 bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-800 disabled:opacity-50"
-            >
-              {resendingVerification ? 'Sending...' : 'Resend Email'}
-            </button>
+    // Full-bleed layout: the cover photo spans the whole viewport (same
+    // left-1/2 / -mt-28 / -ml-[50vw] / w-screen breakout the login and Book
+    // pages use to escape the centered <main> and cancel its nav clearance),
+    // and the profile card floats up over its lower edge.
+    <div className="relative left-1/2 -mt-28 -ml-[50vw] w-screen">
+      <div
+        className="relative h-72 bg-cover bg-center sm:h-96 lg:h-[28rem]"
+        style={{ backgroundImage: 'url(/hero-6.jpg)' }}
+      >
+        <div className="absolute inset-0 bg-black/10" />
+      </div>
+
+      <div className="mx-auto max-w-6xl px-4 pb-12">
+        <div className="relative -mt-20 grid grid-cols-1 sm:-mt-28 items-start gap-6 lg:grid-cols-[270px_minmax(0,1fr)] xl:grid-cols-[270px_minmax(0,1fr)_270px]">
+          <ProfileSideCard customer={customer} photoUrl={photoUrl} navigate={navigate} />
+
+          <div className="min-w-0 space-y-5">
+            {/* Unverified-email notice — separate from Profile Verification
+                below. This just confirms the customer controls their inbox;
+                it doesn't block login or booking. */}
+            {!customer.emailVerified && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4 text-base text-amber-900 shadow-sm">
+                <span><strong>Action needed:</strong> Please verify your email address. Check your inbox at {customer.email} for a link.</span>
+                <div className="flex flex-shrink-0 items-center gap-3">
+                  {resendMessage && <span className="text-sm text-amber-800">{resendMessage}</span>}
+                  <button
+                    onClick={handleResendVerification}
+                    disabled={resendingVerification}
+                    className="whitespace-nowrap rounded-full border border-amber-700 bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-800 disabled:opacity-50"
+                  >
+                    {resendingVerification ? 'Sending...' : 'Resend Email'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Not-verified notice — only shown when there's something to act
+                on (never verified, or a previous submission expired or was
+                rejected). Silent for 'pending' and 'verified'. */}
+            {['none', 'rejected', 'expired'].includes(customer.discountStatus) && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4 text-base text-amber-900 shadow-sm">
+                <span>
+                  <strong>Action needed:</strong>{' '}
+                  {customer.discountStatus === 'rejected'
+                    ? "Your Profile Verification wasn't approved. Submit again to become eligible for a discount."
+                    : customer.discountStatus === 'expired'
+                    ? 'Your Profile Verification has expired. Renew it to keep your discount eligibility.'
+                    : "Your profile isn't verified yet. Verify it to unlock Senior, PWD, or Student discounts."}
+                </span>
+                <button
+                  onClick={() => setActiveTab('verification')}
+                  className="flex-shrink-0 whitespace-nowrap rounded-full border border-amber-700 bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-800"
+                >
+                  Verify Now
+                </button>
+              </div>
+            )}
+
+            <AccountTabs activeTab={activeTab} onSelect={setActiveTab} upcomingCount={upcomingBookings.length} />
+
+            {activeTab === 'dashboard' && (
+              <DashboardSection
+                customer={customer}
+                navigate={navigate}
+                bookings={bookings}
+                bookingsLoading={bookingsLoading}
+                nextTrip={nextTrip}
+                upcomingCount={upcomingBookings.length}
+              />
+            )}
+            {activeTab === 'profile' && <ProfileCard customer={customer} />}
+            {activeTab === 'bookings' && (
+              <BookingHistoryCard bookings={bookings} loading={bookingsLoading} error={bookingsError} />
+            )}
+            {activeTab === 'verification' && (
+              <ProfileVerificationCard customer={customer} onUpdated={handleVerificationUpdated} />
+            )}
           </div>
-        </div>
-      )}
 
-      {/* Not-verified notice — only shown when there's something to act on
-          (never verified, or a previous submission expired/was rejected).
-          Silent for 'pending' (already submitted, nothing to do) and
-          'verified' (nothing to warn about). Switches to the Profile
-          Verification tab instead of anchor-scrolling, now that section
-          lives behind the sidebar instead of further down the same page. */}
-      {['none', 'rejected', 'expired'].includes(customer.discountStatus) && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-5 py-4 text-base text-amber-900">
-          <span>
-            <strong>Action needed:</strong>{' '}
-            {customer.discountStatus === 'rejected'
-              ? "Your Profile Verification wasn't approved. Submit again to become eligible for a discount."
-              : customer.discountStatus === 'expired'
-              ? 'Your Profile Verification has expired. Renew it to keep your discount eligibility.'
-              : "Your profile isn't verified yet. Verify it to unlock Senior, PWD, or Student discounts."}
-          </span>
-          <button
-            onClick={() => setActiveTab('verification')}
-            className="flex-shrink-0 whitespace-nowrap rounded-md border border-amber-700 bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-800"
-          >
-            Verify Now
-          </button>
-        </div>
-      )}
-
-      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
-        <AccountSidebar activeTab={activeTab} onSelect={setActiveTab} />
-
-        <div>
-          {activeTab === 'dashboard' && <DashboardSection customer={customer} navigate={navigate} />}
-          {activeTab === 'profile' && <ProfileCard customer={customer} />}
-          {activeTab === 'bookings' && <BookingHistoryCard />}
-          {activeTab === 'verification' && (
-            <ProfileVerificationCard customer={customer} onUpdated={handleVerificationUpdated} />
-          )}
+          <div className="min-w-0 lg:col-start-2 xl:col-start-3">
+            <TipsCard />
+          </div>
         </div>
       </div>
     </div>

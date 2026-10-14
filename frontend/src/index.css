@@ -44,3 +44,11 @@
 .no-scrollbar::-webkit-scrollbar {
   display: none; /* Chrome, Safari, new Edge */
 }
+/* Full-width breakout sections (cover photos, hero banners) use w-screen,
+   which counts the vertical scrollbar's width and would otherwise add a
+   sideways scrollbar to the whole page. `clip` trims that overflow without
+   turning the body into a scroll container, so sticky elements still work. */
+html,
+body {
+  overflow-x: clip;
+}

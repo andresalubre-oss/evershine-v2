@@ -451,6 +451,43 @@ const TAB_GROUPS = [
   { label: 'Insights', ids: ['accounting', 'analytics'] },
 ]
 
+// Customer profile picture (their verification selfie). The file sits behind
+// an authenticated route, so it is fetched as a blob; results are cached per
+// path so reopening a row or re-sorting doesn't refetch. Falls back to
+// initials when the customer has no photo or it fails to load.
+const photoUrlCache = new Map()
+
+function CustomerAvatar({ customer, size = 'h-9 w-9', textSize = 'text-xs' }) {
+  const path = customer.selfiePath
+  const [url, setUrl] = useState(() => (path ? photoUrlCache.get(path) || null : null))
+
+  useEffect(() => {
+    if (!path || photoUrlCache.has(path)) {
+      setUrl(path ? photoUrlCache.get(path) || null : null)
+      return
+    }
+    let cancelled = false
+    api.getAdminFileUrl(path)
+      .then((u) => {
+        photoUrlCache.set(path, u)
+        if (!cancelled) setUrl(u)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [path])
+
+  const initials =
+    fullName(customer).split(' ').filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join('') || '?'
+
+  return url ? (
+    <img src={url} alt={fullName(customer)} className={`${size} flex-shrink-0 rounded-full object-cover`} />
+  ) : (
+    <span className={`flex ${size} flex-shrink-0 items-center justify-center rounded-full bg-teal-700 ${textSize} font-bold text-white`}>
+      {initials}
+    </span>
+  )
+}
+
 export default function Admin() {
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('overview')
@@ -576,6 +613,7 @@ export default function Admin() {
   const [cgFormMessage, setCgFormMessage] = useState('')
   const [cgFormError, setCgFormError] = useState(false)
   const [cgFormSubmitting, setCgFormSubmitting] = useState(false)
+  const [showCgForm, setShowCgForm] = useState(false)
 
   // "Send Manifest" — a small inline panel on the Manifest tab for emailing
   // a PDF copy of the currently-generated manifest to any combination of
@@ -604,6 +642,7 @@ export default function Admin() {
   const [customersMessage, setCustomersMessage] = useState('')
   const [customerSearch, setCustomerSearch] = useState('')
   const [customerStatusFilter, setCustomerStatusFilter] = useState('all') // 'all' | 'verified' | 'unverified' — set by clicking a Customer Directory summary tile
+  const [expandedBookingId, setExpandedBookingId] = useState(null) // which booking card in All Bookings shows its passenger details
   const [expandedCustomerId, setExpandedCustomerId] = useState(null) // which row in the Customer Directory has its full-detail panel open
   const [discountTypeFilter, setDiscountTypeFilter] = useState('all') // 'all' | 'student' | 'senior' | 'pwd' — set by clicking a Profile Verification summary tile
   const [expandedDiscountId, setExpandedDiscountId] = useState(null) // which pending verification request is expanded (collapsed by default so a long queue stays scannable)
@@ -2313,12 +2352,28 @@ export default function Admin() {
             <div className="space-y-5">
               
 
-              <div className="grid gap-5 lg:grid-cols-2">
-                <Card title="Coast Guard Accounts">
-                  {cgAccountsMessage && <p className="mb-3 text-sm text-red-600 dark:text-red-400">{cgAccountsMessage}</p>}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                {[
+                  { label: 'Accounts', value: cgAccounts.length, hint: 'Coast Guard users' },
+                  { label: 'Padre Burgos', value: cgAccounts.filter((a) => a.coastGuardStation === 'Padre Burgos').length, hint: 'Station accounts' },
+                  { label: 'Limasawa', value: cgAccounts.filter((a) => a.coastGuardStation === 'Limasawa').length, hint: 'Station accounts' },
+                ].map((c) => (
+                  <div key={c.label} className="rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">{c.label}</p>
+                    <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{c.value}</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400">{c.hint}</p>
+                  </div>
+                ))}
+              </div>
 
-                  <form onSubmit={handleAddCgAccount} className="space-y-3 rounded-md border border-gray-200 dark:border-slate-800 p-3.5">
-                    <p className="text-sm font-semibold text-gray-800 dark:text-slate-100">Add Coast Guard Account</p>
+              <div className="grid gap-5 lg:grid-cols-5">
+                <div className="lg:col-span-2">
+                  <Card title="Coast Guard Accounts">
+                    {cgAccountsMessage && <p className="mb-3 text-sm text-red-600 dark:text-red-400">{cgAccountsMessage}</p>}
+
+                    {showCgForm ? (
+                  <form onSubmit={handleAddCgAccount} className="space-y-3 mb-4 rounded-md border border-teal-200 dark:border-teal-900/50 bg-teal-50/40 dark:bg-teal-900/10 p-3.5">
+                    <p className="text-sm font-semibold text-gray-800 dark:text-slate-100">New Coast Guard account</p>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div>
                         <label className="block text-xs font-medium text-gray-600 dark:text-slate-400">Name</label>
@@ -2375,55 +2430,89 @@ export default function Admin() {
                     >
                       {cgFormSubmitting ? 'Creating…' : 'Create Account'}
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowCgForm(false)}
+                      className="ml-2 rounded-md border border-gray-300 dark:border-slate-700 px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800"
+                    >
+                      Cancel
+                    </button>
                   </form>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setShowCgForm(true)}
+                        className="mb-4 w-full rounded-md border border-dashed border-teal-600 px-3 py-2.5 text-sm font-medium text-teal-700 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/20"
+                      >
+                        + Add Coast Guard Account
+                      </button>
+                    )}
 
-                  <div className="mt-4">
-                    <p className="mb-2 text-sm font-semibold text-gray-800 dark:text-slate-100">Existing Accounts</p>
                     {cgAccountsLoading ? (
                       <p className="text-sm text-gray-500 dark:text-slate-500">Loading…</p>
                     ) : cgAccounts.length === 0 ? (
                       <p className="text-sm text-gray-500 dark:text-slate-500">No Coast Guard accounts yet.</p>
                     ) : (
-                      <ul className="divide-y divide-gray-100 dark:divide-slate-800">
+                      <ul className="space-y-2">
                         {cgAccounts.map((a) => (
-                          <li key={a.id} className="py-2 text-sm">
-                            <p className="font-medium text-gray-800 dark:text-slate-100">{a.name}</p>
-                            <p className="text-xs text-gray-500 dark:text-slate-500">{a.email} &middot; {a.coastGuardStation}</p>
+                          <li key={a.id} className="flex items-center gap-3 rounded-md border border-gray-100 dark:border-slate-800 px-3 py-2.5">
+                            <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-teal-700 text-xs font-bold text-white">
+                              {(a.name || '').split(' ').filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join('') || 'CG'}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-semibold text-gray-800 dark:text-slate-100">{a.name}</p>
+                              <p className="truncate text-xs text-gray-500 dark:text-slate-400">{a.email}</p>
+                            </div>
+                            <span className="flex-shrink-0 rounded-full bg-teal-100 dark:bg-teal-500/15 px-2 py-0.5 text-xs font-medium text-teal-700 dark:text-teal-300">
+                              {a.coastGuardStation}
+                            </span>
                           </li>
                         ))}
                       </ul>
                     )}
-                  </div>
-                </Card>
+                  </Card>
+                </div>
 
-                <Card title="Upcoming Sailings">
-                  {upcomingSchedules.length === 0 ? (
-                    <p className="text-sm text-gray-500 dark:text-slate-500">No upcoming sailings scheduled.</p>
-                  ) : (
-                    <div className="no-scrollbar max-h-[28rem] overflow-y-auto">
-                      <DataTable headers={['Date/Time', 'Direction', 'Ferry', 'Seats']}>
-                        {upcomingSchedules.map((s) => {
-                          const capacity = s.ferry?.seatCapacity
-                          const available = s.availableSeats
-                          return (
-                            <tr key={s.id} className="border-t border-gray-100 dark:border-slate-800">
-                              <td className="px-3 py-1.5 text-gray-700 dark:text-slate-300">
-                                {new Date(s.departureDatetime).toLocaleString('en-US', {
-                                  month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-                                })}
-                              </td>
-                              <td className="px-3 py-1.5 text-gray-700 dark:text-slate-300">{directionLabel[s.direction] || s.direction}</td>
-                              <td className="px-3 py-1.5 text-gray-600 dark:text-slate-400">{s.ferry?.name || '—'}</td>
-                              <td className="px-3 py-1.5 text-gray-700 dark:text-slate-300">
-                                {typeof available === 'number' ? `${available} / ${capacity}` : '—'}
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </DataTable>
-                    </div>
-                  )}
-                </Card>
+                <div className="lg:col-span-3">
+                  <Card title="Upcoming Sailings">
+                    {upcomingSchedules.length === 0 ? (
+                      <p className="text-sm text-gray-500 dark:text-slate-500">No upcoming sailings scheduled.</p>
+                    ) : (
+                      <div className="no-scrollbar max-h-[28rem] overflow-y-auto">
+                        <DataTable headers={['Date/Time', 'Direction', 'Ferry', 'Seats']}>
+                          {upcomingSchedules.map((s) => {
+                            const capacity = s.ferry?.seatCapacity
+                            const available = s.availableSeats
+                            const hasSeats = typeof available === 'number' && capacity
+                            const booked = hasSeats ? capacity - available : 0
+                            const pct = hasSeats ? Math.min(100, Math.round((booked / capacity) * 100)) : 0
+                            return (
+                              <tr key={s.id} className="border-t border-gray-100 dark:border-slate-800 hover:bg-teal-50/50 dark:hover:bg-teal-900/30">
+                                <td className="whitespace-nowrap px-3 py-2 font-medium text-gray-800 dark:text-slate-100">
+                                  {new Date(s.departureDatetime).toLocaleString('en-US', {
+                                    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+                                  })}
+                                </td>
+                                <td className="px-3 py-2 text-gray-700 dark:text-slate-300">{directionLabel[s.direction] || s.direction}</td>
+                                <td className="px-3 py-2 text-gray-600 dark:text-slate-400">{s.ferry?.name || '-'}</td>
+                                <td className="px-3 py-2">
+                                  {hasSeats ? (
+                                    <div className="w-28">
+                                      <p className="text-xs font-medium text-gray-700 dark:text-slate-300">{booked} / {capacity} booked</p>
+                                      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-slate-800">
+                                        <div className={`h-full rounded-full ${available <= capacity * 0.15 ? 'bg-red-500' : 'bg-teal-600'}`} style={{ width: `${pct}%` }} />
+                                      </div>
+                                    </div>
+                                  ) : '-'}
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </DataTable>
+                      </div>
+                    )}
+                  </Card>
+                </div>
               </div>
 
               <ChatPanel currentAccountId={adminInfo?.id} />
@@ -2674,43 +2763,30 @@ export default function Admin() {
               <Card title="Customer Directory">
 
 
-                <div className="mt-3 grid grid-cols-3 divide-x divide-gray-200 dark:divide-slate-800 overflow-hidden rounded-md border border-gray-200 dark:border-slate-800">
-                  <button
-                    type="button"
-                    onClick={() => setCustomerStatusFilter('all')}
-                    className={`px-3 py-2.5 text-center transition-colors ${
-                      customerStatusFilter === 'all'
-                        ? 'bg-teal-700 dark:bg-teal-900/30'
-                        : 'bg-gray-50/60 dark:bg-slate-800/40 hover:bg-gray-100 dark:hover:bg-slate-800'
-                    }`}
-                  >
-                  <p className={`text-lg font-bold leading-none ${customerStatusFilter === 'all' ? 'text-white' : 'text-gray-900 dark:text-white'}`}>{customers.length}</p>
-<p className={`mt-1 text-[11px] font-medium uppercase tracking-wide ${customerStatusFilter === 'all' ? 'text-teal-50' : 'text-gray-500 dark:text-slate-500'}`}>Registered</p>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCustomerStatusFilter('verified')}
-                    className={`px-3 py-2.5 text-center transition-colors ${
-                      customerStatusFilter === 'verified'
-                        ? 'bg-teal-700 dark:bg-teal-900/30'
-                        : 'bg-gray-50/60 dark:bg-slate-800/40 hover:bg-gray-100 dark:hover:bg-slate-800'
-                    }`}
-                  >
-                <p className={`text-lg font-bold leading-none ${customerStatusFilter === 'verified' ? 'text-white' : 'text-gray-900 dark:text-white'}`}>{verifiedCustomerCount}</p>
-<p className={`mt-1 text-[11px] font-medium uppercase tracking-wide ${customerStatusFilter === 'verified' ? 'text-teal-50' : 'text-gray-500 dark:text-slate-500'}`}>Verified</p>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCustomerStatusFilter('unverified')}
-                    className={`px-3 py-2.5 text-center transition-colors ${
-                      customerStatusFilter === 'unverified'
-                        ? 'bg-teal-700 dark:bg-teal-900/30'
-                        : 'bg-gray-50/60 dark:bg-slate-800/40 hover:bg-gray-100 dark:hover:bg-slate-800'
-                    }`}
-                  >
-                   <p className={`text-lg font-bold leading-none ${customerStatusFilter === 'unverified' ? 'text-white' : 'text-gray-900 dark:text-white'}`}>{customers.length - verifiedCustomerCount}</p>
-<p className={`mt-1 text-[11px] font-medium uppercase tracking-wide ${customerStatusFilter === 'unverified' ? 'text-teal-50' : 'text-gray-500 dark:text-slate-500'}`}>Not Verified</p>
-                  </button>
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {[
+                    { key: 'all', label: 'Registered', value: customers.length, hint: 'All customer accounts' },
+                    { key: 'verified', label: 'Verified', value: verifiedCustomerCount, hint: 'Discount profile approved' },
+                    { key: 'unverified', label: 'Not Verified', value: customers.length - verifiedCustomerCount, hint: 'No approved discount' },
+                  ].map((tile) => {
+                    const active = customerStatusFilter === tile.key
+                    return (
+                      <button
+                        key={tile.key}
+                        type="button"
+                        onClick={() => setCustomerStatusFilter(tile.key)}
+                        className={`rounded-lg border px-4 py-3 text-left transition-colors ${
+                          active
+                            ? 'border-teal-700 bg-teal-50 dark:bg-teal-900/30 ring-1 ring-teal-700'
+                            : 'border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-gray-50 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">{tile.label}</p>
+                        <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{tile.value}</p>
+                        <p className="text-xs text-gray-500 dark:text-slate-400">{tile.hint}</p>
+                      </button>
+                    )
+                  })}
                 </div>
 
                 <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -2812,13 +2888,18 @@ export default function Admin() {
                                 isOpen ? 'bg-teal-50/70 dark:bg-teal-900/20' : 'hover:bg-teal-50/50 dark:hover:bg-teal-900/30'
                               }`}
                             >
-                              <td className="px-3 py-1.5 font-medium text-gray-800 dark:text-slate-100">{fullName(c)}</td>
-                              <td className="px-3 py-1.5">
+                              <td className="px-3 py-3">
+                                <div className="flex items-center gap-3">
+                                  <CustomerAvatar customer={c} />
+                                  <span className="font-semibold text-gray-800 dark:text-slate-100">{fullName(c)}</span>
+                                </div>
+                              </td>
+                              <td className="px-3 py-3">
                                 <p className="text-gray-700 dark:text-slate-300">{c.email}</p>
                                 <p className="text-gray-500 dark:text-slate-500">{c.contactNumber || '—'}</p>
                               </td>
-                              <td className="px-3 py-1.5 max-w-[220px] text-gray-600 dark:text-slate-400">{address || '—'}</td>
-                              <td className="px-3 py-1.5">
+                              <td className="px-3 py-3 max-w-[220px] text-gray-600 dark:text-slate-400">{address || '—'}</td>
+                              <td className="px-3 py-3">
                                 <span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium capitalize ${discountBadgeStyles[status] || 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400'}`}>
                                   {status}
                                 </span>
@@ -2826,13 +2907,25 @@ export default function Admin() {
                                   <p className="mt-0.5 whitespace-nowrap text-xs capitalize text-gray-500 dark:text-slate-500">{c.discountType} discount</p>
                                 )}
                               </td>
-                              <td className="px-3 py-1.5 whitespace-nowrap text-gray-600 dark:text-slate-400">
-                                {new Date(c.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                              <td className="px-3 py-3 whitespace-nowrap text-gray-600 dark:text-slate-400">
+                                <div className="flex items-center justify-between gap-2">
+                                  {new Date(c.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                  <span className={`text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`}>&rsaquo;</span>
+                                </div>
                               </td>
                             </tr>
                             {isOpen && (
                               <tr className="bg-teal-50/40 dark:bg-teal-900/10">
                                 <td colSpan={5} className="border-t border-teal-100 dark:border-teal-900/40 px-4 py-4">
+                                  <div className="mb-4 flex items-center gap-4">
+                                    <CustomerAvatar customer={c} size="h-20 w-20" textSize="text-xl" />
+                                    <div>
+                                      <p className="text-base font-semibold text-gray-900 dark:text-white">{fullName(c)}{c.suffix ? ` ${c.suffix}` : ''}</p>
+                                      <p className="text-xs text-gray-500 dark:text-slate-400">
+                                        {c.selfiePath ? 'Profile photo from identity verification' : 'No profile photo yet'}
+                                      </p>
+                                    </div>
+                                  </div>
                                   <div className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-3">
                                     <div>
                                       <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-500">Full Name</p>
@@ -3010,23 +3103,11 @@ export default function Admin() {
                         )
                       })
 
-                  // With a specific trip selected, every row shares the same
-                  // sailing anyway, so needs-attention statuses are surfaced
-                  // first (mirrors the "attention first" ordering used for
-                  // customers and verification requests). With "All trips"
-                  // selected there's no shared sailing to group by, so the
-                  // admin just wants the most recent bookings on top.
-                  const sorted = [...filtered].sort((a, b) => {
-                    const da = a.schedule ? new Date(a.schedule.departureDatetime).getTime() : -Infinity
-                    const db = b.schedule ? new Date(b.schedule.departureDatetime).getTime() : -Infinity
-                    if (bookingTripFilter === 'all') {
-                      return db - da
-                    }
-                    const pa = bookingStatusPriority[a.status] ?? 6
-                    const pb = bookingStatusPriority[b.status] ?? 6
-                    if (pa !== pb) return pa - pb
-                    return da - db
-                  })
+                  // Newest booking first, always: the most recent passenger to
+                  // book sits at the top, whichever trip filter is selected.
+                  const sorted = [...filtered].sort(
+                    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                  )
 
                   return recentBookings.length === 0 ? (
                     <p className="mt-4 text-sm text-gray-500 dark:text-slate-500">No bookings for upcoming trips or trips from the last 7 days.</p>
@@ -3036,8 +3117,18 @@ export default function Admin() {
                     </p>
                   ) : (
                     <div className="mt-4 space-y-2.5">
-                      {sorted.map((b) => (
-                        <div key={b.id} className="rounded-lg border border-gray-200 dark:border-slate-800 p-3.5">
+                      {sorted.map((b) => {
+                        const isOpen = expandedBookingId === b.id
+                        return (
+                        <div
+                          key={b.id}
+                          onClick={() => setExpandedBookingId(isOpen ? null : b.id)}
+                          className={`cursor-pointer rounded-lg border p-3.5 transition-colors ${
+                            isOpen
+                              ? 'border-teal-300 dark:border-teal-700 bg-teal-50/40 dark:bg-teal-900/10'
+                              : 'border-gray-200 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800/50'
+                          }`}
+                        >
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="flex items-center gap-2">
                               <p className="font-mono text-sm font-bold tracking-wide text-gray-800 dark:text-slate-100">{b.referenceCode || '-'}</p>
@@ -3074,14 +3165,63 @@ export default function Admin() {
                                   })}`
                                 : '—'}
                             </p>
-                            <p className="sm:col-span-2">
+                            <p>
+                              <span className="text-gray-400 dark:text-slate-500">Booked:</span>{' '}
+                              {new Date(b.createdAt).toLocaleString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                                hour: 'numeric',
+                                minute: '2-digit',
+                                second: '2-digit',
+                              })}
+                            </p>
+                            <p>
                               <span className="text-gray-400 dark:text-slate-500">Passengers:</span>{' '}
                               {b.passengers.map((p) => fullName(p)).join(', ')}
                             </p>
                           </div>
 
+                          <p className="mt-2 flex items-center gap-1 text-xs font-medium text-teal-700 dark:text-teal-400">
+                            <span className={`inline-block transition-transform ${isOpen ? 'rotate-90' : ''}`}>&rsaquo;</span>
+                            {isOpen ? 'Hide passenger details' : `View passenger details (${b.passengers.length})`}
+                          </p>
+
+                          {isOpen && (
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              className="mt-3 cursor-default space-y-2 border-t border-teal-100 dark:border-teal-900/40 pt-3"
+                            >
+                              {b.passengers.map((p, i) => {
+                                const address = [p.barangay, p.cityMunicipality, p.province, p.zipCode, p.country].filter(Boolean).join(', ')
+                                const field = (label, value) => (
+                                  <div>
+                                    <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-500">{label}</p>
+                                    <p className="mt-0.5 text-sm text-gray-800 dark:text-slate-100">{value || '-'}</p>
+                                  </div>
+                                )
+                                return (
+                                  <div key={p.id || i} className="rounded-md border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3">
+                                    <p className="mb-2 text-sm font-semibold text-gray-900 dark:text-white">
+                                      {i + 1}. {fullName(p)}{p.suffix ? ` ${p.suffix}` : ''}
+                                    </p>
+                                    <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+                                      {field('Sex', p.sex ? p.sex.charAt(0).toUpperCase() + p.sex.slice(1) : '')}
+                                      {field('Nationality', p.nationality)}
+                                      {field('Contact', p.contactNumber)}
+                                      {field('Email', p.email)}
+                                      {field('Discount', p.discountType && p.discountType !== 'none' ? p.discountType.charAt(0).toUpperCase() + p.discountType.slice(1) : 'None')}
+                                      {field('Fare', formatPeso(p.fare))}
+                                      <div className="col-span-2">{field('Address', address)}</div>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
                         </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   )
                 })()}

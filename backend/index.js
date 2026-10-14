@@ -1317,15 +1317,15 @@ app.post('/api/bookings', writeLimiter, attachCustomerIfPresent, validate(create
   const totalFare = round2(passengersWithFare.reduce((sum, p) => sum + p.fare.total, 0));
   const vatAmount = round2(passengersWithFare.reduce((sum, p) => sum + p.fare.vat, 0));
 
-  // Capacity check + insert happen inside one transaction so a second
-  // request racing for the last few seats sees the first request's booking
-  // before deciding whether there's still room. Not a hard guarantee under
-  // very high concurrency (Postgres's default Read Committed isolation
-  // still allows a narrow race window), but for this app's scale it closes
-  // the gap that mattered: two people clicking Book around the same moment.
+  // Capacity check + insert happen inside one transaction, behind a row lock
+  // on the schedule (SELECT ... FOR UPDATE), so simultaneous requests for the
+  // same sailing are processed one at a time and can never overbook it.
   let booking;
   try {
     booking = await prisma.$transaction(async (tx) => {
+      // Row lock on this sailing: concurrent bookings for the same schedule
+      // wait here one at a time, so the seat count below can't go stale.
+      await tx.$queryRaw`SELECT id FROM schedules WHERE id = ${schedule_id} FOR UPDATE`;
       const ferry = await tx.ferry.findUnique({ where: { id: schedule.ferryId } });
       const bookedSeats = await getBookedSeatCount(tx, schedule_id);
       const requestedSeats = passengersWithFare.length;
@@ -1962,6 +1962,7 @@ app.post(
     // transaction as the update) rather than silently overbooking the ferry.
     try {
       await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM schedules WHERE id = ${booking.scheduleId} FOR UPDATE`;
         const bookedSeats = await getBookedSeatCount(tx, booking.scheduleId);
         if (bookedSeats + booking.passengers.length > booking.schedule.ferry.seatCapacity) {
           const err = new Error(
@@ -2195,7 +2196,7 @@ app.get(
       };
     };
 
-    const [paidBookings, refundedBookings, pendingBookings, expenseRows] = await Promise.all([
+    const [paidBookings, refundedBookings, pendingBookings] = await Promise.all([
       prisma.booking.findMany({
         where: { payment: { status: 'paid', paidAt: { gte: start, lte: end } } },
         include: { payment: true, passengers: { select: { discountType: true, fare: true } } },
@@ -2209,19 +2210,7 @@ app.get(
         where: { status: 'refund_requested' },
         orderBy: { createdAt: 'asc' },
       }),
-      prisma.expense.findMany({
-        where: { expenseDate: { gte: start, lte: end } },
-        orderBy: [{ expenseDate: 'asc' }, { createdAt: 'asc' }],
-      }),
     ]);
-
-    const expenses = expenseRows.map((e) => ({
-      id: e.id,
-      expenseDate: e.expenseDate,
-      description: e.description,
-      amount: Number(e.amount),
-      inputVat: Number(e.inputVat),
-    }));
 
     const sales = paidBookings
       .map((b) => {
@@ -2264,42 +2253,7 @@ app.get(
       ...refundAmounts(b),
     }));
 
-    res.json({ from, to, sales, refunds, pendingRefunds, expenses });
-  }
-);
-
-const expenseSchema = z
-  .object({
-    expense_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    description: z.string().trim().min(1).max(200),
-    amount: z.coerce.number().positive().max(100000000),
-    input_vat: z.coerce.number().min(0).max(100000000).default(0),
-  })
-  .strict()
-  .refine((d) => d.input_vat <= d.amount, { message: 'VAT cannot be more than the amount paid', path: ['input_vat'] });
-
-app.post('/api/admin/expenses', requireAuth, adminLimiter, validate(expenseSchema), async (req, res) => {
-  const { expense_date, description, amount, input_vat } = req.body;
-  const date = new Date(`${expense_date}T00:00:00+08:00`);
-  if (Number.isNaN(date.getTime())) {
-    return res.status(400).json({ error: 'Invalid expense date.' });
-  }
-  const expense = await prisma.expense.create({
-    data: { expenseDate: date, description, amount: round2(amount), inputVat: round2(input_vat) },
-  });
-  res.json({ message: 'Expense recorded.', id: expense.id });
-});
-
-app.delete(
-  '/api/admin/expenses/:id',
-  requireAuth,
-  adminLimiter,
-  validate(idParamSchema, 'params'),
-  async (req, res) => {
-    const existing = await prisma.expense.findUnique({ where: { id: req.params.id } });
-    if (!existing) return res.status(404).json({ error: 'Expense not found.' });
-    await prisma.expense.delete({ where: { id: req.params.id } });
-    res.json({ message: 'Expense deleted.' });
+    res.json({ from, to, sales, refunds, pendingRefunds });
   }
 );
 
@@ -2341,6 +2295,9 @@ app.get('/api/admin/customers', requireAuth, adminLimiter, async (req, res) => {
       barangay: true, cityMunicipality: true, province: true, zipCode: true, region: true,
       discountType: true, discountStatus: true, discountVerifiedUntil: true,
       emailVerified: true, createdAt: true,
+      // Only the stored path, so the admin UI can fetch the photo through the
+      // authenticated uploads route.
+      selfiePath: true,
     },
     orderBy: { createdAt: 'desc' },
   });

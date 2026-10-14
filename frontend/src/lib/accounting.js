@@ -47,25 +47,10 @@ export function phpPlain(amount) {
   return `${n < 0 ? '-' : ''}PHP ${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
-// Income tax bases the admin can pick from. These are estimates only: the
-// real figure depends on how the business is registered with the BIR (which
-// the app can't know) and on annual rules like deductions and the minimum
-// corporate income tax. 25% is the regular corporate rate; 20% is the reduced
-// rate for small corporations (net taxable income up to PHP 5M and total
-// assets up to PHP 100M excluding land). A VAT-registered business can't use
-// the 8% flat option, so it isn't offered.
-export const TAX_BASES = {
-  corporation: { label: 'Corporation, 25%', rate: 25 },
-  small_corporation: { label: 'Small corporation, 20%', rate: 20 },
-  none: { label: 'Do not estimate income tax', rate: 0 },
-}
-
-export function buildAccountingReport(data, { taxBasis = 'corporation' } = {}) {
+export function buildAccountingReport(data) {
   const sales = data?.sales || []
   const refunds = data?.refunds || []
   const pendingRefunds = data?.pendingRefunds || []
-  const expenses = data?.expenses || []
-  const taxRate = (TAX_BASES[taxBasis] || TAX_BASES.corporation).rate
 
   const grossSales = sum(sales, (s) => s.total)
   const netSales = sum(sales, (s) => s.net)
@@ -75,17 +60,8 @@ export function buildAccountingReport(data, { taxBasis = 'corporation' } = {}) {
   const refundsIssued = sum(refunds, (r) => r.refundTotal)
   const refundVat = sum(refunds, (r) => r.refundVat)
 
-  const expensesTotal = sum(expenses, (e) => e.amount)
-  const inputVat = sum(expenses, (e) => e.inputVat)
-  const expensesNet = round2(expensesTotal - inputVat)
   const netVatPayable = round2(outputVat - refundVat)
   const netRevenueExVat = round2(netSales - (refundsIssued - refundVat))
-  // Input VAT (VAT paid on purchases) is credited against the VAT collected.
-  // If the credit is bigger than what was collected, nothing is remitted and
-  // the excess carries over to the next period instead of being refunded.
-  const vatBalance = round2(netVatPayable - inputVat)
-  const profitBeforeTax = round2(netRevenueExVat - expensesNet)
-  const incomeTaxEstimate = round2(Math.max(0, profitBeforeTax) * (taxRate / 100))
 
   const summary = {
     grossSales,
@@ -100,18 +76,6 @@ export function buildAccountingReport(data, { taxBasis = 'corporation' } = {}) {
     // Money actually kept: sales minus refunds, with and without VAT.
     netRevenue: round2(grossSales - refundsIssued),
     netRevenueExVat,
-    expensesTotal,
-    inputVat,
-    expensesNet,
-    expenseCount: expenses.length,
-    // What is actually remitted to the BIR for VAT, after the input VAT credit.
-    vatRemittable: round2(Math.max(0, vatBalance)),
-    vatCarryOver: round2(Math.max(0, -vatBalance)),
-    profitBeforeTax,
-    taxRate,
-    incomeTaxEstimate,
-    profitAfterTax: round2(profitBeforeTax - incomeTaxEstimate),
-    totalBirEstimate: round2(Math.max(0, vatBalance) + incomeTaxEstimate),
     salesCount: sales.length,
     refundCount: refunds.length,
     pendingCount: pendingRefunds.length,
@@ -124,7 +88,7 @@ export function buildAccountingReport(data, { taxBasis = 'corporation' } = {}) {
     if (!monthMap.has(month)) {
       monthMap.set(month, {
         month, bookings: 0, vatableSales: 0, exemptSales: 0, netSales: 0,
-        outputVat: 0, grossSales: 0, refunds: 0, refundVat: 0, expenses: 0, inputVat: 0,
+        outputVat: 0, grossSales: 0, refunds: 0, refundVat: 0,
       })
     }
     return monthMap.get(month)
@@ -143,11 +107,6 @@ export function buildAccountingReport(data, { taxBasis = 'corporation' } = {}) {
     b.refunds += r.refundTotal
     b.refundVat += r.refundVat
   }
-  for (const e of expenses) {
-    const b = bucket(manilaMonthStr(e.expenseDate))
-    b.expenses += e.amount
-    b.inputVat += e.inputVat
-  }
   const monthly = [...monthMap.values()]
     .map((m) => ({
       ...m,
@@ -158,12 +117,7 @@ export function buildAccountingReport(data, { taxBasis = 'corporation' } = {}) {
       grossSales: round2(m.grossSales),
       refunds: round2(m.refunds),
       refundVat: round2(m.refundVat),
-      expenses: round2(m.expenses),
-      inputVat: round2(m.inputVat),
       netVat: round2(m.outputVat - m.refundVat),
-      // Negative means input VAT exceeded VAT collected that month, a credit
-      // that carries forward rather than a refund.
-      vatPayable: round2(m.outputVat - m.refundVat - m.inputVat),
     }))
     .sort((a, b) => a.month.localeCompare(b.month))
 
@@ -187,15 +141,6 @@ export function buildAccountingReport(data, { taxBasis = 'corporation' } = {}) {
       vat: round2(-r.refundVat),
       total: round2(-r.refundTotal),
     })),
-    ...expenses.map((e) => ({
-      date: e.expenseDate,
-      type: 'Expense',
-      reference: '-',
-      note: e.description,
-      net: round2(-(e.amount - e.inputVat)),
-      vat: round2(-e.inputVat),
-      total: round2(-e.amount),
-    })),
   ].sort((a, b) => new Date(a.date) - new Date(b.date))
 
   let running = 0
@@ -204,7 +149,7 @@ export function buildAccountingReport(data, { taxBasis = 'corporation' } = {}) {
     return { ...e, balance: running }
   })
 
-  return { summary, monthly, ledger, refunds, pendingRefunds, expenses }
+  return { summary, monthly, ledger, refunds, pendingRefunds }
 }
 
 // Preset ranges, as { from, to } YYYY-MM-DD strings in Manila time.

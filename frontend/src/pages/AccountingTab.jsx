@@ -2,8 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api.js'
 import {
   buildAccountingReport,
-  TAX_BASES,
-  manilaDateStr,
   presetRange,
   rangeLabel,
   peso,
@@ -38,15 +36,6 @@ export default function AccountingTab({ Card, StatCard, DataTable }) {
   const [exporting, setExporting] = useState(null)
   const [ledgerType, setLedgerType] = useState('all')
   const [ledgerSearch, setLedgerSearch] = useState('')
-  const [taxBasis, setTaxBasis] = useState('corporation')
-
-  // Expense form
-  const [expDate, setExpDate] = useState(() => manilaDateStr(new Date()))
-  const [expDescription, setExpDescription] = useState('')
-  const [expAmount, setExpAmount] = useState('')
-  const [expVat, setExpVat] = useState('')
-  const [savingExpense, setSavingExpense] = useState(false)
-  const [expenseMessage, setExpenseMessage] = useState('')
 
   const rangeValid = Boolean(from && to && from <= to)
   const rangeText = rangeValid ? rangeLabel(from, to) : ''
@@ -76,51 +65,8 @@ export default function AccountingTab({ Card, StatCard, DataTable }) {
     setTo(range.to)
   }
 
-  const report = useMemo(() => (data ? buildAccountingReport(data, { taxBasis }) : null), [data, taxBasis])
+  const report = useMemo(() => (data ? buildAccountingReport(data) : null), [data])
   const s = report?.summary
-
-  async function handleAddExpense(e) {
-    e.preventDefault()
-    setExpenseMessage('')
-    if (!expDescription.trim() || !(Number(expAmount) > 0)) {
-      setExpenseMessage('Enter a description and an amount greater than zero.')
-      return
-    }
-    if (Number(expVat || 0) > Number(expAmount)) {
-      setExpenseMessage('The VAT portion cannot be more than the amount paid.')
-      return
-    }
-    setSavingExpense(true)
-    try {
-      await api.addExpense({
-        expense_date: expDate,
-        description: expDescription.trim(),
-        amount: Number(expAmount),
-        input_vat: Number(expVat || 0),
-      })
-      setExpDescription('')
-      setExpAmount('')
-      setExpVat('')
-      // Only reload the list when the new expense falls inside the period on
-      // screen; otherwise tell the admin where it went.
-      if (expDate >= from && expDate <= to) await load()
-      else setExpenseMessage('Saved. It is outside the selected period, so change the dates to see it.')
-    } catch (err) {
-      setExpenseMessage(err.message)
-    } finally {
-      setSavingExpense(false)
-    }
-  }
-
-  async function handleDeleteExpense(id) {
-    if (!window.confirm('Delete this expense? This cannot be undone.')) return
-    try {
-      await api.deleteExpense(id)
-      await load()
-    } catch (err) {
-      setExpenseMessage(err.message)
-    }
-  }
 
   async function handleExport(format) {
     if (!report) return
@@ -240,63 +186,18 @@ export default function AccountingTab({ Card, StatCard, DataTable }) {
             <StatCard label="Net Sales" value={peso(s.netSales)} hint="Excluding VAT" />
             <StatCard label="Output VAT (12%)" value={peso(s.outputVat)} hint="Collected on sales" />
             <StatCard label="Refunds Issued" value={peso(s.refundsIssued)} hint={`${s.refundCount} refund${s.refundCount === 1 ? '' : 's'} paid out`} />
-            <StatCard label="Net VAT Payable" value={peso(s.netVatPayable)} hint="Output VAT less VAT refunded" />
+            <StatCard label="VAT to Remit to BIR" value={peso(s.netVatPayable)} hint="Output VAT less VAT refunded" />
             <StatCard label="Net Revenue" value={peso(s.netRevenue)} hint={`${peso(s.netRevenueExVat)} excluding VAT`} />
-            <StatCard label="Expenses" value={peso(s.expensesTotal)} hint={`${s.expenseCount} recorded, ${peso(s.inputVat)} input VAT`} />
-            <StatCard label="Profit Before Tax" value={peso(s.profitBeforeTax)} hint="Net revenue less expenses, excl. VAT" />
-            <StatCard label="VAT to Remit to BIR" value={peso(s.vatRemittable)} hint={s.vatCarryOver > 0 ? `${peso(s.vatCarryOver)} credit carried over` : 'After input VAT credit'} />
           </div>
 
-          <Card title="Profit and BIR Remittance">
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <div>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-500">Profit</h3>
-                <div className="mt-2">
-                  {line('Gross sales (incl. VAT)', s.grossSales)}
-                  {line('Less: output VAT collected', -s.outputVat, { indent: true })}
-                  {line('Net sales (excl. VAT)', s.netSales, { strong: true })}
-                  {line('Less: refunds, excluding the VAT returned', -(s.refundsIssued - s.refundVat), { indent: true })}
-                  {line('Net revenue (excl. VAT)', s.netRevenueExVat, { strong: true })}
-                  {line('Less: expenses, excluding input VAT', -s.expensesNet, { indent: true })}
-                  {line('Profit before income tax', s.profitBeforeTax, { strong: true })}
-                  {line(`Less: estimated income tax (${s.taxRate}%)`, -s.incomeTaxEstimate, { indent: true })}
-                  {line('Profit after income tax', s.profitAfterTax, { strong: true })}
-                </div>
-              </div>
-
-              <div>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-500">Amount to remit to the BIR</h3>
-                <div className="mt-2">
-                  {line('Output VAT collected on fares', s.outputVat)}
-                  {line('Less: VAT returned with refunds', -s.refundVat, { indent: true })}
-                  {line('Less: input VAT on expenses', -s.inputVat, { indent: true })}
-                  {line(
-                    s.vatCarryOver > 0 ? 'VAT payable (none, credit carries over)' : 'VAT payable',
-                    s.vatRemittable,
-                    { strong: true, note: s.vatCarryOver > 0 ? `${peso(s.vatCarryOver)} of input VAT credit is carried to the next period.` : undefined }
-                  )}
-                  {line(`Estimated income tax (${s.taxRate}%)`, s.incomeTaxEstimate,)}
-                  {line('Total estimated BIR remittance', s.totalBirEstimate, { strong: true })}
-                </div>
-
-                <div className="mt-3">
-                  <label className="block text-xs font-medium text-gray-500 dark:text-slate-500">Income tax basis</label>
-                  <select
-                    value={taxBasis}
-                    onChange={(e) => setTaxBasis(e.target.value)}
-                    className={`${inputClass} w-full`}
-                  >
-                    {Object.entries(TAX_BASES).map(([key, b]) => (
-                      <option key={key} value={key}>{b.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+          <Card title="VAT to Remit to the BIR">
+            <div className="max-w-xl">
+              {line('Output VAT collected on fares', s.outputVat)}
+              {line('Less: VAT returned with refunds', -s.refundVat, { indent: true })}
+              {line('VAT payable to the BIR', s.netVatPayable, { strong: true })}
             </div>
-
           </Card>
 
-          
           <Card title="VAT Report">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="rounded-md border border-gray-200 dark:border-slate-800 p-3">
@@ -316,7 +217,7 @@ export default function AccountingTab({ Card, StatCard, DataTable }) {
             {report.monthly.length === 0 ? (
               <p className="mt-4 text-sm text-gray-500 dark:text-slate-500">No sales or refunds in this period.</p>
             ) : (
-              <DataTable headers={['Month', 'Bookings', 'VAT-able', 'VAT-exempt', 'Output VAT', 'Refund VAT', 'Input VAT', 'VAT payable', 'Gross sales', 'Refunds']}>
+              <DataTable headers={['Month', 'Bookings', 'VAT-able', 'VAT-exempt', 'Output VAT', 'Refund VAT', 'VAT payable', 'Gross sales', 'Refunds']}>
                 {[...report.monthly].reverse().map((m) => (
                   <tr key={m.month} className={rowClass}>
                     <td className="px-3 py-1.5 font-medium text-gray-800 dark:text-slate-100">{monthLabel(m.month)}</td>
@@ -325,8 +226,7 @@ export default function AccountingTab({ Card, StatCard, DataTable }) {
                     <td className={cellClass}>{peso(m.exemptSales)}</td>
                     <td className={cellClass}>{peso(m.outputVat)}</td>
                     <td className={cellClass}>{peso(m.refundVat)}</td>
-                    <td className={cellClass}>{peso(m.inputVat)}</td>
-                    <td className="px-3 py-1.5 font-semibold text-gray-900 dark:text-white">{money(m.vatPayable)}</td>
+                    <td className="px-3 py-1.5 font-semibold text-gray-900 dark:text-white">{money(m.netVat)}</td>
                     <td className={cellClass}>{peso(m.grossSales)}</td>
                     <td className={cellClass}>{peso(m.refunds)}</td>
                   </tr>
@@ -402,7 +302,6 @@ export default function AccountingTab({ Card, StatCard, DataTable }) {
                 <option value="all">All transactions</option>
                 <option value="sale">Sales only</option>
                 <option value="refund">Refunds only</option>
-                <option value="expense">Expenses only</option>
               </select>
               <span className="whitespace-nowrap rounded-full bg-gray-100 dark:bg-slate-800 px-3 py-1 text-xs font-semibold text-gray-600 dark:text-slate-400">
                 {ledgerRows.length} entr{ledgerRows.length === 1 ? 'y' : 'ies'}
@@ -421,9 +320,7 @@ export default function AccountingTab({ Card, StatCard, DataTable }) {
                         className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                           e.type === 'Sale'
                             ? 'bg-teal-100 dark:bg-teal-500/15 text-teal-700 dark:text-teal-300'
-                            : e.type === 'Expense'
-                              ? 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300'
-                              : 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300'
+                            : 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300'
                         }`}
                       >
                         {e.type}

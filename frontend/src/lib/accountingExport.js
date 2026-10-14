@@ -22,14 +22,7 @@ const SUMMARY_ROWS = (s) => [
   ['VAT returned with refunds', s.refundVat],
   ['Net revenue (incl. VAT)', s.netRevenue],
   ['Net revenue (excl. VAT)', s.netRevenueExVat],
-  [`Expenses paid (${s.expenseCount})`, s.expensesTotal],
-  ['Input VAT on expenses', s.inputVat],
-  ['Profit before income tax', s.profitBeforeTax],
-  [`Estimated income tax (${s.taxRate}%)`, s.incomeTaxEstimate],
-  ['Profit after income tax', s.profitAfterTax],
-  ['VAT payable to BIR (after input VAT)', s.vatRemittable],
-  ['Input VAT credit carried over', s.vatCarryOver],
-  ['Total estimated BIR remittance', s.totalBirEstimate],
+  ['VAT payable to BIR (output VAT less refunded VAT)', s.netVatPayable],
   [`Pending refunds (${s.pendingCount})`, s.pendingAmount],
 ]
 
@@ -76,28 +69,13 @@ export async function exportAccountingPdf(report, rangeText) {
   doc.text('Monthly VAT Report', 40, doc.lastAutoTable.finalY + 26)
   doc.autoTable({
     startY: doc.lastAutoTable.finalY + 34,
-    head: [['Month', 'VAT-able', 'VAT-exempt', 'Output VAT', 'Refund VAT', 'Input VAT', 'VAT payable', 'Gross sales']],
+    head: [['Month', 'VAT-able', 'VAT-exempt', 'Output VAT', 'Refund VAT', 'VAT payable', 'Gross sales']],
     body: monthly.map((m) => [
       monthLabel(m.month), phpPlain(m.vatableSales), phpPlain(m.exemptSales), phpPlain(m.outputVat),
-      phpPlain(m.refundVat), phpPlain(m.inputVat), phpPlain(m.vatPayable), phpPlain(m.grossSales),
+      phpPlain(m.refundVat), phpPlain(m.netVat), phpPlain(m.grossSales),
     ]),
     ...tableStyle,
   })
-
-  if (report.expenses.length > 0) {
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(12)
-    doc.text('Expenses', 40, doc.lastAutoTable.finalY + 26)
-    doc.autoTable({
-      startY: doc.lastAutoTable.finalY + 34,
-      head: [['Date', 'Description', 'Amount paid', 'Input VAT', 'Cost excl. VAT']],
-      body: report.expenses.map((e) => [
-        formatDateTime(e.expenseDate).split(',').slice(0, 2).join(','), e.description, phpPlain(e.amount),
-        phpPlain(e.inputVat), phpPlain(e.amount - e.inputVat),
-      ]),
-      ...tableStyle,
-    })
-  }
 
   if (pendingRefunds.length > 0) {
     doc.setFont('helvetica', 'bold')
@@ -150,22 +128,13 @@ export async function exportAccountingExcel(report, rangeText) {
   XLSX.utils.book_append_sheet(wb, summarySheet, 'Summary')
 
   const monthlySheet = XLSX.utils.aoa_to_sheet([
-    ['Month', 'Bookings', 'VAT-able sales', 'VAT-exempt sales', 'Net sales', 'Output VAT', 'Refund VAT', 'Input VAT', 'VAT payable', 'Gross sales', 'Refunds', 'Expenses paid'],
+    ['Month', 'Bookings', 'VAT-able sales', 'VAT-exempt sales', 'Net sales', 'Output VAT', 'Refund VAT', 'VAT payable', 'Gross sales', 'Refunds'],
     ...monthly.map((m) => [
-      monthLabel(m.month), m.bookings, m.vatableSales, m.exemptSales, m.netSales, m.outputVat, m.refundVat, m.inputVat, m.vatPayable, m.grossSales, m.refunds, m.expenses,
+      monthLabel(m.month), m.bookings, m.vatableSales, m.exemptSales, m.netSales, m.outputVat, m.refundVat, m.netVat, m.grossSales, m.refunds,
     ]),
   ])
-  monthlySheet['!cols'] = [{ wch: 12 }, { wch: 10 }, ...Array(10).fill({ wch: 16 })]
+  monthlySheet['!cols'] = [{ wch: 12 }, { wch: 10 }, ...Array(8).fill({ wch: 16 })]
   XLSX.utils.book_append_sheet(wb, monthlySheet, 'Monthly VAT')
-
-  const expenseSheet = XLSX.utils.aoa_to_sheet([
-    ['Date', 'Description', 'Amount paid (PHP)', 'Input VAT (PHP)', 'Cost excl. VAT (PHP)'],
-    ...report.expenses.map((e) => [
-      formatDateTime(e.expenseDate).split(',').slice(0, 2).join(','), e.description, e.amount, e.inputVat, Number((e.amount - e.inputVat).toFixed(2)),
-    ]),
-  ])
-  expenseSheet['!cols'] = [{ wch: 16 }, { wch: 40 }, { wch: 18 }, { wch: 16 }, { wch: 20 }]
-  XLSX.utils.book_append_sheet(wb, expenseSheet, 'Expenses')
 
   const ledgerSheet = XLSX.utils.aoa_to_sheet([
     ['Date', 'Type', 'Reference', 'Details', 'Net (PHP)', 'VAT (PHP)', 'Total (PHP)', 'Running balance (PHP)'],
@@ -215,30 +184,14 @@ export async function exportAccountingPptx(report, rangeText) {
   vat.addText('Monthly VAT Report', { x: 0.5, y: 0.3, w: 9, h: 0.5, fontSize: 22, bold: true, color: INK })
   vat.addTable(
     [
-      ['Month', 'Output VAT', 'Refund VAT', 'Input VAT', 'VAT payable'].map(headCell),
+      ['Month', 'Output VAT', 'Refund VAT', 'VAT payable'].map(headCell),
       ...monthly.map((m) => [
         { text: monthLabel(m.month) }, { text: phpPlain(m.outputVat) }, { text: phpPlain(m.refundVat) },
-        { text: phpPlain(m.inputVat) }, { text: phpPlain(m.vatPayable) },
+        { text: phpPlain(m.netVat) },
       ]),
     ],
-    { x: 0.5, y: 1.0, w: 9, colW: [1.6, 2.0, 1.8, 1.8, 1.8], fontSize: 11, border, autoPage: true }
+    { x: 0.5, y: 1.0, w: 9, colW: [2.1, 2.3, 2.3, 2.3], fontSize: 11, border, autoPage: true }
   )
-
-  const bir = pptx.addSlide()
-  bir.addText('Profit and BIR Remittance', { x: 0.5, y: 0.3, w: 9, h: 0.5, fontSize: 22, bold: true, color: INK })
-  bir.addTable(
-    [
-      ['Net revenue (excl. VAT)', summary.netRevenueExVat],
-      ['Expenses (excl. input VAT)', summary.expensesNet],
-      ['Profit before income tax', summary.profitBeforeTax],
-      [`Estimated income tax (${summary.taxRate}%)`, summary.incomeTaxEstimate],
-      ['Profit after income tax', summary.profitAfterTax],
-      ['VAT payable to BIR', summary.vatRemittable],
-      ['Total estimated BIR remittance', summary.totalBirEstimate],
-    ].map(([label, value]) => [{ text: label, options: { bold: true } }, { text: phpPlain(value), options: { align: 'right' } }]),
-    { x: 0.5, y: 1.0, w: 9, colW: [5.5, 3.5], fontSize: 12, border, autoPage: false }
-  )
-  bir.addText('Estimate only. Confirm with your accountant before filing or paying.', { x: 0.5, y: 5.0, w: 9, h: 0.4, fontSize: 10, color: '6B7280' })
 
   const refunds = pptx.addSlide()
   refunds.addText('Refunds', { x: 0.5, y: 0.3, w: 9, h: 0.5, fontSize: 22, bold: true, color: INK })

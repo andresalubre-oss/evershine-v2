@@ -150,6 +150,11 @@ export default function CoastGuardPortal() {
     return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
   }
 
+  const nextSailing = upcoming[0]
+  const todayCount = upcoming.filter((s) => new Date(s.departureDatetime).toDateString() === now.toDateString()).length
+  const hour = now.getHours()
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
+
   return (
     <div className="flex min-h-screen flex-col bg-gray-50 dark:bg-slate-950">
       {/* Header — deliberately mirrors the Admin Panel's dark teal sidebar
@@ -197,10 +202,47 @@ export default function CoastGuardPortal() {
       </header>
 
       <div className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6">
-        {/* Short orientation banner — this audience opens the portal
-            infrequently, so a one-line reminder of what it's for and isn't
-            for is worth the space every time. */}
-        
+        {me && (
+          <div className="mb-5">
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+              {greeting}, {me.name?.split(' ')[0] || 'Officer'}
+            </h1>
+            <p className="mt-0.5 text-sm text-gray-500 dark:text-slate-400">
+              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+              {me.coastGuardStation ? ` · ${me.coastGuardStation} Station` : ''}
+            </p>
+          </div>
+        )}
+
+        {!loading && (
+          <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">Next sailing</p>
+              {nextSailing ? (
+                <>
+                  <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">
+                    {new Date(nextSailing.departureDatetime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">
+                    {dayLabel(new Date(nextSailing.departureDatetime))} · {directionLabel[nextSailing.direction] || nextSailing.direction}
+                  </p>
+                </>
+              ) : (
+                <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">None scheduled</p>
+              )}
+            </div>
+            <div className="rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">Sailings today</p>
+              <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{todayCount}</p>
+              <p className="text-xs text-gray-500 dark:text-slate-400">{upcoming.length} upcoming in total</p>
+            </div>
+            <div className="rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">Manifests received</p>
+              <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{manifests.length}</p>
+              <p className="text-xs text-gray-500 dark:text-slate-400">Ready to download as PDF</p>
+            </div>
+          </div>
+        )}
 
         {message && (
           <div className="mb-5 rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/30 px-4 py-3">
@@ -219,6 +261,9 @@ export default function CoastGuardPortal() {
                 <div className="flex items-center gap-2 border-b border-gray-100 dark:border-slate-800 px-4 py-3.5">
                   <IconFerry className="h-5 w-5 text-teal-700 dark:text-teal-400" />
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">Upcoming Sailings</p>
+                  <span className="ml-auto rounded-full bg-gray-100 dark:bg-slate-800 px-2 py-0.5 text-xs font-semibold text-gray-600 dark:text-slate-300">
+                    {upcoming.length}
+                  </span>
                 </div>
                 {upcoming.length === 0 ? (
                   <p className="px-4 py-6 text-sm text-gray-500 dark:text-slate-500">No upcoming sailings scheduled.</p>
@@ -234,32 +279,47 @@ export default function CoastGuardPortal() {
                             const capacity = s.ferry?.seatCapacity
                             const available = s.availableSeats
                             const lowSeats = typeof available === 'number' && capacity && available <= capacity * 0.15
+                            const isNext = s.id === nextSailing?.id
+                            const booked = typeof available === 'number' && capacity ? capacity - available : null
+                            const pct = booked !== null ? Math.min(100, Math.round((booked / capacity) * 100)) : 0
                             return (
                               <div
                                 key={s.id}
-                                className="rounded-md border border-gray-100 dark:border-slate-800 px-3 py-2.5"
+                                className={`rounded-md border px-3 py-2.5 ${
+                                  isNext
+                                    ? 'border-teal-300 dark:border-teal-700 bg-teal-50/60 dark:bg-teal-900/20'
+                                    : 'border-gray-100 dark:border-slate-800'
+                                }`}
                               >
                                 <div className="flex items-center justify-between gap-2">
-                                  <p className="text-sm font-semibold text-gray-800 dark:text-slate-100">
+                                  <p className="flex items-center gap-2 text-sm font-semibold text-gray-800 dark:text-slate-100">
                                     {new Date(s.departureDatetime).toLocaleTimeString('en-US', {
                                       hour: 'numeric', minute: '2-digit',
                                     })}
+                                    {isNext && (
+                                      <span className="rounded-full bg-teal-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                                        Next
+                                      </span>
+                                    )}
                                   </p>
-                                  {typeof available === 'number' && (
-                                    <span
-                                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                                        lowSeats
-                                          ? 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300'
-                                          : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300'
-                                      }`}
-                                    >
-                                      {available} / {capacity} seats
+                                  {booked !== null && (
+                                    <span className="text-xs font-medium text-gray-600 dark:text-slate-300">
+                                      {booked} / {capacity} <span className="text-gray-400 dark:text-slate-500">on board</span>
                                     </span>
                                   )}
                                 </div>
-                                <p className="mt-0.5 text-xs text-gray-500 dark:text-slate-500">
-                                  {directionLabel[s.direction] || s.direction} · {s.ferry?.name || 'Ferry TBD'}
+                                <p className="mt-0.5 text-xs text-gray-500 dark:text-slate-400">
+                                  {directionLabel[s.direction] || s.direction}
                                 </p>
+                                <p className="text-xs text-gray-500 dark:text-slate-400">{s.ferry?.name || 'Ferry TBD'}</p>
+                                {booked !== null && (
+                                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-slate-800">
+                                    <div
+                                      className={`h-full rounded-full ${lowSeats ? 'bg-red-500' : 'bg-teal-600'}`}
+                                      style={{ width: `${pct}%` }}
+                                    />
+                                  </div>
+                                )}
                               </div>
                             )
                           })}
@@ -282,9 +342,13 @@ export default function CoastGuardPortal() {
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">Manifests Shared With You</p>
                 </div>
                 {manifests.length === 0 ? (
-                  <p className="px-4 py-6 text-sm text-gray-500 dark:text-slate-500">
-                    Nothing here yet Evershine admins can send a sailing's manifest from their dashboard.
-                  </p>
+                  <div className="flex flex-col items-center px-4 py-8 text-center">
+                    <IconFileText className="h-8 w-8 text-gray-300 dark:text-slate-600" />
+                    <p className="mt-2 text-sm font-medium text-gray-700 dark:text-slate-300">No manifests yet</p>
+                    <p className="mt-0.5 text-xs text-gray-500 dark:text-slate-400">
+                      Manifests sent by Evershine admins will appear here.
+                    </p>
+                  </div>
                 ) : (
                   <div className="no-scrollbar max-h-[20rem] space-y-2 overflow-y-auto px-4 py-4">
                     {manifests.map((m) => (

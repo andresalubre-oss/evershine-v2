@@ -472,6 +472,14 @@ export default function Booking() {
 
   const [booking, setBooking] = useState(null)
 
+  // The booking flow moves between steps (form, review, payment) without
+  // changing the URL, so the app-wide scroll-to-top on route change never
+  // fires. Without this, clicking Proceed at the bottom of a long form
+  // dropped the customer onto the next step still scrolled to the bottom.
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }, [phase, Boolean(booking)])
+
   const [qrCodeImageUrl, setQrCodeImageUrl] = useState(null)
   const [testUrl, setTestUrl] = useState(null)
   const [paymentStatus, setPaymentStatus] = useState('idle') // idle | loading | awaiting_payment | paid | expired | error
@@ -935,10 +943,6 @@ export default function Booking() {
 
           <div className="mt-6 text-xl rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
             <h2 className="text-xl font-semibold text-gray-800">Passengers</h2>
-            <p className="mt-1 text-lg text-sm text-gray-500">
-              Enter each passenger's details exactly as shown on a valid ID. This is needed for boarding.
-              Fields marked with <span className="text-red-600">*</span> are required.
-            </p>
             <label className="mt-4 block text-sm font-medium text-gray-700">Number of Passengers</label>
             <input
               type="number"
@@ -965,12 +969,12 @@ export default function Booking() {
                   </h3>
                   <div className="flex items-center gap-3">
                     {i === 0 && customer && (
-                      <label className="flex items-center gap-2 text-sm text-gray-700">
+                      <label className="flex cursor-pointer items-center gap-3 py-1 text-base font-medium text-gray-700">
                         <input
                           type="checkbox"
                           checked={bookingForSelf}
                           onChange={(e) => handleBookingForSelfToggle(e.target.checked)}
-                          className="h-4 w-4 rounded border-gray-300 text-teal-700 focus:ring-teal-600"
+                          className="h-6 w-6 flex-shrink-0 cursor-pointer rounded border-gray-300 accent-teal-700 focus:ring-teal-600"
                         />
                         Booking for myself
                       </label>

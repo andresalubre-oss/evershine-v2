@@ -287,32 +287,6 @@ model CoastGuardMessage {
   @@map("coast_guard_messages")
 }
 
-// A record of "Send Manifest" from the admin's Manifest tab — not the PDF
-// itself (that's regenerated on demand from current passenger data whenever
-// someone opens it, so it never goes stale relative to later bookings/
-// cancellations for that sailing), just who it was sent to and when. Lets
-// the Coast Guard portal show "manifests shared with you" instead of relying
-// entirely on the account's actual email inbox, which the portal has no way
-// to read. recipientAccountIds is a plain Postgres array (no join table
-// needed) — the Coast Guard portal queries with a `has` filter for its own
-// account id.
-// A business expense recorded by an admin from the Accounting tab. Needed for
-// the profit figure and for input VAT: VAT paid on purchases from
-// VAT-registered suppliers is credited against the output VAT collected on
-// fares, so only the difference is remitted to the BIR. `amount` is what was
-// actually paid (VAT included); `inputVat` is the VAT portion shown on the
-// receipt (0 when the supplier isn't VAT-registered, so no credit applies).
-model Expense {
-  id          String   @id @default(uuid())
-  expenseDate DateTime @map("expense_date")
-  description String
-  amount      Decimal  @db.Decimal(12, 2)
-  inputVat    Decimal  @default(0) @map("input_vat") @db.Decimal(12, 2)
-  createdAt   DateTime @default(now()) @map("created_at")
-
-  @@map("expenses")
-}
-
 model SentManifest {
   id                  String   @id @default(uuid())
   scheduleId          String   @map("schedule_id")
