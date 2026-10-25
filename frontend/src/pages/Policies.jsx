@@ -1,5 +1,3 @@
-// Save as: frontend/src/pages/Policies.jsx
-
 function Section({ title, children }) {
   return (
     <section className="border-t border-gray-100 py-7 first:border-t-0 first:pt-0">
@@ -9,11 +7,6 @@ function Section({ title, children }) {
   )
 }
 
-// Single static landscape ad poster shown above the page title. Not a
-// slider — drop one banner image into frontend/public/ and point this at
-// it. object-cover fills the box edge-to-edge (crops overflow); switch to
-// object-contain instead if you'd rather see the whole poster with letterbox
-// bars when its aspect ratio doesn't match.
 const AD_BANNER_IMAGE = '/magellancross-policies.png'
 
 

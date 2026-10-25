@@ -1,16 +1,3 @@
-// Save as: frontend/src/pages/CoastGuardPortal.jsx
-//
-// Minimal portal for Coast Guard accounts — just enough to see upcoming
-// sailings and coordinate with Evershine admins over chat. No booking,
-// customer, or financial data is reachable from here; the backend also
-// enforces this independently (requireAdminOrCoastGuard only opens the
-// schedules-read and chat routes to a coast_guard-role token — every other
-// admin route still requires 'admin' specifically).
-//
-// Styled to match the Admin Panel's dark teal header (same logo, same
-// "EVERSHINE BOOKING" wordmark treatment) so it reads as the same trusted
-// system, just a smaller, purpose-built slice of it — not a separate app.
-
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api.js'
@@ -106,7 +93,7 @@ export default function CoastGuardPortal() {
         setLoading(false)
       }
     })()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [])
 
   async function handleDownloadManifest(m) {
@@ -132,9 +119,7 @@ export default function CoastGuardPortal() {
     .filter((s) => new Date(s.departureDatetime) >= now)
     .sort((a, b) => new Date(a.departureDatetime) - new Date(b.departureDatetime))
 
-  // Grouped by calendar day so a busy week reads as a scannable agenda
-  // instead of one long flat list — "Today" / "Tomorrow" beat a raw date
-  // for a duty audience checking this in passing.
+
   const groupedByDay = upcoming.reduce((groups, s) => {
     const day = new Date(s.departureDatetime)
     const key = day.toDateString()
@@ -330,12 +315,7 @@ export default function CoastGuardPortal() {
                 )}
               </div>
 
-              {/* Manifests shared from the admin dashboard's "Send Manifest"
-                  action — shown here directly instead of relying on this
-                  account's actual email inbox, which the portal has no way
-                  to check. The PDF is regenerated fresh on every download,
-                  so it always reflects the current passenger list even if
-                  this was sent a while ago. */}
+          
               <div className="rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900">
                 <div className="flex items-center gap-2 border-b border-gray-100 dark:border-slate-800 px-4 py-3.5">
                   <IconFileText className="h-5 w-5 text-teal-700 dark:text-teal-400" />

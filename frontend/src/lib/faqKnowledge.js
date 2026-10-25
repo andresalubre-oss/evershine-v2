@@ -1,11 +1,3 @@
-// Save as: frontend/src/lib/faqKnowledge.js
-//
-// Shared question/answer content for both the FAQs page and the help
-// chat widget — one source of truth so the two never drift apart. No AI
-// involved: the widget just scores each entry by how many meaningful words
-// it shares with what the visitor typed, and returns the best match above
-// a minimum threshold.
-
 export const FAQS = [
   {
     q: 'What do I need to present when boarding?',
@@ -160,16 +152,12 @@ function tokenize(text) {
     .filter((word) => word && !STOPWORDS.has(word))
 }
 
-// Precompute each entry's token set once (question + optional keyword
-// synonyms) instead of re-tokenizing on every keystroke.
 const INDEX = FAQS.map((entry) => ({
   entry,
   tokens: new Set(tokenize(`${entry.q} ${(entry.keywords || []).join(' ')}`)),
 }))
 
-// Returns the closest-matching FAQ entry, or null if nothing clears the
-// similarity bar. Score = shared words / smaller word-set size, so a short
-// query that's fully contained in a longer question still scores well.
+
 export function findBestAnswer(query) {
   const queryTokens = new Set(tokenize(query));
   if (queryTokens.size === 0) return null;

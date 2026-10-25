@@ -1,22 +1,3 @@
-// Save as: frontend/src/components/ChatPanel.jsx
-//
-// Shared Coast Guard coordination chat — used both inside Admin.jsx (a
-// "Coast Guard" tab) and on the standalone Coast Guard portal page. Works
-// identically in both places since it derives everything from whichever
-// account's token is in localStorage; it doesn't need to know whether it's
-// rendering for an admin or a coast_guard account.
-//
-// Live delivery is socket.io, with two deliberate fallbacks so a flaky
-// connection (or Render's free-tier backend going to sleep after 15 min
-// idle, then taking ~1 min to wake back up) never makes the chat look
-// broken rather than just momentarily behind:
-//   1. REST history is (re)loaded on connect/reconnect, not just once on
-//      mount, so a gap while disconnected gets backfilled automatically.
-//   2. If Send is clicked while the socket isn't connected, it falls back
-//      to a plain REST POST instead of silently failing.
-// Messages are de-duplicated by id, since the same message can arrive via
-// both the live socket event and a REST history refresh.
-
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { io } from 'socket.io-client'
 import { api } from '../api.js'
@@ -87,8 +68,7 @@ export default function ChatPanel({ currentAccountId, className = '' }) {
 
     socket.on('connect', () => {
       setStatus('connected')
-      // Backfills anything sent while we were disconnected — cheap, and
-      // the id-based merge means this never creates duplicates.
+    
       loadHistory()
       api.markCoastGuardChatRead().catch(() => {})
     })
@@ -104,7 +84,7 @@ export default function ChatPanel({ currentAccountId, className = '' }) {
       socket.disconnect()
       socketRef.current = null
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [])
 
   useEffect(() => {
@@ -132,7 +112,7 @@ export default function ChatPanel({ currentAccountId, className = '' }) {
       return
     }
 
-    // Socket isn't up right now — REST fallback so Send still works.
+   
     try {
       const message = await api.sendCoastGuardMessageRest(body)
       mergeMessages([message])

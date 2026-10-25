@@ -25,8 +25,6 @@ function StatusBadge({ status }) {
   )
 }
 
-// No built-in top margin — tab content wraps its Cards in a `space-y-5`
-// container instead, so spacing stays consistent next to the sidebar.
 function Card({ title, children, className = '' }) {
   return (
     <div className={`rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm ${className}`}>
@@ -36,19 +34,6 @@ function Card({ title, children, className = '' }) {
   )
 }
 
-// Compact, data-dense KPI tile: a teal accent bar instead of a large icon
-// circle, a small icon for quick scanning, and an optional `hint` line for
-// context (trend vs. last month, a secondary count, etc). The bar uses
-// `self-stretch` (not a fixed height) so it always matches the card's own
-// content height exactly, even when a label wraps to two lines — otherwise
-// bars end up visibly different lengths/positions from card to card. Every
-// card uses the same teal accent rather than a different color per card, to
-// keep the row visually consistent. A plain <div> when there's nothing to
-// click through to, or a real <button> (solid teal fill when `active` — same
-// treatment as the Customer Directory's filter tiles, no ring/glow; a plain
-// background tint on hover otherwise, no colored border) when `onClick` is
-// provided so a tab like Analytics can use these as toggles for a details
-// panel.
 function StatCard({ label, value, icon: Icon, onClick, active = false, hint }) {
   const content = (
     <div className="w-full">
@@ -78,8 +63,6 @@ function StatCard({ label, value, icon: Icon, onClick, active = false, hint }) {
   )
 }
 
-// Bordered/table-wrapper so headers and rows look consistent everywhere.
-// Sticky header + zebra striping keep long, dense tables scannable.
 function DataTable({ headers, children }) {
   return (
     <div className="no-scrollbar mt-3 max-h-[520px] overflow-auto rounded-md border border-gray-200 dark:border-slate-800">
@@ -107,14 +90,10 @@ function fullAddress(p) {
   return [p.barangay, p.cityMunicipality, p.province, p.zipCode, p.country].filter(Boolean).join(', ')
 }
 
-// A verified discount lapses once discountVerifiedUntil passes — mirrors the
-// backend's isDiscountExpired so the Overview KPI and the Customers tab
-// agree on what "verified" means right now.
 function isCustomerDiscountVerified(c) {
   return c.discountStatus === 'verified' && (!c.discountVerifiedUntil || new Date(c.discountVerifiedUntil) >= new Date())
 }
 
-// "2026-08" -> "Aug 2026"
 function formatMonthLabel(monthStr) {
   const [y, m] = monthStr.split('-').map(Number)
   return new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
@@ -124,9 +103,6 @@ function formatPeso(amount) {
   return `₱${Number(amount).toLocaleString('en-US', { maximumFractionDigits: 0 })}`
 }
 
-// "5m ago" / "3h ago" / "2d ago" — used by the Overview's Recent Activity
-// feed, which is built from real records (discount requests, refunds,
-// registrations) rather than a canned placeholder list.
 function formatRelativeTime(dateStr) {
   const diffMs = Date.now() - new Date(dateStr).getTime()
   const minutes = Math.floor(diffMs / 60000)
@@ -140,9 +116,6 @@ function formatRelativeTime(dateStr) {
   return `${months}mo ago`
 }
 
-// Lightweight bar chart, no charting library — plain divs sized with
-// percentage height, consistent with the rest of the app's zero-dependency
-// approach (see the inline SVG icons below).
 function RevenueBarChart({ data }) {
   if (data.length === 0) {
     return <p className="text-sm text-gray-500 dark:text-slate-500">No data for this range.</p>
@@ -171,13 +144,6 @@ function RevenueBarChart({ data }) {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Weather tab visuals — condition icons, a wind-speed gauge, and a small
-// location map. Flat/outline style and solid fills throughout, matching the
-// rest of the admin UI's "no gradients, no light-tint effects" design
-// language rather than the glossy dark-dashboard look it was inspired by.
-// ---------------------------------------------------------------------------
-
 function IconCloudRain(props) {
   return (
     <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -195,10 +161,6 @@ function IconCloudLightning(props) {
   )
 }
 
-// Picks an icon by keyword match against the plain-language condition label
-// the backend sends (e.g. "Light rain", "Overcast") rather than re-deriving
-// from a raw weather code, so the icon and the label text can never
-// disagree with each other.
 function weatherIconFor(condition) {
   const c = (condition || '').toLowerCase()
   if (c.includes('thunder')) return IconCloudLightning
@@ -207,10 +169,6 @@ function weatherIconFor(condition) {
   return IconCloud
 }
 
-// Semi-circle wind-speed gauge, 0–60 km/h, three flat color zones (matches
-// the same normal/caution/rough thresholds the advisory badges use) with a
-// needle pointing at the current reading. Pure SVG + trig — no charting
-// library, consistent with RevenueBarChart above also being hand-rolled.
 function WindGauge({ valueKmh }) {
   const max = 60
   const cx = 100
@@ -218,7 +176,6 @@ function WindGauge({ valueKmh }) {
   const r = 78
   const clamped = Math.max(0, Math.min(valueKmh || 0, max))
 
-  // value 0 -> 180deg (left), value max -> 0deg (right)
   const pointAt = (value, radius) => {
     const angleDeg = 180 - (value / max) * 180
     const rad = (angleDeg * Math.PI) / 180
@@ -232,9 +189,9 @@ function WindGauge({ valueKmh }) {
 
   const needle = pointAt(clamped, r - 14)
   const zones = [
-    { from: 0, to: 25, color: '#16a34a' },   // normal
-    { from: 25, to: 40, color: '#d97706' },  // caution
-    { from: 40, to: 60, color: '#dc2626' },  // rough
+    { from: 0, to: 25, color: '#16a34a' },   
+    { from: 25, to: 40, color: '#d97706' },  
+    { from: 40, to: 60, color: '#dc2626' },  
   ]
 
   return (
@@ -258,8 +215,6 @@ function WindGauge({ valueKmh }) {
   )
 }
 
-// Teal-filled pin, matching the app's brand color instead of Leaflet's
-// default blue marker — same divIcon approach Directions.jsx uses.
 const weatherPinIcon = L.divIcon({
   className: '',
   html: '<div style="width:18px;height:18px;border-radius:9999px;background:#0f766e;border:3px solid #ffffff;box-shadow:0 0 0 1px #0f766e;box-sizing:border-box;"></div>',
@@ -267,10 +222,6 @@ const weatherPinIcon = L.divIcon({
   iconAnchor: [9, 9],
 })
 
-// Receipts/discount IDs are served through an authenticated route, so a plain
-// <img src> won't work — fetch as a blob and render that instead. When
-// `expandable` is set, clicking the thumbnail toggles a larger inline view
-// (no lightbox library needed) so admins can actually read small print on IDs.
 function AdminImage({ path, alt, className, expandable = false }) {
   const [url, setUrl] = useState(null)
   const [error, setError] = useState(false)
@@ -292,15 +243,12 @@ function AdminImage({ path, alt, className, expandable = false }) {
       alt={alt}
       onClick={expandable ? () => setExpanded((v) => !v) : undefined}
       title={expandable ? (expanded ? 'Click to shrink' : 'Click to enlarge') : undefined}
-      // Inline style beats the max-h/max-w Tailwind classes in `className`
-      // (arbitrary-value utilities don't reliably win via class order alone).
       style={expanded ? { maxWidth: '100%', maxHeight: 'none' } : undefined}
       className={`${className} ${expandable ? (expanded ? 'cursor-zoom-out' : 'cursor-zoom-in') : ''}`}
     />
   )
 }
 
-// --- Icons (simple, dependency-free inline SVGs) -----------------------
 
 function IconGrid(props) {
   return (
@@ -443,18 +391,12 @@ const TABS = [
   { id: 'analytics', label: 'Analytics', icon: IconChartBar },
 ]
 
-// Groups the flat TABS list for the sidebar so related sections read as one
-// unit at a glance — purely a rendering grouping, tab ids/logic are untouched.
 const TAB_GROUPS = [
   { label: null, ids: ['overview'] },
   { label: 'Operations', ids: ['ferries', 'weather', 'coastguard', 'customers', 'discounts', 'bookings', 'refunds', 'manifest'] },
   { label: 'Insights', ids: ['accounting', 'analytics'] },
 ]
 
-// Customer profile picture (their verification selfie). The file sits behind
-// an authenticated route, so it is fetched as a blob; results are cached per
-// path so reopening a row or re-sorting doesn't refetch. Falls back to
-// initials when the customer has no photo or it fails to load.
 const photoUrlCache = new Map()
 
 function CustomerAvatar({ customer, size = 'h-9 w-9', textSize = 'text-xs' }) {
@@ -492,9 +434,6 @@ export default function Admin() {
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('overview')
 
-  // Remembers the admin's collapsed/expanded preference across visits — a
-  // small quality-of-life touch for anyone on a smaller laptop screen who'd
-  // rather have the extra width than the full labels.
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem('adminSidebarCollapsed') === '1'
   )
@@ -502,11 +441,6 @@ export default function Admin() {
     localStorage.setItem('adminSidebarCollapsed', sidebarCollapsed ? '1' : '0')
   }, [sidebarCollapsed])
 
-  // Mobile tab strip has more tabs than fit on a phone screen at once, so it
-  // scrolls horizontally — but a bare `overflow-x-auto` isn't discoverable
-  // (nothing hints there's more to the right, and if a swipe gets missed
-  // there's no other way to get to it). These track scroll position so we
-  // can show/hide explicit left/right buttons instead of relying on swipe.
   const mobileNavRef = useRef(null)
   const [mobileNavAtStart, setMobileNavAtStart] = useState(true)
   const [mobileNavAtEnd, setMobileNavAtEnd] = useState(false)
@@ -520,10 +454,6 @@ export default function Admin() {
     updateMobileNavScroll()
   }, [])
 
-  // Opt-in dark mode for the dashboard only — off by default so the site's
-  // regular light branding is unaffected, remembered per-admin via
-  // localStorage. The `.dark` class is applied to this page's own root div
-  // below (not <html>), so it can never leak into the customer-facing pages.
   const [darkMode, setDarkMode] = useState(
     () => localStorage.getItem('adminDarkMode') === '1'
   )
@@ -541,7 +471,7 @@ export default function Admin() {
     try {
       await api.adminLogout()
     } catch {
-      // best-effort — log out locally regardless of whether the server call succeeded
+
     }
     localStorage.removeItem('adminToken')
     navigate('/admin')
@@ -550,7 +480,7 @@ export default function Admin() {
   const idleTimerRef = useRef(null)
 
   useEffect(() => {
-    const IDLE_LIMIT_MS = 2 * 60 * 60 * 1000 // 2 hours
+    const IDLE_LIMIT_MS = 2 * 60 * 60 * 1000 
 
     function resetIdleTimer() {
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
@@ -578,9 +508,6 @@ export default function Admin() {
   const [scheduleDate, setScheduleDate] = useState('')
   const [scheduleTime, setScheduleTime] = useState('')
   const [scheduleFare, setScheduleFare] = useState('')
-  // Set alongside the fare itself, so a discount rate is always declared at
-  // the same time as the price it applies to. Defaults match the flat 20%
-  // rate this replaces, so leaving them untouched keeps prior behavior.
   const [scheduleSeniorDiscount, setScheduleSeniorDiscount] = useState('20')
   const [schedulePwdDiscount, setSchedulePwdDiscount] = useState('20')
   const [scheduleStudentDiscount, setScheduleStudentDiscount] = useState('20')
@@ -596,16 +523,10 @@ export default function Admin() {
   const [pagasaBulletin, setPagasaBulletin] = useState(null)
   const [pagasaMessage, setPagasaMessage] = useState('')
   const [pagasaLoading, setPagasaLoading] = useState(false)
-  // Remembered across sessions (not just this page load) so "New bulletin"
-  // reflects whatever the admin has actually seen, not just what loaded
-  // since the tab was last opened.
   const [lastSeenBulletinAt, setLastSeenBulletinAt] = useState(
     () => localStorage.getItem('evershine-last-seen-pagasa-bulletin') || null
   )
 
-  // Coast Guard coordination — accounts are provisioned from here (station +
-  // login), and the read-only schedules list reuses the `schedules` state
-  // already loaded for the Ferries & Schedules tab, so no extra fetch.
   const [cgAccounts, setCgAccounts] = useState([])
   const [cgAccountsMessage, setCgAccountsMessage] = useState('')
   const [cgAccountsLoading, setCgAccountsLoading] = useState(false)
@@ -615,10 +536,6 @@ export default function Admin() {
   const [cgFormSubmitting, setCgFormSubmitting] = useState(false)
   const [showCgForm, setShowCgForm] = useState(false)
 
-  // "Send Manifest" — a small inline panel on the Manifest tab for emailing
-  // a PDF copy of the currently-generated manifest to any combination of
-  // Coast Guard accounts (checkboxes, reusing cgAccounts loaded above) and/or
-  // one extra address typed in by hand.
   const [sendManifestOpen, setSendManifestOpen] = useState(false)
   const [sendManifestSelectedIds, setSendManifestSelectedIds] = useState([])
   const [sendManifestExtraEmail, setSendManifestExtraEmail] = useState('')
@@ -626,28 +543,25 @@ export default function Admin() {
   const [sendManifestError, setSendManifestError] = useState(false)
   const [sendManifestSending, setSendManifestSending] = useState(false)
 
-  // Which schedule row (if any) has its inline edit form open, plus the
-  // draft field values for it. Reuses the same shape as the "add schedule"
-  // fields above, just scoped to one existing row instead of the create form.
   const [editingScheduleId, setEditingScheduleId] = useState(null)
-  const [editDraft, setEditDraft] = useState(null) // { ferry_id, direction, date, time, fare, senior, pwd, student }
+  const [editDraft, setEditDraft] = useState(null) 
   const [editScheduleMessage, setEditScheduleMessage] = useState('')
   const [editScheduleError, setEditScheduleError] = useState(false)
 
   const [pendingDiscounts, setPendingDiscounts] = useState([])
   const [discountsMessage, setDiscountsMessage] = useState('')
-  const [expiryDates, setExpiryDates] = useState({}) // customerId -> 'YYYY-MM-DD'
+  const [expiryDates, setExpiryDates] = useState({}) 
 
   const [customers, setCustomers] = useState([])
   const [customersMessage, setCustomersMessage] = useState('')
   const [customerSearch, setCustomerSearch] = useState('')
-  const [customerStatusFilter, setCustomerStatusFilter] = useState('all') // 'all' | 'verified' | 'unverified' — set by clicking a Customer Directory summary tile
-  const [expandedBookingId, setExpandedBookingId] = useState(null) // which booking card in All Bookings shows its passenger details
-  const [expandedCustomerId, setExpandedCustomerId] = useState(null) // which row in the Customer Directory has its full-detail panel open
-  const [discountTypeFilter, setDiscountTypeFilter] = useState('all') // 'all' | 'student' | 'senior' | 'pwd' — set by clicking a Profile Verification summary tile
-  const [expandedDiscountId, setExpandedDiscountId] = useState(null) // which pending verification request is expanded (collapsed by default so a long queue stays scannable)
-  const [bookingStatusFilter, setBookingStatusFilter] = useState('all') // 'all' | a BookingStatus value — set by clicking an All Bookings summary tile
-  const [bookingTripFilter, setBookingTripFilter] = useState('all') // 'all' | a scheduleId — narrows All Bookings down to one sailing
+  const [customerStatusFilter, setCustomerStatusFilter] = useState('all') 
+  const [expandedBookingId, setExpandedBookingId] = useState(null) 
+  const [expandedCustomerId, setExpandedCustomerId] = useState(null) 
+  const [discountTypeFilter, setDiscountTypeFilter] = useState('all') 
+  const [expandedDiscountId, setExpandedDiscountId] = useState(null)
+  const [bookingStatusFilter, setBookingStatusFilter] = useState('all')
+  const [bookingTripFilter, setBookingTripFilter] = useState('all')
 
   const [allBookings, setAllBookings] = useState([])
   const [bookingsMessage, setBookingsMessage] = useState('')
@@ -656,8 +570,7 @@ export default function Admin() {
   const [refundRequests, setRefundRequests] = useState([])
   const [refundsMessage, setRefundsMessage] = useState('')
   const [processingRefundId, setProcessingRefundId] = useState(null)
-  const [expandedRefundId, setExpandedRefundId] = useState(null) // which refund request is expanded (collapsed by default so a long queue stays scannable)
-  // Which guided panel (if any) is open per booking: 'approve' | 'reject' | undefined
+  const [expandedRefundId, setExpandedRefundId] = useState(null) 
   const [openRefundAction, setOpenRefundAction] = useState({})
   const [refundConfirmChecked, setRefundConfirmChecked] = useState({})
 
@@ -667,22 +580,12 @@ export default function Admin() {
 
   const [analytics, setAnalytics] = useState([])
   const [analyticsMessage, setAnalyticsMessage] = useState('')
-  const [analyticsFrom, setAnalyticsFrom] = useState('') // 'YYYY-MM', '' = no lower bound
-  const [analyticsTo, setAnalyticsTo] = useState('')     // 'YYYY-MM', '' = no upper bound
-  const [expandedStat, setExpandedStat] = useState(null) // which Analytics StatCard's detail panel is open
-  const [expandedOverviewStat, setExpandedOverviewStat] = useState(null) // which Overview StatCard's detail panel is open
-  const [showAllActivity, setShowAllActivity] = useState(false) // Recent Activity: false = first 5 only, true = everything
-
-  // Two-factor auth is mandatory and managed by IT directly (not
-  // self-service from this dashboard) — `adminInfo` is still loaded for the
-  // sidebar footer's name/email and initial, just without the enable/disable
-  // UI that used to live in a Security tab here.
-  const [adminInfo, setAdminInfo] = useState(null) // { id, email, name, twoFactorEnabled }
-
-  // Loaded eagerly on mount (not lazily per-tab) since the Overview stat
-  // cards need all of these regardless of which tab is active. Customers and
-  // adminInfo were added here too so the Overview KPIs and header can show
-  // real numbers immediately instead of waiting for those tabs to be opened.
+  const [analyticsFrom, setAnalyticsFrom] = useState('') 
+  const [analyticsTo, setAnalyticsTo] = useState('')  
+  const [expandedStat, setExpandedStat] = useState(null) 
+  const [expandedOverviewStat, setExpandedOverviewStat] = useState(null) 
+  const [showAllActivity, setShowAllActivity] = useState(false) 
+  const [adminInfo, setAdminInfo] = useState(null) 
   useEffect(() => {
     loadFerries()
     loadSchedules()
@@ -691,7 +594,6 @@ export default function Admin() {
     loadAnalytics()
     loadCustomers()
     loadAdminInfo()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function loadFerries() {
@@ -760,10 +662,6 @@ export default function Admin() {
     }
   }
 
-  // The server itself refuses to delete a schedule that already has
-  // bookings on it (see the DELETE /api/admin/schedules/:id route), so a
-  // rejected delete here just surfaces that message rather than something
-  // going wrong client-side.
   async function deleteSchedule(id) {
     setSchedulesMessage('')
     try {
@@ -774,9 +672,6 @@ export default function Admin() {
     }
   }
 
-  // Opens the inline edit form for one schedule row, seeded from its
-  // current values — mirrors the add-schedule fields above but scoped to
-  // this one row's draft state instead of the create form.
   function openEditSchedule(s) {
     const dep = new Date(s.departureDatetime)
     const pad = (n) => String(n).padStart(2, '0')
@@ -878,9 +773,6 @@ export default function Admin() {
     }
   }
 
-  // Refunds are always sent manually outside the app (bank transfer, GCash,
-  // etc.) — this just records that an admin reviewed the request and
-  // confirms the money has actually gone out.
   function closeRefundPanel(id) {
     setOpenRefundAction((prev) => ({ ...prev, [id]: undefined }))
     setRefundConfirmChecked((prev) => ({ ...prev, [id]: false }))
@@ -926,10 +818,6 @@ export default function Admin() {
 
   const [cancellingBookingId, setCancellingBookingId] = useState(null)
 
-  // Direct admin override — separate from the customer-initiated
-  // cancel/refund-request flow the Refunds tab handles. Paid bookings go to
-  // refund_requested (so they still show up there for the admin to actually
-  // mark as refunded once the money's sent back); unpaid ones cancel outright.
   async function adminCancelBooking(id) {
     if (!window.confirm('Cancel this booking? This cannot be undone.')) return
     setBookingsMessage('')
@@ -965,10 +853,6 @@ export default function Admin() {
     }
   }
 
-  // Which export is currently running ('pdf' | 'excel' | 'pptx' | null) —
-  // disables its button and swaps the label so a slow client-side export
-  // (mainly the PowerPoint one, which pulls in a heavier library) doesn't
-  // look like a dead click.
   const [exportingAnalytics, setExportingAnalytics] = useState(null)
 
   async function handleAnalyticsExport(format, rows, summary) {
@@ -985,21 +869,17 @@ export default function Admin() {
     }
   }
 
-  // All Bookings can be a long list, so it still loads lazily the first
-  // time that tab is opened rather than eagerly on mount.
+
   useEffect(() => {
     if (activeTab === 'bookings' && allBookings.length === 0) loadAllBookings()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab])
 
   useEffect(() => {
     if (activeTab === 'customers' && customers.length === 0) loadCustomers()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab])
 
   useEffect(() => {
     if (activeTab === 'weather' && !weather) loadWeather()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab])
 
   async function loadWeather() {
@@ -1028,30 +908,20 @@ export default function Admin() {
     }
   }
 
-  // Marks the currently-shown bulletin as seen — clears the "New" badge and
-  // remembers it (localStorage) so it stays cleared across page reloads and
-  // future logins, not just for this render.
   function markBulletinSeen() {
     if (!pagasaBulletin) return
     setLastSeenBulletinAt(pagasaBulletin.issuedAt)
     localStorage.setItem('evershine-last-seen-pagasa-bulletin', pagasaBulletin.issuedAt)
   }
 
-  // Loads the PAGASA bulletin on mount and re-checks it every 5 minutes for
-  // as long as the admin dashboard stays open — deliberately NOT gated to
-  // the Weather tab being active, so the sidebar's "New" badge (via
-  // tabBadges.weather above) can appear no matter which tab the admin is
-  // actually looking at, not just when they happen to have Weather open.
   useEffect(() => {
     loadPagasaBulletin()
     const id = setInterval(loadPagasaBulletin, 5 * 60 * 1000)
     return () => clearInterval(id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
     if ((activeTab === 'coastguard' || activeTab === 'manifest') && cgAccounts.length === 0) loadCgAccounts()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab])
 
   async function loadCgAccounts() {
@@ -1119,9 +989,6 @@ export default function Admin() {
       setAdminInfo(data)
     } catch (err) {
       console.error('Failed to load admin info:', err)
-      // A coast_guard-role token (or no token at all) gets "Not logged in"
-      // from this admin-only route — bounce to the right place instead of
-      // leaving every tab silently broken.
       if (err.message === 'Not logged in') {
         const token = localStorage.getItem('adminToken')
         navigate(token ? '/coastguard' : '/admin')
@@ -1134,8 +1001,6 @@ export default function Admin() {
   const thisMonthRevenue = thisMonth ? Number(thisMonth.revenue) : 0
   const thisMonthCount = thisMonth ? thisMonth.count : 0
 
-  // Previous calendar month, for the "vs last month" hint on the Overview
-  // revenue tile — purely derived from data already loaded for Analytics.
   const prevMonthKey = (() => {
     const d = new Date()
     d.setMonth(d.getMonth() - 1)
@@ -1151,9 +1016,6 @@ export default function Admin() {
   const allTimeBookings = analytics.reduce((sum, m) => sum + m.count, 0)
   const verifiedCustomerCount = customers.filter(isCustomerDiscountVerified).length
 
-  // `analytics` comes back sorted oldest-to-newest from the API — filtering
-  // client-side (rather than re-querying) keeps the range picker instant
-  // since this dataset is just one row per month.
   const filteredAnalytics = analytics.filter(
     (m) => (!analyticsFrom || m.month >= analyticsFrom) && (!analyticsTo || m.month <= analyticsTo)
   )
@@ -1178,15 +1040,12 @@ export default function Admin() {
 
   const hasNewBulletin = pagasaBulletin && pagasaBulletin.issuedAt !== lastSeenBulletinAt
 
-  // Small live counts surfaced directly in the nav so an admin can see
-  // what needs attention without first clicking into Overview.
   const tabBadges = {
     discounts: pendingDiscounts.length,
     refunds: refundRequests.length,
     weather: hasNewBulletin ? 1 : 0,
   }
-  // Built from records already loaded for other tabs (no extra API calls) —
-  // real recent events instead of a placeholder activity feed.
+  
   const activityDotColor = {
     verification: 'bg-purple-500',
     refund: 'bg-blue-500',
@@ -1211,21 +1070,12 @@ export default function Admin() {
   ]
     .filter((item) => item.date)
     .sort((a, b) => new Date(b.date) - new Date(a.date))
-    // No cap here anymore — the Recent Activity card below shows the first 5
-    // and reveals the rest behind a "Show more" toggle, so this can safely
-    // hold hundreds/thousands of entries without the list overwhelming the
-    // page.
-
-  // Extra context surfaced when an Overview StatCard is expanded — all
-  // derived from data already loaded for other tabs, no extra API calls.
+  
   const pendingByType = pendingDiscounts.reduce((acc, d) => {
     acc[d.discountType] = (acc[d.discountType] || 0) + 1
     return acc
   }, {})
-  // Actual refund owed, not the full fare — refundPercent (80/60/100, set
-  // when the cancellation was requested per the tiered policy) determines
-  // how much of totalFare is actually due back. Falls back to 100% for any
-  // pre-policy-change row that somehow has no refundPercent stored.
+
   const refundAmountOf = (b) => (Number(b.totalFare) * (b.refundPercent ?? 100)) / 100
   const refundTotalAmount = refundRequests.reduce((sum, b) => sum + refundAmountOf(b), 0)
   const oldestRefund = refundRequests.length > 0
@@ -1240,20 +1090,13 @@ export default function Admin() {
   const avgFareAllTime = allTimeBookings > 0 ? allTimeRevenue / allTimeBookings : 0
   const avgBookingsPerMonth = analytics.length > 0 ? allTimeBookings / analytics.length : 0
 
-  // Breakdown for the Profile Verification summary strip — how the pending
-  // queue splits by discount type, so the admin knows what's waiting before
-  // opening a single request.
+  
   const pendingByDiscountTypeCount = {
     student: pendingDiscounts.filter((d) => d.discountType === 'student').length,
     senior: pendingDiscounts.filter((d) => d.discountType === 'senior').length,
     pwd: pendingDiscounts.filter((d) => d.discountType === 'pwd').length,
   }
 
-  // Per the adviser's note: All Bookings drops sailings that departed more
-  // than 7 days ago (they're still in the database, just not surfaced here).
-  // Upcoming sailings have no upper limit, since those are exactly the
-  // bookings an admin needs to see. Scoped once here so the summary tiles,
-  // trip filter dropdown, and the list itself all agree on the same window.
   const recentBookings = allBookings.filter((b) => {
     if (!b.schedule) return false
     const departure = new Date(b.schedule.departureDatetime)
@@ -1261,26 +1104,20 @@ export default function Admin() {
     return departure >= sevenDaysAgo
   })
 
-  // All Bookings summary tiles — how many bookings sit in each status.
   const bookingStatusCounts = recentBookings.reduce((acc, b) => {
     acc[b.status] = (acc[b.status] || 0) + 1
     return acc
   }, {})
-  // Distinct sailings that actually have bookings, soonest first, for the
-  // "filter to one trip" dropdown.
+  
   const bookingTripOptions = Object.values(
     recentBookings.reduce((acc, b) => {
       if (b.schedule && !acc[b.scheduleId]) acc[b.scheduleId] = b.schedule
       return acc
     }, {})
   ).sort((a, b) => new Date(a.departureDatetime) - new Date(b.departureDatetime))
-  // Bookings that need admin action float to the top; settled ones sink to
-  // the bottom — same "attention first" ordering used elsewhere in this
-  // dashboard (Customer Directory, Profile Verification).
+
   const bookingStatusPriority = { refund_requested: 0, pending_payment: 1, payment_declined: 2, confirmed: 3, cancelled: 4, refunded: 5 }
 
-  // "Fleet at a Glance" detail — per-ferry sailing counts and next departure,
-  // built from the ferries/schedules already loaded for the Ferries tab.
   const directionLabel = {
     PB_TO_LIMASAWA: 'Padre Burgos → Limasawa',
     LIMASAWA_TO_PB: 'Limasawa → Padre Burgos',
@@ -1298,10 +1135,7 @@ export default function Admin() {
 
   return (
     <div className={`flex min-h-screen bg-gray-50 dark:bg-slate-950 ${darkMode ? 'dark' : ''}`}>
-      {/* Sidebar — full-height, fixed to the left edge on sm+ screens so it
-          stays put while the content scrolls. Hidden below sm; mobile gets
-          its own compact top bar + horizontal tab strip instead, since a
-          fixed full-height rail doesn't work well on a narrow screen. */}
+      
       <aside
         className={`hidden bg-teal-950 shadow-xl transition-[width] duration-200 print:hidden sm:fixed sm:inset-y-0 sm:left-0 sm:flex sm:flex-col ${
           sidebarCollapsed ? 'sm:w-16' : 'sm:w-60'
@@ -1310,10 +1144,6 @@ export default function Admin() {
         <div className={sidebarCollapsed ? 'px-2 py-5' : 'px-5 py-5'}>
           <div className={`flex items-center ${sidebarCollapsed ? 'flex-col gap-3' : 'justify-between'}`}>
             <div className={`flex items-center gap-2.5 ${sidebarCollapsed ? 'flex-col gap-2 text-center' : ''}`}>
-              {/* Logo file is a wide horizontal lockup (palm icon + wordmark), not a
-                  square mark — zoomed/cropped via background-position so just the
-                  palm icon fills this square badge instead of squishing the whole
-                  thing. White backing keeps it legible against the dark sidebar. */}
              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-white shadow-sm">
   <img src="/admin-evershine-logo.png" alt="Evershine" className="h-7 w-7 object-contain" />
 </div>
@@ -1411,17 +1241,12 @@ export default function Admin() {
         </div>
       </aside>
 
-      {/* Content column — offset to the right of the fixed sidebar on sm+,
-          matching whichever width the sidebar currently is. print:pl-0
-          drops that offset when printing, since the sidebar is print:hidden
-          and would otherwise leave a blank gutter on the left. */}
       <div
         className={`flex min-w-0 flex-1 flex-col transition-[padding] duration-200 print:pl-0 ${
           sidebarCollapsed ? 'sm:pl-16' : 'sm:pl-60'
         }`}
       >
-        {/* Mobile-only top bar — the fixed sidebar is hidden below sm, so
-            identity + Log Out need a home here instead. */}
+
         <div className="flex items-center justify-between border-b border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 print:hidden sm:hidden">
           <div>
             <p className="text-sm font-bold text-gray-900 dark:text-white">Admin Dashboard</p>
@@ -1441,11 +1266,6 @@ export default function Admin() {
           </div>
         </div>
 
-        {/* Mobile-only horizontal tab strip — same tabs as the sidebar nav,
-            just laid out for a narrow screen. Swiping works, but since that's
-            easy to miss, explicit left/right buttons (shown only when
-            there's actually more to scroll to) give a guaranteed way to
-            reach every tab. */}
         <div className="relative flex items-stretch border-b border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 print:hidden sm:hidden">
           {!mobileNavAtStart && (
             <button
@@ -1499,8 +1319,6 @@ export default function Admin() {
           )}
         </div>
 
-        {/* Desktop-only slim title bar for the active section. Identity +
-            Log Out now live in the sidebar, so this just orients the admin. */}
         <div className="hidden items-center justify-between border-b border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-4 print:hidden sm:flex">
           <h1 className="text-lg font-bold tracking-tight text-gray-900 dark:text-white">
             {TABS.find((t) => t.id === activeTab)?.label}
@@ -2134,10 +1952,6 @@ export default function Admin() {
                   <Card
                     title={
                       <span className="flex items-center gap-2">
-                        {/* Loaded directly from PAGASA's own site (not a copy
-                            bundled into our app) — this is attribution for
-                            where the data below comes from, not a claim of
-                            official affiliation with PAGASA. */}
                         <img
                           src="https://pubfiles.pagasa.dost.gov.ph/pagasaweb/images/pagasa-logo.png"
                           alt="PAGASA"
@@ -2286,11 +2100,7 @@ export default function Admin() {
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-5">
                         {weather.daily.map((d, i) => {
                           const DayIcon = weatherIconFor(d.condition)
-                          // Forecast skill drops off the further out it goes —
-                          // day 1-2 are shown at full strength, day 3-5 fade
-                          // progressively, so the reliability difference is
-                          // visible at a glance rather than only explained in
-                          // the note below.
+                
                           const fadeClass = ['opacity-100', 'opacity-100', 'opacity-80', 'opacity-65', 'opacity-50'][i] || 'opacity-50'
                           return (
                             <div key={d.date} className={`rounded-md border border-gray-200 dark:border-slate-800 p-3.5 transition-opacity ${fadeClass}`}>
@@ -2846,8 +2656,6 @@ export default function Admin() {
                     return c.discountStatus
                   }
 
-                  // Verified accounts first, then pending, then the rest — so the
-                  // admin sees who's already trusted before scanning the full list.
                   const statusPriority = { verified: 0, pending: 1, expired: 2, rejected: 3, none: 4 }
                   const sorted = [...filtered].sort((a, b) => {
                     const pa = statusPriority[effectiveStatus(a)] ?? 5
@@ -3103,8 +2911,7 @@ export default function Admin() {
                         )
                       })
 
-                  // Newest booking first, always: the most recent passenger to
-                  // book sits at the top, whichever trip filter is selected.
+            
                   const sorted = [...filtered].sort(
                     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
                   )

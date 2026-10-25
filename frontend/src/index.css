@@ -2,11 +2,6 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Tailwind v4 dropped the old default of a pointer cursor on buttons, so
-   every clickable control fell back to the plain arrow. Restore it once,
-   globally, for anything interactive, and show the standard "not allowed"
-   cursor on disabled controls. Declared in the base layer so any utility
-   class (e.g. cursor-default) can still override it per element. */
 @layer base {
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),
@@ -32,22 +27,14 @@
   max-height: none !important;
 }
 
-/* Hides the scrollbar track/thumb on an element while leaving it fully
-   scrollable by mouse wheel, trackpad, or touch — used on the admin
-   sidebar nav, tab strip, chat message list, and other internal scroll
-   panels where a visible scrollbar reads as a stray UI element rather
-   than an intentional part of the design. */
 .no-scrollbar {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* old Edge/IE */
+  scrollbar-width: none; 
+  -ms-overflow-style: none; 
 }
 .no-scrollbar::-webkit-scrollbar {
-  display: none; /* Chrome, Safari, new Edge */
+  display: none; 
 }
-/* Full-width breakout sections (cover photos, hero banners) use w-screen,
-   which counts the vertical scrollbar's width and would otherwise add a
-   sideways scrollbar to the whole page. `clip` trims that overflow without
-   turning the body into a scroll container, so sticky elements still work. */
+
 html,
 body {
   overflow-x: clip;

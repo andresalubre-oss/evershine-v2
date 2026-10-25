@@ -1,5 +1,3 @@
-// Save as: frontend/src/pages/Account.jsx
-
 import { useState, useEffect, useRef } from 'react'
 import { Navigate, useNavigate, Link } from 'react-router-dom'
 import { api } from '../api.js'
@@ -27,11 +25,6 @@ function formatPeso(amount) {
   return `₱${Number(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
-// Live camera-only capture (no gallery upload) — used for the mandatory
-// selfie in Profile Verification. Requests the front camera on demand
-// (button press, not auto-start), draws the current frame to a hidden
-// canvas to produce a File, and stops the camera stream as soon as either
-// a photo is captured or the component unmounts.
 function SelfieCapture({ file, onChange }) {
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
@@ -42,7 +35,7 @@ function SelfieCapture({ file, onChange }) {
 
   useEffect(() => {
     return () => stopCamera()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [])
 
   function stopCamera() {
@@ -150,8 +143,7 @@ function SelfieCapture({ file, onChange }) {
   )
 }
 
-// Plain typographic heading reused across every card so the page reads as
-// one coherent system instead of five differently-styled boxes.
+
 function CardHeading({ children, action }) {
   return (
     <div className="flex items-center justify-between border-b-2 border-gray-100 pb-4">
@@ -161,9 +153,7 @@ function CardHeading({ children, action }) {
   )
 }
 
-// customer.name (from the backend) is first + last only, kept as a fallback
-// for older cached data. The full legal name — with middle name and suffix
-// — is composed here from the separate structured fields for display.
+
 function fullLegalName(customer) {
   return [customer.firstName, customer.middleName, customer.lastName, customer.suffix].filter(Boolean).join(' ')
 }
@@ -179,10 +169,6 @@ function formatDate(value) {
   return new Date(value).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 }
 
-// Read-only summary of everything on the account — editing happens on its
-// own dedicated page (EditProfile.jsx) rather than inline here, since the
-// full name + address form is long enough to deserve its own screen instead
-// of expanding awkwardly inside this card.
 function InfoField({ label, children, className = '' }) {
   return (
     <div className={className}>
@@ -244,9 +230,7 @@ function ProfileCard({ customer }) {
   )
 }
 
-// Reused for both sides of the ID — click-to-upload dropzone that swaps to
-// a filename/size preview once a file is picked, same treatment for front
-// and back so the form reads as one consistent pattern.
+
 function IdUploadField({ label, hint, file, onChange }) {
   return (
     <>
@@ -282,12 +266,7 @@ function IdUploadField({ label, hint, file, onChange }) {
   )
 }
 
-// Profile Verification is the single gate for discount eligibility — there's
-// no separate "discount status" anymore. Submitting requires a live camera
-// photo (which also becomes the account's permanent profile picture, see
-// the hero banner in Account() below), a valid ID, and the discount type
-// being verified for. An admin approving the request is what makes the
-// customer both "Profile Verified" and eligible for that discount.
+
 function ProfileVerificationCard({ customer, onUpdated }) {
   const [discountType, setDiscountType] = useState('senior')
   const [file, setFile] = useState(null)
@@ -533,14 +512,7 @@ function IconNavDirections(props) {
   )
 }
 
-// Left sidebar navigation for the account area, splitting what used to be
-// one long scrolling page of cards into separate sections the customer picks
-// between, the same "persistent side menu + single content pane" pattern
-// as a typical account dashboard. Most items just switch which section shows
-// in the content pane on the right (id), but Directions is a real full page
-// with its own Leaflet map (a heavy, lazy-loaded dependency, see App.jsx),
-// so it navigates to its own route (to) instead of joining the in-page tabs,
-// keeping the map library out of the bundle for anyone who never opens it.
+
 const ACCOUNT_NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: IconNavDashboard },
   { id: 'profile', label: 'Profile', icon: IconNavProfile },
@@ -548,10 +520,7 @@ const ACCOUNT_NAV_ITEMS = [
   { id: 'verification', label: 'Verification', icon: IconNavVerification },
 ]
 
-// Horizontal tab strip under the cover (replaces the old left sidebar): a
-// white rounded card with a teal underline on the active tab, scrollable
-// sideways on narrow screens. Port Directions is a real route rather than an
-// in-page tab, so it renders as a link styled the same way.
+
 function AccountTabs({ activeTab, onSelect, upcomingCount }) {
   const tabBase =
     'relative flex flex-1 flex-shrink-0 items-center justify-center gap-2 whitespace-nowrap px-2.5 py-3.5 text-sm font-semibold transition-colors sm:px-4 sm:py-4 sm:text-base'
@@ -640,8 +609,7 @@ function DetailRow({ icon, children, tone = 'text-gray-600' }) {
   )
 }
 
-// The floating profile card: photo, name with a verified badge, the details
-// that matter at a glance, and the two things customers do most.
+
 function ProfileSideCard({ customer, photoUrl, navigate }) {
   const name = fullLegalName(customer) || customer.name
   const profileVerified = customer.discountStatus === 'verified'
@@ -652,8 +620,7 @@ function ProfileSideCard({ customer, photoUrl, navigate }) {
   return (
     <div>
       <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-lg sm:p-6">
-        {/* Phones and tablets: photo beside the name. Desktop: the classic
-            stacked, centered card. */}
+     
         <div className="flex items-center gap-4 lg:flex-col lg:gap-0">
         {photoUrl ? (
           <img
@@ -718,8 +685,7 @@ function ProfileSideCard({ customer, photoUrl, navigate }) {
   )
 }
 
-// Right-hand card: practical boarding reminders plus a shortcut to the port
-// directions page, so the dashboard is useful beyond showing account info.
+
 function TipsCard() {
   return (
     <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-md">
@@ -752,9 +718,7 @@ function formatCountdown(ms) {
   return `${minutes} min`
 }
 
-// The soonest upcoming confirmed booking, front and center, since that's
-// what someone opening their dashboard most often wants: when do I sail,
-// and where's my reference code.
+
 function NextTripCard({ booking, loading, navigate }) {
   if (loading) {
     return (
@@ -857,9 +821,7 @@ export default function Account() {
   const [resendMessage, setResendMessage] = useState('')
   const [activeTab, setActiveTab] = useState('dashboard')
 
-  // Bookings and the profile photo are loaded once here and shared, since the
-  // profile card, the Dashboard's next-trip card, the tab badge and the My
-  // Bookings tab all read from them.
+  
   const [bookings, setBookings] = useState([])
   const [bookingsLoading, setBookingsLoading] = useState(true)
   const [bookingsError, setBookingsError] = useState('')
@@ -874,7 +836,7 @@ export default function Account() {
       .catch((err) => { if (!cancelled) setBookingsError(err.message) })
       .finally(() => { if (!cancelled) setBookingsLoading(false) })
     return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [customer?.id])
 
   useEffect(() => {
@@ -891,7 +853,7 @@ export default function Account() {
       })
     })
     return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [customer?.id])
 
   async function handleResendVerification() {
@@ -921,10 +883,7 @@ export default function Account() {
   const nextTrip = upcomingBookings[0] || null
 
   return (
-    // Full-bleed layout: the cover photo spans the whole viewport (same
-    // left-1/2 / -mt-28 / -ml-[50vw] / w-screen breakout the login and Book
-    // pages use to escape the centered <main> and cancel its nav clearance),
-    // and the profile card floats up over its lower edge.
+   
     <div className="relative left-1/2 -mt-28 -ml-[50vw] w-screen">
       <div
         className="relative h-72 bg-cover bg-center sm:h-96 lg:h-[28rem]"

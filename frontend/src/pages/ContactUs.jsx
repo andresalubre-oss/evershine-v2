@@ -1,13 +1,8 @@
-// Save as: frontend/src/pages/ContactUs.jsx
-
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api.js'
 
-// Same details already shown in Footer.jsx, kept in one place there and
-// referenced here so the two never drift out of sync. (Placeholder contact
-// details, replace with your real support email, phone number, and
-// terminal address.)
+
 const SUPPORT_EMAIL = 'evershine.booking@gmail.com'
 const SUPPORT_PHONE = '+63 924565632'
 const SUPPORT_PHONE_HREF = '+63924565632'
@@ -30,8 +25,7 @@ export default function ContactUs() {
 
   const AD_BANNER_IMAGE = '/magallanes-port.png'
 
-  // Sent straight from the backend via Resend; the visitor never leaves
-  // this page or has to open their own email app.
+  
   async function handleSubmit(e) {
     e.preventDefault()
     if (!canSend) return

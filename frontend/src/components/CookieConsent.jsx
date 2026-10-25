@@ -1,11 +1,3 @@
-// Save as: frontend/src/components/CookieConsent.jsx
-//
-// A sticky bottom notice shown to first-time visitors. Dismissed once via
-// the "I Agree" button and remembered in localStorage, so it doesn't show
-// again on later visits from the same browser. Visibility is owned by
-// Layout.jsx (not this component) so the chat widget can also react to it
-// and lift itself out of the way while the banner is on screen.
-
 import { Link } from 'react-router-dom'
 
 export const COOKIE_CONSENT_STORAGE_KEY = 'evershine-cookie-consent'

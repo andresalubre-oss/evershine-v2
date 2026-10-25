@@ -1,5 +1,3 @@
-// Save as: frontend/src/pages/RefundCancellation.jsx
-
 import { Link } from 'react-router-dom'
 
 const STEPS = [
@@ -10,9 +8,6 @@ const STEPS = [
 ]
 
 
-// Single static landscape ad poster shown above the page title. Not a
-// slider, drop one banner image into frontend/public/ and point this at
-// it; object-contain keeps the poster's own text/logo from being cropped.
 const AD_BANNER_IMAGE = '/parola-refund.png'
 
 export default function RefundCancellation() {
@@ -33,10 +28,6 @@ export default function RefundCancellation() {
         How cancellations and refunds work for trips booked through Evershine Booking.
       </p>
 
-      {/* 4-step process. Left plain (no color accent) since the numbered
-          circles already give each step its own visual anchor; adding
-          border colors here would compete with the two content cards below
-          instead of supporting them. */}
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
         {STEPS.map((step) => (
           <div key={step.n} className="rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm">
@@ -49,9 +40,7 @@ export default function RefundCancellation() {
         ))}
       </div>
 
-      {/* Policy: teal left-border accent marks this as the primary,
-          customer-initiated cancellation policy (same solid-color-accent
-          pattern used on Manage Booking's cards; no icons, no gradients). */}
+  
       <div className="mt-6 rounded-lg border border-gray-200 bg-white p-6 text-justify shadow-sm sm:p-8">
         <h2 className="text-2xl font-semibold text-gray-800">Cancellation &amp; Refund Policy</h2>
         <div className="mt-3 overflow-hidden rounded-md border border-gray-200">
@@ -91,10 +80,6 @@ export default function RefundCancellation() {
           or your account's booking history) as it moves from under review to refunded.
         </p>
       </div>
-
-      {/* Trip cancelled by us: blue left-border accent, distinguishing this
-          company-initiated scenario from the customer-initiated policy
-          above. */}
       <div className="mt-6 rounded-lg border border-gray-200 bg-white p-6 text-justify shadow-sm sm:p-8">
         <h2 className="text-2xl font-semibold text-gray-800">If We Cancel Your Trip</h2>
         <p className="mt-2 text-lg leading-relaxed text-gray-600">

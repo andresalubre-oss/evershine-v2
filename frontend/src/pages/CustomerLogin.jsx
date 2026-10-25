@@ -1,6 +1,3 @@
-// Save as: frontend/src/pages/CustomerLogin.jsx
-// (Separate from the existing admin Login.jsx / /login route.)
-
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { api } from '../api.js'
@@ -39,9 +36,7 @@ function IconSpinner(props) {
   )
 }
 
-// Background photo for the full-bleed hero behind the login card. Swap this
-// for any other photo already in frontend/public/ — nothing else needs to
-// change.
+
 const HERO_IMAGE = '/hero-6.jpg'
 
 export default function CustomerLogin() {
@@ -69,12 +64,7 @@ export default function CustomerLogin() {
   }
 
   return (
-    // Full-bleed photo hero — same left-1/2/-mt-28/-ml-[50vw]/w-screen trick
-    // used on the Book page to break out of the centered <main> column and
-    // cancel Layout's pt-28 nav clearance, then re-add breathing room via
-    // this section's own py. The login card sits centered in the middle of
-    // the photo (flex items-center), not straddling its bottom edge like the
-    // Book page's search card.
+    
     <div
       className="relative left-1/2 -mt-28 -ml-[50vw] flex w-screen items-center justify-center bg-cover bg-center px-4 py-28 sm:py-36"
       style={{ backgroundImage: `url(${HERO_IMAGE})` }}

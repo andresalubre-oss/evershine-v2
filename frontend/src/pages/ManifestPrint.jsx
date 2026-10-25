@@ -15,11 +15,6 @@ function fullAddress(p) {
   return [p.barangay, p.cityMunicipality, p.province, p.zipCode, p.country].filter(Boolean).join(', ')
 }
 
-// Standalone, print-friendly manifest — deliberately outside <Layout/> (no
-// sidebar, top nav, or footer) so what prints is just the document itself.
-// Opened in a new tab from Admin.jsx's Manifest tab via
-// `/admin/manifest-print?scheduleId=...`; fetches its own data since it
-// doesn't share React state with the dashboard tab that opened it.
 export default function ManifestPrint() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -86,7 +81,7 @@ export default function ManifestPrint() {
 
   return (
     <div className="mx-auto max-w-5xl p-8 text-gray-900">
-      {/* Screen-only toolbar — never shows up in the printed/PDF output. */}
+  
       <div className="mb-6 flex items-center gap-2 print:hidden">
         <button onClick={() => window.print()} className="rounded-md bg-teal-700 px-3.5 py-1.5 text-sm font-medium text-white hover:bg-teal-800">
           Print
@@ -96,7 +91,7 @@ export default function ManifestPrint() {
         </button>
       </div>
 
-      {/* Document header */}
+   
       <div className="flex items-start justify-between gap-4 border-b-2 border-gray-900 pb-4">
         <div className="flex items-center gap-2.5">
           <img src="/evershine-logo.png" alt="Evershine" className="h-11 w-auto" />
@@ -111,7 +106,7 @@ export default function ManifestPrint() {
         </div>
       </div>
 
-      {/* Trip details */}
+
       <div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-3 rounded-md border border-gray-300 p-4 sm:grid-cols-4">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Route</p>
@@ -131,7 +126,7 @@ export default function ManifestPrint() {
         </div>
       </div>
 
-      {/* Passenger count summary */}
+     
       <div className="mt-3 grid grid-cols-2 divide-x divide-gray-300 rounded-md border border-gray-300">
         <div className="px-3 py-2.5 text-center">
           <p className="text-xl font-bold leading-none text-gray-900">{passengers.length}</p>
@@ -174,7 +169,7 @@ export default function ManifestPrint() {
         </table>
       )}
 
-      {/* Sign-off — printed manifests are typically countersigned once boarding is confirmed. */}
+   
       <div className="mt-10 grid grid-cols-2 gap-8">
         <div>
           <div className="h-10 border-b border-gray-400" />

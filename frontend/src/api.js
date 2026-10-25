@@ -15,10 +15,7 @@ async function request(path, options = {}) {
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
     const err = new Error(data.error || 'Something went wrong.')
-    // Some errors (e.g. booking blocked by an unverified email) carry a
-    // machine-readable `code` so a page can react specifically — like
-    // showing a "Resend verification email" button — instead of just
-    // displaying the message text.
+   
     err.code = data.code
     throw err
   }
@@ -47,9 +44,7 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
 
-  // Second step of admin login when the account has 2FA enabled — exchanges
-  // the short-lived pendingToken from /login plus a 6-digit TOTP code for a
-  // real session token.
+ 
   verifyLogin2fa: (pendingToken, code) =>
     request('/login/2fa', {
       method: 'POST',
@@ -93,10 +88,7 @@ export const api = {
   getUpcomingScheduleDates: (direction) =>
     request(`/schedules/upcoming-dates?direction=${direction}`),
 
-  // Attaches the customer's token if they're logged in (so the backend can
-  // check whether their profile is discount-verified), but works fine
-  // without one too — guests can still book, as long as `payload` includes
-  // a valid guest_verification_token from verifyGuestCode below.
+
   createBooking: (payload) =>
     request('/bookings', {
       method: 'POST',
@@ -104,8 +96,7 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
-  // Guest checkout's email verification — no account, so this is a live,
-  // one-time code rather than a background flag like customers get.
+
   sendGuestCode: (email) =>
     request('/guest/send-code', {
       method: 'POST',
@@ -120,8 +111,6 @@ export const api = {
       body: JSON.stringify({ email, code }),
     }),
 
-  // Contact Us page — delivered server-side via Resend, so submitting stays
-  // on the page instead of kicking the visitor out to their email app.
   sendContactMessage: (name, email, message) =>
     request('/contact', {
       method: 'POST',
@@ -158,10 +147,6 @@ export const api = {
 
   resendVerification: () => customerRequest('/customer/resend-verification', { method: 'POST' }),
 
-  // The live selfie captured during Profile Verification doubles as the
-  // account's permanent profile photo. Returns null (not a thrown error)
-  // when the customer hasn't submitted one yet, so callers can fall back
-  // to an initials avatar without treating "no photo" as a failure.
   getMyPhotoUrl: async () => {
     const response = await fetch(`${BASE}/customer/me/photo`, {
       headers: customerAuthHeaders(),
@@ -202,11 +187,7 @@ export const api = {
   lookupBooking: (referenceCode, contactEmail) =>
     request(`/bookings/lookup?reference_code=${encodeURIComponent(referenceCode)}&contact_email=${encodeURIComponent(contactEmail)}`),
 
-  // Downloads the PDF invoice for a confirmed booking. Fetches as a blob and
-  // force-saves it rather than a plain <a href download> — the API lives on
-  // a different origin than the frontend in production, and a cross-origin
-  // download link isn't reliably honored by every browser (same reasoning
-  // as the payment QR code download on the Booking page).
+
   downloadInvoicePdf: async (referenceCode, contactEmail) => {
     const response = await fetch(
       `${BASE}/bookings/invoice-pdf?reference_code=${encodeURIComponent(referenceCode)}&contact_email=${encodeURIComponent(contactEmail)}`
@@ -270,7 +251,7 @@ export const api = {
 
   getManifest: (scheduleId) => adminRequest(`/admin/schedules/${scheduleId}/manifest`),
 
-  // "Send Manifest" — payload: { coastGuardAccountIds: [...], extraEmail? }
+
   sendManifest: (scheduleId, payload) =>
     adminRequest(`/admin/schedules/${scheduleId}/manifest/send`, {
       method: 'POST',
@@ -280,17 +261,14 @@ export const api = {
 
   getMonthlySales: () => adminRequest('/admin/analytics/monthly-sales'),
 
-  // from / to are YYYY-MM-DD (Asia/Manila calendar days, inclusive).
+ 
   getAccounting: (from, to) => adminRequest(`/admin/accounting?from=${from}&to=${to}`),
 
   getWeather: () => adminRequest('/admin/weather'),
 
   getPagasaBulletin: () => adminRequest('/admin/pagasa-bulletin'),
 
-  // Coast Guard coordination — accounts are admin-provisioned, and reuse
-  // the same adminToken/adminRequest plumbing as every other admin call
-  // (a coast_guard-role token behaves the same as an admin one at the HTTP
-  // layer; the backend decides what each role is actually allowed to hit).
+
   createCoastGuardAccount: (payload) =>
     adminRequest('/admin/coastguard-accounts', {
       method: 'POST',
@@ -305,8 +283,7 @@ export const api = {
   getCoastGuardMessages: (before) =>
     adminRequest(`/admin/coastguard/messages${before ? `?before=${encodeURIComponent(before)}` : ''}`),
 
-  // Used only if the live socket connection is down when Send is clicked —
-  // see ChatPanel.jsx for how the two paths are reconciled.
+  
   sendCoastGuardMessageRest: (body) =>
     adminRequest('/admin/coastguard/messages', {
       method: 'POST',
@@ -316,13 +293,10 @@ export const api = {
 
   markCoastGuardChatRead: () => adminRequest('/admin/coastguard/mark-read', { method: 'POST' }),
 
-  // Manifests shared with the logged-in account (admin or coast_guard) —
-  // powers the Coast Guard portal's "Manifests" panel.
+
   getCoastGuardManifests: () => adminRequest('/admin/coastguard/manifests'),
 
-  // Fetches the PDF as a blob and force-saves it — same reasoning as
-  // downloadInvoicePdf above (auth header needed, so a plain <a href> can't
-  // be used directly).
+ 
   downloadCoastGuardManifestPdf: async (id, filenameHint) => {
     const response = await fetch(`${BASE}/admin/coastguard/manifests/${id}/pdf`, { headers: authHeaders() })
     if (!response.ok) {
@@ -340,9 +314,7 @@ export const api = {
     URL.revokeObjectURL(blobUrl)
   },
 
-  // Verification selfies/ID photos are behind an authenticated route (not a
-  // public static folder), so a plain <img src> can't load them directly —
-  // fetch as a blob and hand back an object URL instead.
+
   getAdminFileUrl: async (relativePath) => {
     const response = await fetch(`${BASE}/admin/uploads/${relativePath}`, {
       headers: authHeaders(),

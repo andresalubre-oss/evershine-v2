@@ -1,5 +1,3 @@
-// Save as: frontend/src/pages/Register.jsx
-
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { api } from '../api.js'
@@ -49,10 +47,6 @@ function Field({ label, required, children }) {
   )
 }
 
-// Numbered badge + heading, used at the top of each form section so a long
-// form reads as a sequence of small steps instead of one undifferentiated
-// wall of fields — same numbered-circle pattern as the "How It Works"
-// section on the landing page, reused here for visual consistency.
 function SectionHeading({ number, title, hint }) {
   return (
     <div className="flex items-start gap-2.5">
@@ -69,20 +63,9 @@ function SectionHeading({ number, title, hint }) {
 
 const inputClass = 'mt-1 w-full rounded-md border border-gray-300 px-3 py-2'
 
-// Official Philippine Standard Geographic Code API (PSA data, free, no key
-// required) — used to back the Region/Province/Municipality-City/Barangay
-// dropdowns so addresses match real administrative divisions instead of
-// however each person happens to spell/abbreviate them.
 const PSGC_BASE = 'https://psgc.gitlab.io/api'
-// NCR has no provinces in PSGC — cities/municipalities sit directly under
-// the region, so it needs a special case in the cascade below.
 const NCR_REGION_CODE = '130000000'
 
-// A text input that behaves like a normal, freely-typeable field (so an
-// address that isn't in the list can still be entered and submitted) while
-// also showing a filtered dropdown of matching official names underneath —
-// picking one fills the field and, for Region/Province/Municipality-City,
-// loads the next field's options.
 function AddressCombobox({
   label,
   required,

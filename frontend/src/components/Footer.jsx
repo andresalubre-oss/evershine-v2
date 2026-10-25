@@ -92,12 +92,9 @@ export default function Footer() {
       </div>
       <div className="border-t border-gray-100 py-4">
          <p className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs text-gray-500">
-           All rights reserved The College of Maasin, BSIT Department, 4th Year Group 9</p>
+           All rights reserved The College of Maasin, BSIT Department, 4th Year Group 9. Developed by John Andre S. Salubre, Jhane S. Padecio and Janna R. Olojan @2026 <span className="text-gray-300">|</span> <Link to="/developers-page" className="hover:text-teal-700 hover:underline">Recognition</Link></p>
       </div>
-      <div className="border-t border-gray-100 py-4">
-         <p className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs text-gray-500">
-            Disclaimer: This is an unofficial website of Evershine Company and it's for educational purposes only. All the details provided is not accurate and is subject for changes.</p>
-      </div>
+      
     </footer>
   )
 }

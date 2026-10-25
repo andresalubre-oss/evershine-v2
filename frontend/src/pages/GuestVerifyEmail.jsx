@@ -2,12 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useLocation, useNavigate, Link } from 'react-router-dom'
 import { api } from '../api.js'
 
-// Guest checkout has no account, so there's nothing like customer.emailVerified
-// to check — this page is where that gets proven instead, live, via a
-// one-time code. It's reached from Booking.jsx's "Verify My Email" button,
-// which hands over everything the passenger has typed so far via router
-// state; this page hands it right back (plus the verification result) once
-// they're done, so nothing they filled in gets lost along the way.
+
 export default function GuestVerifyEmail() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -32,13 +27,12 @@ export default function GuestVerifyEmail() {
     }
   }
 
-  // Send the first code automatically on arrival — the passenger already
-  // asked for this by clicking "Verify My Email" on the previous page.
+  
   useEffect(() => {
     if (!email || sentOnceRef.current) return
     sentOnceRef.current = true
     sendCode()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [email])
 
   async function handleVerify() {
@@ -54,13 +48,12 @@ export default function GuestVerifyEmail() {
           addressCodes,
           guestVerifiedEmail: email,
           guestVerificationToken: data.token,
-          // Tells Booking.jsx to jump straight to Review instead of landing
-          // back on the form the passenger already finished filling in.
+         
           autoAdvance: true,
         },
       })
     } catch (err) {
-      setStatus('sent') // back to code-entry so they can retry
+      setStatus('sent') 
       setMessage(err.message)
     }
   }
@@ -69,8 +62,7 @@ export default function GuestVerifyEmail() {
     navigate(backToBookingUrl, { replace: true, state: { passengers, addressCodes } })
   }
 
-  // Reached directly (bookmarked, refreshed after the state expired some
-  // other way, etc.) without a booking in progress to return to.
+
   if (!email) {
     return (
       <div className="mx-auto max-w-md py-16 text-center">

@@ -1,27 +1,11 @@
-// backend/lib/weather.js
-//
-// Admin-only weather/marine conditions for the Padre Burgos <-> Limasawa
-// crossing, via Open-Meteo (open, free, no API key — see the docs at
-// https://open-meteo.com). This is a convenience indicator for the admin,
-// not a substitute for an official PAGASA advisory: Open-Meteo aggregates
-// global/regional models (ECMWF, GFS, JMA, etc), not a Philippines-specific
-// one, so it's fine for a general read on conditions but shouldn't be
-// treated as authoritative for actual sailing/safety decisions. The
-// "advisory" field below is our own simple threshold rule, not anything
-// Open-Meteo itself calculates or endorses.
-
 const FORECAST_API = 'https://api.open-meteo.com/v1/forecast';
 const MARINE_API = 'https://marine-api.open-meteo.com/v1/marine';
 
-// Roughly the midpoint of the strait between Padre Burgos (10.0296, 125.0170)
-// and Limasawa Island (9.9078, 125.0750) — the two ports are close enough
-// that one coordinate pair reasonably represents the crossing itself.
+
 const LAT = 9.9687;
 const LON = 125.0460;
 
-// Plain-language labels for Open-Meteo's WMO weather codes — only the
-// subset that's realistic for this tropical coastal location (no snow
-// codes, etc).
+
 const WEATHER_CODE_LABELS = {
   0: 'Clear sky',
   1: 'Mostly clear',
@@ -47,9 +31,7 @@ function weatherLabel(code) {
   return WEATHER_CODE_LABELS[code] || 'Unknown';
 }
 
-// Our own general-purpose thresholds, not an official standard — flags
-// conditions that would give a small ferry/banca operator pause. Easy to
-// tune here if they turn out too sensitive/insensitive in practice.
+
 function advisoryLevel(windKmh, waveM) {
   const wind = Number(windKmh) || 0;
   const wave = waveM == null ? 0 : Number(waveM);
@@ -58,19 +40,11 @@ function advisoryLevel(windKmh, waveM) {
   return 'normal';
 }
 
-// Cached in memory (not in the database — this is live third-party data,
-// not something the app owns) so the admin dashboard doesn't re-hit
-// Open-Meteo on every page load/tab switch. 30 minutes comfortably matches
-// how often marine forecasts actually change.
+
 const CACHE_TTL_MS = 30 * 60 * 1000;
 let cache = { data: null, fetchedAt: 0 };
 
-// Render's free tier shares outbound IPs across many unrelated apps, so
-// Open-Meteo's per-IP rate limit (429) can trip from traffic that has
-// nothing to do with this app. Once that happens, retrying immediately on
-// every dashboard refresh just adds to the problem — this cooldown makes
-// sure a failed attempt waits a while before trying Open-Meteo again,
-// serving the last good (now-stale) reading in the meantime instead.
+
 const FAILURE_RETRY_COOLDOWN_MS = 5 * 60 * 1000;
 let lastFailureAt = 0;
 
@@ -87,8 +61,7 @@ async function getWeather() {
     return cache.data;
   }
 
-  // Still within the cooldown from a recent failure — reuse whatever we
-  // last had (marked stale) rather than hitting Open-Meteo again so soon.
+  
   if (cache.data && Date.now() - lastFailureAt < FAILURE_RETRY_COOLDOWN_MS) {
     return { ...cache.data, stale: true };
   }
@@ -105,19 +78,12 @@ async function getWeather() {
     `&daily=wave_height_max,wave_period_max` +
     `&timezone=Asia%2FManila&forecast_days=5`;
 
-  // Marine data can occasionally be unavailable for a given point/model
-  // update window even when the regular forecast is fine — fetched
-  // separately (not Promise.all with a shared catch) so a marine hiccup
-  // still leaves the rest of the forecast usable rather than failing the
-  // whole tab.
+  
   let forecast;
   try {
     forecast = await fetchOpenMeteo(forecastUrl);
   } catch (err) {
-    // The main forecast call is the one that actually failed with a 429 in
-    // production (Render's shared free-tier outbound IP tripping
-    // Open-Meteo's rate limit) — same "show the last good copy, marked
-    // stale, instead of a hard error" treatment as the PAGASA bulletin.
+ 
     lastFailureAt = Date.now();
     console.error('Failed to fetch weather:', err.message);
     if (cache.data) {

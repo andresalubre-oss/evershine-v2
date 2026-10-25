@@ -1,9 +1,3 @@
-// Save as: frontend/src/components/BookingSteps.jsx
-//
-// Shared progress indicator used on both the Search page (always on
-// "schedule") and the Booking page (moves through passenger -> review ->
-// payment -> confirmation as the user progresses).
-
 const STEPS = [
   { id: 'schedule', label: 'Schedule' },
   { id: 'passenger', label: 'Passenger' },

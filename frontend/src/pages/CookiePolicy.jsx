@@ -1,11 +1,3 @@
-// Save as: frontend/src/pages/CookiePolicy.jsx
-//
-// PLACEHOLDER CONTENT, describes the browser storage Evershine Booking's
-// own features actually use (sign-in, remembering this cookie notice) and
-// states there are no third-party advertising or tracking cookies, since
-// none are used elsewhere in the app. Has not been reviewed by a lawyer;
-// confirm wording before publishing.
-
 function Section({ title, children }) {
   return (
     <section className="border-t border-gray-100 py-6 first:border-t-0 first:pt-0">

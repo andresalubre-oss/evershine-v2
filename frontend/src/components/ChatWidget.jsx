@@ -1,10 +1,3 @@
-// Save as: frontend/src/components/ChatWidget.jsx
-//
-// Simple FAQ-matching help bot — no AI, no external service, no ongoing
-// cost. It scores the visitor's question against lib/faqKnowledge.js by
-// shared keywords and replies with the closest match, or a fallback
-// message pointing to Travel Info / Contact if nothing scores well enough.
-
 import { useState, useRef, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import { findBestAnswer } from '../lib/faqKnowledge.js'
@@ -70,13 +63,7 @@ export default function ChatWidget({ liftedByBanner = false }) {
     ask(input)
   }
 
-  // Booking.jsx's summary bar is only pinned to the bottom of the screen on
-  // a wide viewport (sm: and up), on mobile it scrolls with the page like
-  // everything else. So the chat bubble only needs to float higher there
-  // too, on sm: and up; on mobile it can stay at the usual spot. The cookie
-  // consent banner also sits flush along the bottom of the screen while
-  // it's showing, so the bubble lifts above it too in that case, on every
-  // viewport size, since the banner spans the full width.
+ 
   const isBookingPage = location.pathname === '/booking'
   let bottomClass = 'bottom-5'
   if (liftedByBanner) {

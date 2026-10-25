@@ -1,9 +1,6 @@
-// Save as: frontend/src/components/DateNavHeader.jsx
-
 import { formatDateLabel } from '../lib/portUtils.js'
 
-// Prev Day / date label / Next Day, sits above each results list so users
-// can browse nearby dates without reopening the search form.
+
 export default function DateNavHeader({ dateStr, onPrev, onNext, disabled, prevDisabled }) {
   return (
     <div className="flex items-center justify-between rounded-md bg-gray-100 p-2">

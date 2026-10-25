@@ -19,10 +19,7 @@ function initialsOf(name) {
   return name.split(' ').filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join('') || '?'
 }
 
-// The nav's Account link shows the customer's real profile photo (the live
-// selfie from Profile Verification — same one shown on the Account
-// dashboard) once they're logged in, instead of a generic person icon.
-// Falls back to a solid initials badge if they haven't submitted one yet.
+
 function AccountAvatar({ photoUrl, name }) {
   if (photoUrl) {
     return (
@@ -44,9 +41,6 @@ export default function Layout() {
   const { customer, logout } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
-  // The admin dashboard and the Coast Guard portal both have their own
-  // header/Log Out — the customer-facing nav (Book, Refund & Cancellation,
-  // Travel Info, etc.) doesn't belong on either of those staff-only screens.
   const isAdminDashboard = location.pathname === '/admin/dashboard' || location.pathname === '/coastguard'
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -62,8 +56,6 @@ export default function Layout() {
     navigate('/')
   }
 
-  // Shown once to first-time visitors, then remembered in localStorage so
-  // it doesn't reappear on later visits from the same browser.
   useEffect(() => {
     const hasAgreed = localStorage.getItem(COOKIE_CONSENT_STORAGE_KEY) === 'agreed'
     if (!hasAgreed) setShowCookieConsent(true)
@@ -75,14 +67,7 @@ export default function Layout() {
   }
 
   useEffect(() => {
-    // A single fixed threshold (e.g. "solid past 10px") flips back and
-    // forth on every tiny scroll jitter right at that line, which is what
-    // reads as the nav text (Travel Info especially, since it's the widest
-    // element with the most visible color change) blinking on every
-    // scroll. Two thresholds with a gap between them (go solid past 80px,
-    // only go back transparent once above 20px) means a few pixels of
-    // jitter can't cross both boundaries, so the bar settles into one
-    // state instead of flickering.
+  
     function handleScroll() {
       setScrolled((prev) => (prev ? window.scrollY > 20 : window.scrollY > 80))
     }
@@ -90,8 +75,7 @@ export default function Layout() {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  // Fetched once per login (and re-fetched if the logged-in customer
-  // changes) — same source as the Account dashboard's hero photo.
+ 
   useEffect(() => {
     if (!customer) {
       setPhotoUrl((prev) => {
@@ -109,12 +93,10 @@ export default function Layout() {
       })
     })
     return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [customer?.id])
 
-  // Items with a `children` array render as a dropdown instead of a plain link.
-  // The account/login link is handled separately below (not in this array)
-  // since it needs a two-line icon treatment instead of a plain text link.
+
   const navLinks = [
     { to: '/', label: 'Book' },
     { to: '/refund-cancellation', label: 'Refund & Cancellation' },
@@ -131,13 +113,6 @@ export default function Layout() {
     { to: '/contact-us', label: 'Contact Us' },
   ]
 
-  // Transparent over the hero photo while at the very top of the Book page
-  // (the only page with a photo directly under the nav), then a solid white
-  // bar with dark text once scrolled. Every other page keeps the solid bar
-  // at all times, since there's nothing but plain page background behind it
-  // there. The mobile dropdown panel also doesn't have its own opaque
-  // background, so opening it forces the solid look too, otherwise its
-  // links would render as white text with nothing behind them.
   const isBookPage = location.pathname === '/'
   const navIsSolid = !isBookPage || scrolled || menuOpen
 
@@ -145,45 +120,17 @@ export default function Layout() {
     <div className="flex min-h-screen flex-col bg-gray-50">
       {!isAdminDashboard && (
       <div
-        // Only background-color and box-shadow animate here, deliberately
-        // not text color. Animating white text to black passes through gray
-        // partway through, and gray text over a photo with wildly different
-        // brightness in different spots (dark rock vs. bright sky) reads as
-        // legible in some places and nearly invisible in others at that
-        // exact same instant, looking like the words are transitioning at
-        // different speeds even though every one of them is on the same
-        // duration. Leaving color out of the transition list makes it snap
-        // instantly instead, so text is always fully one color or the
-        // other, never a see-through-the-photo gray, while the background
-        // and shadow still fade in smoothly underneath it.
         className={`fixed inset-x-0 top-0 z-50 transition-[background-color,box-shadow] duration-500 ease-in-out ${
           navIsSolid ? 'bg-white text-black shadow-md' : 'bg-transparent text-white shadow-none'
         }`}
       >
-        {/* Over the transparent hero photo, the logo (and to a lesser
-            extent the nav text) can disappear into busy backgrounds
-            (foliage, dark water). A soft white gradient across the whole
-            bar gives everything in it a light backdrop to sit on; it
-            fades out once the bar goes solid white on scroll, since it
-            would be redundant there. Kept always mounted (opacity-only
-            toggle) instead of conditionally rendered, so it fades instead
-            of popping in and out. */}
+       
         <div
           className={`pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-white/60 to-transparent transition-opacity duration-500 ease-in-out ${
             navIsSolid ? 'opacity-0' : 'opacity-100'
           }`}
         />
-        {/* The white gradient above lightens whatever's directly behind the
-            bar, which helps a lot over dark rock/foliage but does almost
-            nothing over the already-bright sky, so the same white text can
-            read as crisp in one spot and washed-out a few words later,
-            depending purely on what photo detail happens to sit behind it.
-            A drop-shadow doesn't have that problem: it darkens the edge of
-            the text itself, so it adds contrast the same way everywhere,
-            regardless of background brightness. Applied once here (not
-            per-item) so every child, logo included, gets the identical
-            shadow with zero risk of one item drifting out of sync with the
-            rest, the way separately-set classes could. */}
+    
         <div
           className={`flex items-center justify-between px-6 py-5 transition-all duration-500 ease-in-out ${
             navIsSolid ? '' : 'drop-shadow-md'
@@ -195,11 +142,11 @@ export default function Layout() {
             </div>
           </Link>
 
-          {/* Desktop nav — hidden by default, shown from md: (768px) up */}
+     
           <nav className="hidden md:flex md:items-center gap-10 text-base">
             {navLinks.map((link) =>
               link.children ? (
-                // ---- Dropdown item (Travel Info) ----
+        
                 <div
                   key={link.label}
                   className="relative -mb-3 pb-3"
@@ -237,7 +184,7 @@ export default function Layout() {
                   )}
                 </div>
               ) : (
-                // ---- Plain link (everything else) ----
+   
                 <Link
                   key={link.to}
                   to={link.to}
@@ -248,9 +195,6 @@ export default function Layout() {
               )
             )}
 
-            {/* Account — profile photo + "Account" with a "Mabuhay, {name}" greeting
-                underneath when logged in, opening a dropdown with the account link
-                and Log Out; a plain icon + "Log In" otherwise. */}
             {customer ? (
               <div
                 className="relative -mb-3 pb-3"
@@ -313,7 +257,7 @@ export default function Layout() {
             )}
           </nav>
 
-          {/* Hamburger button — only visible below md: (768px) */}
+      
           <button
             onClick={() => setMenuOpen(!menuOpen)}
             className="flex h-11 w-11 items-center justify-center rounded-md transition-[background-color] duration-500 ease-in-out hover:bg-gray-100 md:hidden"
@@ -331,7 +275,6 @@ export default function Layout() {
           </button>
         </div>
 
-        {/* Mobile dropdown panel — only rendered when menuOpen is true */}
         {menuOpen && (
           <nav className="flex flex-col gap-1 border-t border-gray-200 px-6 py-4 md:hidden">
             {navLinks.map((link) =>
@@ -364,9 +307,6 @@ export default function Layout() {
               )
             )}
 
-            {/* Account — same photo treatment as desktop, plus a Log Out item
-                stacked right below it (the mobile panel is already a fully
-                expanded list, so there's no need for a separate dropdown here). */}
             {customer ? (
               <>
                 <Link

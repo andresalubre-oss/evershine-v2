@@ -1,8 +1,3 @@
-// backend/lib/paymongo.js
-//
-// Thin wrapper around PayMongo's QR Ph flow. Everything runs server-side
-// with the secret key, so the key is never exposed to the frontend.
-
 const PAYMONGO_API = 'https://api.paymongo.com/v1';
 
 function authHeader() {
@@ -26,7 +21,7 @@ async function paymongoRequest(url, method, body) {
   return data;
 }
 
-// amountInCentavos: e.g. ₱250.00 -> 25000
+
 async function createPaymentIntent(amountInCentavos, description) {
   return paymongoRequest(`${PAYMONGO_API}/payment_intents`, 'POST', {
     data: {

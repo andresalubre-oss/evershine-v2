@@ -1,8 +1,3 @@
-// Save as: frontend/src/components/SearchFormFields.jsx
-
-// Local calendar date, not UTC — see the matching comment in Search.jsx for
-// why toISOString() is the wrong tool here (it lags a day behind Philippine
-// time for the first several hours of each local day).
 function todayLocalDateString() {
   const d = new Date()
   const pad = (n) => String(n).padStart(2, '0')
@@ -10,9 +5,6 @@ function todayLocalDateString() {
 }
 const today = todayLocalDateString()
 
-// The actual search controls (trip type, From/To + swap, dates, Search
-// button). Used on the landing page and reused (with an onCancel) on the
-// search results page for modifying a search in place.
 export default function SearchFormFields({
   tripType, setTripType, direction, ports, swapDirection,
   date, setDate, returnDate, setReturnDate,
@@ -42,7 +34,7 @@ export default function SearchFormFields({
         </button>
       </div>
 
-      {/* From / To — read-only, since routes are fixed. Swap button flips direction. */}
+
       <div className="mt-5 flex items-center gap-2 sm:gap-3">
         <div className="min-w-0 flex-1 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 sm:px-4 sm:py-3">
           <span className="block text-xs text-gray-500">From</span>
@@ -82,7 +74,7 @@ export default function SearchFormFields({
         </div>
       </div>
 
-      {/* Dates + Search button */}
+  
       <div className="mt-4 flex flex-col gap-3 sm:flex-row">
         <div className="flex-1">
           {tripType === 'roundtrip' && (

@@ -1,21 +1,10 @@
-// Save as: frontend/src/pages/EditProfile.jsx
-//
-// Dedicated page for editing the customer's own profile (name, contact
-// number, address) — split out from Account.jsx so the full form has room
-// to breathe instead of being squeezed into a small dashboard card.
-
 import { useState, useEffect, useRef } from 'react'
 import { Navigate, useNavigate, Link } from 'react-router-dom'
 import { api } from '../api.js'
 import { useAuth } from '../context/AuthContext.jsx'
 
-// Official Philippine Standard Geographic Code API (PSA data, free, no key
-// required) — same source used on Register.jsx, so an existing customer
-// editing their profile gets the same searchable Region/Province/
-// City-Municipality/Barangay suggestions they saw at signup.
+
 const PSGC_BASE = 'https://psgc.gitlab.io/api'
-// NCR has no provinces in PSGC — cities/municipalities sit directly under
-// the region, so it needs a special case in the cascade below.
 const NCR_REGION_CODE = '130000000'
 
 function Required() {
@@ -26,11 +15,7 @@ function Required() {
   )
 }
 
-// A text input that behaves like a normal, freely-typeable field (so an
-// address that isn't in the list can still be entered and submitted) while
-// also showing a filtered dropdown of matching official names underneath —
-// picking one fills the field and, for Region/Province/City-Municipality,
-// loads the next field's options. Same pattern as Register.jsx.
+
 function AddressCombobox({ label, required, value, onChange, onSelect, options, loading, loadError, emptyHint }) {
   const [open, setOpen] = useState(false)
   const wrapperRef = useRef(null)
@@ -126,9 +111,7 @@ export default function EditProfile() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  // Seeds the form from the account once it's loaded — hooks have to run on
-  // every render regardless of whether `customer` is ready yet, so this
-  // can't just be inline useState initializers the way a normal form would.
+
   const seededRef = useRef(false)
   useEffect(() => {
     if (!customer || seededRef.current) return
@@ -145,8 +128,7 @@ export default function EditProfile() {
     setZipCode(customer.zipCode || '')
   }, [customer])
 
-  // Regions are fetched once when the page opens — this page exists only to
-  // edit, so there's no "viewing" state where the fetch would be wasted.
+  
   useEffect(() => {
     let cancelled = false
     fetch(`${PSGC_BASE}/regions/`)

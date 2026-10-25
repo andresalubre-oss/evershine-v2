@@ -1,5 +1,3 @@
-// Save as: frontend/src/pages/Login.jsx
-
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api.js'
@@ -7,8 +5,6 @@ import { api } from '../api.js'
 export default function Login() {
   const navigate = useNavigate()
 
-  // step 'password' -> normal email/password form
-  // step 'code'      -> shown only when the account has 2FA enabled
   const [step, setStep] = useState('password')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -21,10 +17,7 @@ export default function Login() {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-    // Coast Guard accounts share this same login form and the same Admin
-    // table (see backend/index.js signAdminToken) — the only difference is
-    // where they land afterward, decided by the `role` the backend hands
-    // back alongside the token.
+  
     function finishLogin(data) {
     localStorage.setItem('adminToken', data.token)
     if (data.admin?.role === 'coast_guard') {

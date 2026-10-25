@@ -27,26 +27,14 @@ function passengerFullName(p) {
   return [p.first_name, p.middle_name, p.last_name, p.suffix].filter(Boolean).join(' ')
 }
 
-// Tracks which region/province/city a passenger's address dropdowns
-// currently have selected. Kept separate from the passenger object itself
-// (which only stores plain name strings, matching what the backend expects)
-// so the selects stay controlled without smuggling extra fields into the
-// booking payload.
+
 function emptyAddressCodes() {
   return { regionCode: '', provinceCode: '', cityCode: '', isCity: false, foreign: false }
 }
 
-// Philippine Standard Geographic Code (PSGC) reference API — a free, public
-// service maintained off our infrastructure. Used to power cascading
-// Region -> Province -> City/Municipality -> Barangay dropdowns so
-// passengers pick their address from an accurate official list instead of
-// free-typing it (and risking typos or a misspelled barangay).
 const PSGC_API = 'https://psgc.gitlab.io/api'
 
-// A typeable dropdown: shows the selected option's label, but focusing it
-// clears the box so the passenger can type to filter instead of scrolling
-// through a long list (provinces, cities, and barangays can each run into
-// the hundreds). Selecting an option or clicking away closes the list.
+
 function SearchableSelect({ value, options, onChange, placeholder, disabled, disabledPlaceholder }) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
@@ -118,9 +106,7 @@ function formatPeso(amount) {
   return `₱${Number(amount).toLocaleString('en-US', { maximumFractionDigits: 0 })}`
 }
 
-// A red asterisk marking a required field's label — kept as one component so
-// every required field renders the exact same mark instead of copy-pasted
-// spans drifting out of sync with each other.
+
 function Required() {
   return (
     <span className="text-red-600" aria-hidden="true">
@@ -140,30 +126,20 @@ export default function Booking() {
   const fare = searchParams.get('fare')
   const datetime = searchParams.get('datetime')
   const direction = searchParams.get('direction') === 'LIMASAWA_TO_PB' ? 'LIMASAWA_TO_PB' : 'PB_TO_LIMASAWA'
-  // Set by the admin per schedule (Admin dashboard > Add Schedule), carried
-  // through the URL the same way `fare` already is. Falls back to 20% if
-  // missing (e.g. an old bookmarked link from before this existed) so the
-  // preview never breaks. Display only, the server always recalculates the
-  // real charge from the schedule row itself at booking time.
+  
   const seniorDiscountPercent = Number(searchParams.get('senior_discount') ?? 20)
   const pwdDiscountPercent = Number(searchParams.get('pwd_discount') ?? 20)
   const studentDiscountPercent = Number(searchParams.get('student_discount') ?? 20)
 
   const navigate = useNavigate()
   const location = useLocation()
-  // Guest email verification happens on its own dedicated page (see
-  // GuestVerifyEmail.jsx) rather than inline here, so the in-progress
-  // passenger details need to survive that round trip. They're carried via
-  // router state — passed forward when navigating to the verify page, and
-  // handed back (plus the verification result) when it returns here.
+
   const restored = location.state || {}
 
   const { customer } = useAuth()
-  // Only a logged-in, admin-verified profile can use its discount type.
+ 
   const canUseDiscount = customer?.discountStatus === 'verified'
 
-  // 'form' -> filling out passenger details, 'review' -> read-only summary
-  // before the booking is actually created.
   const [phase, setPhase] = useState('form')
 
   const [passengers, setPassengers] = useState(() => restored.passengers || [emptyPassenger()])
@@ -174,17 +150,12 @@ export default function Booking() {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  // Region list is the same for every passenger, so it's fetched once and
-  // shared. Province/city/barangay lists are fetched on demand and cached by
-  // code, so switching passengers or re-selecting the same area doesn't
-  // re-fetch. A handful of regions (NCR chief among them) have no provinces
-  // at all — their cities sit directly under the region — so provincesCache
-  // records an empty, successfully-loaded list for those rather than an error.
+
   const [regions, setRegions] = useState([])
   const [regionsError, setRegionsError] = useState(false)
-  const [provincesCache, setProvincesCache] = useState({}) // regionCode -> { list, loading, error }
-  const [citiesCache, setCitiesCache] = useState({}) // provinceCode or "region:<code>" -> { list, loading, error }
-  const [barangaysCache, setBarangaysCache] = useState({}) // cityOrMunicipalityCode -> { list, loading, error }
+  const [provincesCache, setProvincesCache] = useState({}) 
+  const [citiesCache, setCitiesCache] = useState({}) 
+  const [barangaysCache, setBarangaysCache] = useState({}) 
 
   useEffect(() => {
     let cancelled = false
@@ -221,8 +192,7 @@ export default function Booking() {
           .map((p) => ({ code: p.code, name: p.name }))
           .sort((a, b) => a.name.localeCompare(b.name))
         setProvincesCache((prev) => ({ ...prev, [regionCode]: { list, loading: false, error: false } }))
-        // No provinces under this region (e.g. NCR) — its cities are listed
-        // directly under the region instead, so load those right away.
+       
         if (list.length === 0) loadCitiesForRegion(regionCode)
       })
       .catch(() => {
@@ -290,10 +260,7 @@ export default function Booking() {
   }
 
   function handleRegionSelect(index, regionCode) {
-    // Region is only a narrower for the Province/City dropdowns below — the
-    // backend doesn't store it (an address is just barangay/city/province),
-    // so it's tracked in addressCodes only, never written onto the
-    // passenger object that gets submitted.
+  
     setAddressCodes((prev) => {
       const next = [...prev]
       next[index] = { regionCode, provinceCode: '', cityCode: '', isCity: false }
@@ -321,9 +288,7 @@ export default function Booking() {
     if (provinceCode) loadCitiesForProvince(provinceCode)
   }
 
-  // A region either has provinces (pick one, then its cities) or doesn't
-  // (NCR-style — cities sit directly under the region). This resolves which
-  // cache key currently applies for a given passenger's selections.
+
   function citiesKeyFor(codes) {
     if (!codes) return ''
     if (codes.provinceCode) return codes.provinceCode
@@ -346,11 +311,7 @@ export default function Booking() {
     if (city) loadBarangays(cityCode, city.isCity)
   }
 
-  // The PSGC dropdowns only cover Philippine addresses, and this route also
-  // sells to foreign tourists — this switches a passenger's address section
-  // over to plain free-text fields (including an editable Country) instead
-  // of forcing them into a Philippine barangay/city/province that doesn't
-  // apply to them.
+ 
   function handleToggleForeignAddress(index, checked) {
     setAddressCodes((prev) => {
       const next = [...prev]
@@ -373,11 +334,8 @@ export default function Booking() {
     )
   }
 
-  // A logged-in account works immediately even before its email is
-  // verified, but completing a booking under that account requires it —
-  // enforced server-side; this just lets the customer resend the link
-  // without leaving the booking flow.
-  const [resendStatus, setResendStatus] = useState('idle') // idle | sending | sent | error
+
+  const [resendStatus, setResendStatus] = useState('idle') 
   const [resendMessage, setResendMessage] = useState('')
   async function handleResendVerification() {
     setResendStatus('sending')
@@ -392,11 +350,7 @@ export default function Booking() {
     }
   }
 
-  // Logged-in customers get Passenger 1 pre-filled from their account by
-  // default (since most bookings are for the account holder), but a booking
-  // is often made on someone else's behalf — a parent booking for their
-  // child, a friend booking a group trip, etc. This toggle lets them switch
-  // Passenger 1 back to a blank, freely-editable form for that case.
+  
   const [bookingForSelf, setBookingForSelf] = useState(true)
 
   function fillPassengerOneFromAccount() {
@@ -423,8 +377,7 @@ export default function Booking() {
       }
       return next
     })
-    // The account's saved address is plain text, not a province/city code —
-    // the dropdown starts fresh if they later uncheck "Booking for myself".
+  
     setAddressCodes((prev) => {
       const next = [...prev]
       next[0] = emptyAddressCodes()
@@ -437,10 +390,7 @@ export default function Booking() {
     if (checked) {
       fillPassengerOneFromAccount()
     } else {
-      // Switching to "someone else" — clear the account-derived fields so
-      // there's no leftover data from the account holder on the new
-      // passenger's ticket. Sex/Nationality aren't account fields, so leave
-      // whatever was already entered there untouched.
+    
       setPassengers((prev) => {
         const next = [...prev]
         next[0] = {
@@ -459,62 +409,44 @@ export default function Booking() {
     }
   }
 
-  // Auto-fill Passenger 1 as soon as we know who's logged in.
+  
   useEffect(() => {
     if (customer && bookingForSelf) fillPassengerOneFromAccount()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customer?.id])
 
-  // Passenger 1's identity/contact/address fields are locked while booking
-  // for the account holder — they come straight from the verified account,
-  // so there's nothing to edit. Unchecking "Booking for myself" unlocks them.
   const lockPassengerOneFields = Boolean(customer) && bookingForSelf
 
   const [booking, setBooking] = useState(null)
 
-  // The booking flow moves between steps (form, review, payment) without
-  // changing the URL, so the app-wide scroll-to-top on route change never
-  // fires. Without this, clicking Proceed at the bottom of a long form
-  // dropped the customer onto the next step still scrolled to the bottom.
+
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   }, [phase, Boolean(booking)])
 
   const [qrCodeImageUrl, setQrCodeImageUrl] = useState(null)
   const [testUrl, setTestUrl] = useState(null)
-  const [paymentStatus, setPaymentStatus] = useState('idle') // idle | loading | awaiting_payment | paid | expired | error
+  const [paymentStatus, setPaymentStatus] = useState('idle') 
   const [paymentError, setPaymentError] = useState('')
 
-  // No separate "Contact Details" step — the contact email/number used for
-  // booking lookups, receipts, and payment polling comes from the
-  // logged-in customer's account, or from Passenger 1's fields for guests.
+
   const contactEmail = customer ? customer.email : passengers[0]?.email || ''
   const contactNumber = customer ? customer.contactNumber || '' : passengers[0]?.contact_number || ''
 
-  // Guest checkout has no account, so there's nothing like
-  // customer.emailVerified to check — verification instead happens on a
-  // separate dedicated page (GuestVerifyEmail.jsx), which sends Passenger
-  // 1's email a one-time code and, once confirmed, hands back a short-lived
-  // guestVerificationToken (tied to that exact email) sent along with the
-  // booking request. Restored from router state if we're returning here
-  // after a successful verification.
+
   const [guestVerifiedEmail, setGuestVerifiedEmail] = useState(restored.guestVerifiedEmail || '')
   const [guestVerificationToken, setGuestVerificationToken] = useState(restored.guestVerificationToken || '')
 
-  // If they edit the email after verifying, the old token was only ever
-  // proof of the previous address — drop back to unverified rather than
-  // letting a stale verification silently cover a different inbox.
+
   useEffect(() => {
     if (guestVerifiedEmail && guestVerifiedEmail.toLowerCase() !== contactEmail.trim().toLowerCase()) {
       setGuestVerifiedEmail('')
       setGuestVerificationToken('')
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  
   }, [contactEmail])
 
-  // Sends the passenger along to the dedicated verification page, carrying
-  // everything they've filled in so far — the return trip hands it right
-  // back (plus the verification result) rather than losing their progress.
+  
   function handleGoToGuestVerification() {
     const email = contactEmail.trim()
     if (!email) {
@@ -580,11 +512,7 @@ export default function Booking() {
     )
   }
 
-  // Philippine ZIP codes are 4 digits — strip anything non-numeric as it's
-  // typed rather than validating after the fact, so a passenger never sees
-  // an error for a stray letter that a phone keyboard autocorrected in.
-  // Foreign postal codes vary in format (letters and numbers both, e.g. UK
-  // postcodes), so that restriction only applies to Philippine addresses.
+
   function handleZipCodeChange(index, raw, foreign) {
     if (foreign) {
       updatePassenger(index, 'zip_code', raw.slice(0, 12))
@@ -593,14 +521,6 @@ export default function Booking() {
     updatePassenger(index, 'zip_code', raw.replace(/\D/g, '').slice(0, 4))
   }
 
-  // Philippine mobile numbers are 11 digits starting with "09". Rejecting
-  // keystrokes that break that prefix (instead of just capping length) means
-  // the field can never end up holding something that isn't a valid mobile
-  // number shape.
-  // The strict "09" mobile format only makes sense for a Philippine number —
-  // a foreign traveler's own phone won't fit that shape, so their field just
-  // strips characters that can't appear in a phone number instead of forcing
-  // the local pattern.
   function handleContactNumberChange(index, raw, foreign) {
     if (foreign) {
       updatePassenger(index, 'contact_number', raw.replace(/[^\d+\-() ]/g, '').slice(0, 20))
@@ -611,9 +531,7 @@ export default function Booking() {
     if (validSoFar) updatePassenger(index, 'contact_number', digits)
   }
 
-  // Mirrors calculateFare in backend/index.js: the schedule's fare is
-  // VAT-exclusive, 12% VAT is added, and senior/PWD passengers are VAT-exempt
-  // (RA 9994 / RA 10754). The server recomputes this; it's only a preview.
+
   const VAT_RATE = 0.12
   const round2 = (n) => Math.round(n * 100) / 100
 
@@ -647,12 +565,9 @@ export default function Booking() {
       )
       return
     }
-    // Locked Passenger 1 fields come straight from the account and were
-    // already valid when saved there — only check fields the passenger
-    // actually typed into just now.
+ 
     const editableIndexes = passengers.map((_, i) => i).filter((i) => !(i === 0 && lockPassengerOneFields))
-    // The 4-digit format only applies to Philippine addresses — foreign
-    // postal codes are free-form and aren't checked here.
+  
     if (
       editableIndexes.some((i) => {
         const codes = addressCodes[i] || emptyAddressCodes()
@@ -683,36 +598,21 @@ export default function Booking() {
     setPhase('review')
   }
 
-  // Coming back from the guest verification page shouldn't dump the
-  // passenger back on the form they just finished — jump straight to Review
-  // instead, the same as if they'd clicked "Review Booking" themselves.
+  
   useEffect(() => {
     if (restored.autoAdvance) {
       goToReview()
-      // Scrub the one-time flag from history so refreshing this page (or
-      // clicking "Edit" back to the form) doesn't keep bouncing back here.
+     
       const { autoAdvance, ...rest } = restored
       navigate(`${location.pathname}${location.search}`, { replace: true, state: rest })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Key this browser's most recent in-progress payment is saved under, so a
-  // reload can look it back up. Mobile browsers routinely discard/reload a
-  // backgrounded tab to save memory — switching away to pay in the GCash app
-  // and back is exactly that scenario — which wipes booking/paymentStatus/
-  // qrCodeImageUrl below, since they're plain useState and never survive a
-  // reload on their own. Without this, a customer who already paid would
-  // land back at the very start of the booking flow with no way to reach
-  // their confirmation, even though the booking and payment already exist
-  // server-side.
+  
   const PENDING_BOOKING_STORAGE_KEY = 'evershine-pending-booking'
 
-  // On mount, check for a saved in-progress booking and re-fetch it from the
-  // server instead of trusting only in-memory state (which a reload has
-  // already wiped by the time this runs). Runs once — a booking created
-  // later in this same session sets `booking` directly, it doesn't need
-  // this restore path.
+
   useEffect(() => {
     const saved = localStorage.getItem(PENDING_BOOKING_STORAGE_KEY)
     if (!saved) return
@@ -732,10 +632,7 @@ export default function Booking() {
           localStorage.removeItem(PENDING_BOOKING_STORAGE_KEY)
           return
         }
-        // Guest checkout has no account to pull the contact email back from
-        // on reload — passengers resets to a single blank entry, so
-        // Passenger 1's email needs restoring for contactEmail (used by
-        // startPayment/polling below) to resolve correctly again.
+   
         if (!customer) {
           setPassengers((prev) => {
             const next = [...prev]
@@ -748,15 +645,14 @@ export default function Booking() {
         }
         setBooking(fetched)
       } catch {
-        // Reference code/email no longer valid, or a network hiccup — fall
-        // back to a normal fresh booking flow instead of getting stuck.
+      
         localStorage.removeItem(PENDING_BOOKING_STORAGE_KEY)
       }
     })()
     return () => {
       cancelled = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [])
 
   async function submitBooking() {
@@ -768,8 +664,7 @@ export default function Booking() {
         contact_email: contactEmail,
         contact_number: contactNumber,
         passengers,
-        // Only guests need this — a logged-in customer's verification is
-        // checked server-side from their account instead.
+ 
         ...(customer ? {} : { guest_verification_token: guestVerificationToken }),
       }
       const data = await api.createBooking(payload)
@@ -780,7 +675,7 @@ export default function Booking() {
       )
     } catch (err) {
       setError(err.message)
-      setPhase('form') // something went wrong — let them fix it, not stare at a dead review screen
+      setPhase('form') 
     } finally {
       setSubmitting(false)
     }
@@ -800,18 +695,13 @@ export default function Booking() {
     }
   }
 
-  // Kick off QR generation as soon as a booking exists. Skipped when
-  // paymentStatus is already 'paid' — the restore effect above sets that
-  // directly for a booking that turns out to already be confirmed, and
-  // calling startPayment on an already-paid booking would just fail (the
-  // server refuses to generate a QR for a booking that isn't awaiting
-  // payment), incorrectly flashing an error at someone who already paid.
+
   useEffect(() => {
     if (booking && paymentStatus !== 'paid') startPayment()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [booking])
 
-  // Poll for payment confirmation while a QR is showing.
+
   useEffect(() => {
     if (paymentStatus !== 'awaiting_payment') return
     const interval = setInterval(async () => {
@@ -820,30 +710,20 @@ export default function Booking() {
         if (data.status === 'paid') setPaymentStatus('paid')
         if (data.status === 'expired') setPaymentStatus('expired')
       } catch {
-        // transient network hiccup — keep polling
+  
       }
     }, 8000)
     return () => clearInterval(interval)
   }, [paymentStatus, booking, contactEmail])
 
-  // Nothing left to resume once a booking is actually confirmed — clear the
-  // saved reference so a later, unrelated visit to this page (or another
-  // booking) doesn't have a stale entry sitting around. A new booking
-  // overwrites this key on its own anyway, but there's no reason to keep it
-  // once it's served its purpose.
+ 
   useEffect(() => {
     if (paymentStatus === 'paid') {
       localStorage.removeItem(PENDING_BOOKING_STORAGE_KEY)
     }
   }, [paymentStatus])
 
-  // Fetches the QR image as a blob and downloads it directly, since the
-  // image is hosted by our payment provider on a different domain and a
-  // plain `download` attribute on an `<a>` isn't reliably honored
-  // cross-origin (Safari in particular tends to just open it instead). If
-  // the fetch fails (e.g. the host doesn't allow cross-origin reads), falls
-  // back to opening the image in a new tab, where the existing long-press
-  // instructions below still work to save it manually.
+
   async function downloadQrCode() {
     try {
       const response = await fetch(qrCodeImageUrl)
@@ -1069,9 +949,7 @@ export default function Booking() {
                     const codes = addressCodes[i] || emptyAddressCodes()
                     const locked = i === 0 && lockPassengerOneFields
 
-                    // The Region/Province/City/Barangay cascade only covers
-                    // Philippine addresses — foreign passengers get plain
-                    // free-text fields instead.
+                  
                     if (!locked && codes.foreign) {
                       return (
                         <>
@@ -1103,10 +981,6 @@ export default function Booking() {
                       )
                     }
 
-                    // If even the region list failed to load, the whole
-                    // cascade has nothing to build on — fall back to plain
-                    // free-text fields for the rest of the address instead
-                    // of a chain of dead dropdowns.
                     const cascadeUnavailable = regionsError
 
                     const provinceData = provincesCache[codes.regionCode]
@@ -1239,8 +1113,7 @@ export default function Booking() {
                     const codes = addressCodes[i] || emptyAddressCodes()
                     const locked = i === 0 && lockPassengerOneFields
 
-                    // Postal Code is already shown above for foreign
-                    // addresses — only Country is left to fill in here.
+                
                     if (!locked && codes.foreign) {
                       return (
                         <div>
@@ -1488,12 +1361,7 @@ export default function Booking() {
                 Download QR Code
               </button>
 
-              {/* Booking from the same phone you'd use to scan? You can't point
-                  a camera at the screen it's displayed on. GCash, Maya, and
-                  most banking apps also let you scan a QR image saved to your
-                  gallery instead of using the live camera, so offer that as
-                  the on-device path too, in case the download button above
-                  doesn't behave the same way on every browser. */}
+            
               <div className="mx-auto mt-4 max-w-sm rounded-lg border border-teal-100 bg-teal-50 p-4 text-left">
                 <div className="flex items-center gap-2.5">
                   <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-teal-600 text-white">

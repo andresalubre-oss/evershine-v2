@@ -14,12 +14,8 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { z } = require('zod');
-// otplib v13 is a ground-up rewrite (low-level generate/verify functions,
-// no `authenticator` object) — this code targets the classic v12 API, so
-// package.json pins otplib to ^12, not whatever "latest" resolves to.
 const { authenticator } = require('otplib');
 const QRCode = require('qrcode');
-// Allow one 30s step of clock drift either side when checking a submitted code.
 authenticator.options = { window: 1 };
 
 const prisma = require('./lib/prisma');
@@ -37,12 +33,6 @@ app.disable('x-powered-by');
 app.set('trust proxy', 1);
 app.use(helmet());
 
-// ---------------------------------------------------------------------------
-// PayMongo webhook — MUST be registered before express.json() below, since
-// signature verification needs the exact raw request body PayMongo signed.
-// Any JSON-parsing middleware ahead of this would change the byte
-// representation and break verification.
-// ---------------------------------------------------------------------------
 
 app.post(
   '/api/webhooks/paymongo',
@@ -70,8 +60,7 @@ app.post(
       return res.sendStatus(401);
     }
 
-    // Acknowledge quickly, then process. PayMongo expects a fast response
-    // and will retry on timeout, so do the real work after responding.
+  
     res.sendStatus(200);
 
     try {
@@ -86,8 +75,7 @@ app.post(
 
         if (paymentIntentId) {
           const payment = await prisma.payment.findFirst({ where: { paymentIntentId } });
-          // Guard against duplicate deliveries and races with the polling
-          // endpoint — only act if this booking isn't already marked paid.
+      
           if (payment && payment.status !== 'paid') {
             await prisma.$transaction([
               prisma.payment.update({
@@ -112,17 +100,11 @@ app.post(
 app.use(express.json({ limit: '100kb' }));
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-  // PATCH included for /api/customer/me, without it the browser's CORS
-  // preflight for that route silently fails and profile edits never reach
-  // the server. DELETE included for /api/admin/schedules/:id, same reason.
+
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
 }));
 
-// Socket.io needs the raw http.Server, not the Express app directly — app
-// itself becomes the request handler passed into it. Everything else
-// (routes, middleware) is defined exactly as before; only how the server
-// actually starts listening (see server.listen at the bottom, replacing
-// what used to be app.listen) changes.
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
@@ -130,28 +112,17 @@ const io = new Server(server, {
     methods: ['GET', 'POST'],
   },
 });
-// One fixed room — see the CoastGuardMessage model comment for why this is
-// a single shared channel rather than one room per station.
+
 const COAST_GUARD_CHAT_ROOM = 'coastguard-chat';
 
-// ---------------------------------------------------------------------------
-// Rate limiting
-// ---------------------------------------------------------------------------
+
 
 const publicLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
-  // Authenticated dashboard requests (admin or coast_guard bearer token)
-  // already go through adminLimiter's own, separately-keyed budget below —
-  // counting them against this IP-wide public budget too meant the admin
-  // dashboard's own polling (PAGASA bulletin every 5 min, chat
-  // reconnect/history reloads, plus React StrictMode's double-fetching in
-  // dev) could exhaust a real visitor's public-route budget just from admin
-  // use on the same machine/IP. This limiter is meant for anonymous traffic
-  // (search, booking, contact form, etc.), not staff who are already
-  // rate-limited elsewhere.
+  
   skip: (req) => Boolean(req.headers.authorization),
   message: { error: 'Too many requests, please try again later.' },
 });
@@ -183,10 +154,7 @@ const writeLimiter = rateLimit({
 
 const adminLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  // Raised from 50 — a single admin session with the dashboard open (Weather
-  // tab's own polling, PAGASA bulletin polling every 5 min, Coast Guard chat
-  // reconnect/history reloads, plus several tabs' worth of on-mount fetches)
-  // adds up quickly on its own, well before any actual abuse.
+ 
   max: 300,
   standardHeaders: true,
   legacyHeaders: false,
@@ -194,9 +162,7 @@ const adminLimiter = rateLimit({
   message: { error: 'Too many requests. Please slow down and try again shortly.' },
 });
 
-// Keyed by the target email (not just IP) so someone can't get around the
-// limit by switching networks, and so one IP can't be used to spam a bunch
-// of different strangers' inboxes with codes either.
+
 const guestCodeLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
@@ -206,8 +172,7 @@ const guestCodeLimiter = rateLimit({
   message: { error: 'Too many verification codes requested for this email. Please wait 15 minutes and try again.' },
 });
 
-// Keyed by IP only (there's no account/email to scope it to) — just there
-// to stop the public Contact Us form from being used to spam an inbox.
+
 const contactLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
@@ -218,10 +183,6 @@ const contactLimiter = rateLimit({
 
 app.use('/api', publicLimiter);
 
-// ---------------------------------------------------------------------------
-// File uploads: local disk, randomized filenames, served only via an
-// authenticated admin route (not a public static folder).
-// ---------------------------------------------------------------------------
 
 const uploadsDir = path.join(__dirname, 'uploads');
 for (const sub of ['discount-ids', 'selfies']) {
@@ -236,9 +197,7 @@ const imageFileFilter = (req, file, cb) => {
   cb(null, true);
 };
 
-// Profile Verification submits two files at once — the ID photo and a live
-// selfie captured from the camera — each routed to its own subfolder based
-// on which form field it came in on.
+
 const uploadVerificationFiles = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => {
@@ -255,9 +214,7 @@ const uploadVerificationFiles = multer({
   fileFilter: imageFileFilter,
 });
 
-// ---------------------------------------------------------------------------
-// Validation schemas
-// ---------------------------------------------------------------------------
+
 
 const loginSchema = z.object({
   email: z.string().trim().email().max(255),
@@ -301,9 +258,7 @@ const discountRequestSchema = z.object({
   discount_type: z.enum(['senior', 'pwd', 'student']),
 }).strict();
 
-// Mirrors registerSchema's name/address fields — a customer can revise
-// anything they filled in at signup, from the same Account dashboard where
-// they can now also see all of it displayed back to them.
+
 const updateProfileSchema = z.object({
   first_name: z.string().trim().min(1).max(100),
   middle_name: z.string().trim().max(100).optional().or(z.literal('')),
@@ -357,9 +312,7 @@ const createBookingSchema = z.object({
   contact_email: z.string().trim().email().max(255),
   contact_number: z.string().trim().max(30),
   passengers: z.array(passengerSchema).min(1).max(10),
-  // Only present for guest checkout (no logged-in customer) — proves
-  // contact_email was verified via a one-time code. Checked in the route
-  // itself, not here; the schema just needs to allow the field through.
+ 
   guest_verification_token: z.string().trim().min(1).max(2000).optional(),
 }).strict();
 
@@ -411,19 +364,13 @@ const addScheduleSchema = z.object({
   direction: z.enum(['PB_TO_LIMASAWA', 'LIMASAWA_TO_PB']),
   departure_datetime: z.string().min(1).max(30),
   base_fare: z.coerce.number().positive().max(100000),
-  // Set by the admin alongside the fare itself. Optional on the wire so
-  // existing callers (and the default schema value) still work; each
-  // defaults to 20% to match the flat rate this replaces.
+ 
   senior_discount_percent: z.coerce.number().min(0).max(100).default(20),
   pwd_discount_percent: z.coerce.number().min(0).max(100).default(20),
   student_discount_percent: z.coerce.number().min(0).max(100).default(20),
 }).strict();
 
-// Same fields as addScheduleSchema, but every field is optional — an admin
-// editing a schedule usually only wants to tweak the fare or the discount
-// rates, not resupply every field. ferry_id and direction are still
-// editable (e.g. fixing a schedule that was created against the wrong
-// ferry) but nothing here is required.
+
 const editScheduleSchema = z.object({
   ferry_id: z.string().uuid().optional(),
   direction: z.enum(['PB_TO_LIMASAWA', 'LIMASAWA_TO_PB']).optional(),
@@ -452,24 +399,14 @@ const coastGuardMessagesQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
 }).strict();
 
-// "Send Manifest" — at least one recipient is required, but that's checked
-// in the route itself (both fields being independently optional here is what
-// lets an admin send to Coast Guard accounts only, an extra email only, or
-// both at once).
 const sendManifestSchema = z.object({
   coastGuardAccountIds: z.array(z.string().uuid()).max(20).optional().default([]),
   extraEmail: z.string().trim().email().max(255).optional(),
 }).strict();
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
-// Discount rate now comes from the schedule itself (set by the admin when
-// the fare was declared) rather than a single flat rate for every type, so
-// this needs the schedule row, not just its base fare.
 const VAT_RATE = 0.12;
-// RA 9994 (Senior Citizens) and RA 10754 (PWDs): VAT-exempt on domestic sea fares.
+
 const VAT_EXEMPT_DISCOUNT_TYPES = ['senior', 'pwd'];
 const round2 = (n) => Math.round(n * 100) / 100;
 
@@ -486,20 +423,6 @@ function calculateFare(schedule, discountType) {
   return { net, vat, total: round2(net + vat) };
 }
 
-// A schedule's seats are "held" by any booking that's actually paid, OR
-// unpaid but still inside its payment window. A booking whose QR expired
-// unpaid, or that's cancelled / declined / refunded, releases its seats back
-// into availability. So does one with a refund request pending: the moment a
-// passenger cancels, their seats reopen for other customers right away rather
-// than waiting for an admin to process the refund. Without releasing
-// abandoned pending_payment bookings, they'd squat on seats forever — nothing
-// else in the app ever flips Booking.status away from 'pending_payment' on
-// its own (only the child Payment.status becomes 'expired'; see
-// /api/bookings/payment-status).
-//
-// A function, not a constant: the payment-window cutoff has to be "now" at the
-// moment of each query. As a module-level object, new Date() was evaluated
-// once at server start, so holds never expired until the next restart.
 function seatHoldingWhere() {
   return {
     OR: [
@@ -512,17 +435,10 @@ function seatHoldingWhere() {
   };
 }
 
-// Bookings that must NOT appear on a sailing's passenger manifest: anyone who
-// cancelled (including a pending refund request, whose seat is already
-// released above), was refunded, or whose payment was declined. Without this
-// a passenger who cancelled would still be listed as boarding.
+
 const MANIFEST_EXCLUDED_STATUSES = ['cancelled', 'refund_requested', 'refunded', 'payment_declined'];
 
-// Counts passengers (= seats), not bookings, since one booking can carry
-// several passengers. `client` is either the plain `prisma` client or a
-// `tx` transaction client — both expose the same `.booking` API, so this
-// works unmodified inside the transactional capacity check in POST
-// /api/bookings.
+
 async function getBookedSeatCount(client, scheduleId) {
   const rows = await client.booking.findMany({
     where: { scheduleId, ...seatHoldingWhere() },
@@ -531,8 +447,7 @@ async function getBookedSeatCount(client, scheduleId) {
   return rows.reduce((sum, r) => sum + r._count.passengers, 0);
 }
 
-// Batched version for schedule list endpoints, to avoid one query per
-// schedule (N+1). Returns a plain { [scheduleId]: bookedSeats } map.
+
 async function getBookedSeatCountsForSchedules(client, scheduleIds) {
   if (scheduleIds.length === 0) return {};
   const rows = await client.booking.findMany({
@@ -546,17 +461,6 @@ async function getBookedSeatCountsForSchedules(client, scheduleIds) {
   return counts;
 }
 
-// Customer-initiated cancellation policy — adapted from OceanJet's published
-// refund rates (oceanjet.net/manage-booking). Their real table has a second
-// dimension (checked-in vs. not-checked-in) that doesn't apply here since
-// Evershine has no physical check-in step; every booking is effectively
-// "not checked in" from the system's point of view, so this uses that half
-// of their table: 80% more than 24h before departure, 60% within 24h.
-// Unlike OceanJet (who still refund 60% after departure, assuming the
-// passenger never actually boarded), this app has no way to verify a no-show
-// after the fact, so cancellation simply isn't accepted once departure has
-// passed — the safer, more defensible rule for a system with no boarding
-// verification.
 function computeRefundEligibility(departureDatetime) {
   const hoursUntilDeparture = (new Date(departureDatetime).getTime() - Date.now()) / (1000 * 60 * 60);
   if (hoursUntilDeparture <= 0) {
@@ -569,10 +473,7 @@ function computeRefundEligibility(departureDatetime) {
 }
 
 function generateReferenceCode() {
-  // crypto.randomInt (not Math.random) since this code doubles as a security
-  // credential. Paired with the contact email, it's what authorizes the
-  // guest lookup/cancel/payment routes below, the same reason
-  // generateSixDigitCode uses a CSPRNG instead of Math.random.
+
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code = 'EB';
   for (let i = 0; i < 6; i++) {
@@ -581,13 +482,6 @@ function generateReferenceCode() {
   return code;
 }
 
-// Re-fetches the booking with everything the invoice email needs (the plain
-// `booking` variable in scope at each call site below is missing passengers
-// and/or the schedule's ferry, since those weren't needed for the payment
-// logic itself), then sends it. Shared by both places a booking can
-// transition to 'confirmed': the PayMongo webhook and the payment-status
-// poll, so the email is built the same way regardless of which one caught
-// the successful payment first.
 async function sendInvoiceForBooking(bookingId) {
   const fullBooking = await prisma.booking.findUnique({
     where: { id: bookingId },
@@ -598,12 +492,7 @@ async function sendInvoiceForBooking(bookingId) {
   }
 }
 
-// Shared by both the socket.io 'send_message' handler and the REST POST
-// fallback below, so a message is persisted identically either way. Looks
-// the sender's current name/role/station up fresh from the database rather
-// than trusting anything the client claims, then snapshots those three
-// fields onto the message row itself (see the CoastGuardMessage model
-// comment for why). Returns null if the sender account no longer exists.
+
 async function persistCoastGuardMessage(senderId, body) {
   const sender = await prisma.admin.findUnique({ where: { id: senderId } });
   if (!sender) return null;
@@ -626,9 +515,6 @@ function signCustomerToken(customer) {
   );
 }
 
-// admin.role is 'admin' or 'coast_guard' from the database — this is the
-// ONE place that decides what a session token can do, so requireAuth
-// (admin-only) vs requireAdminOrCoastGuard downstream can trust it.
 function signAdminToken(admin) {
   return jwt.sign(
     { id: admin.id, email: admin.email, role: admin.role },
@@ -637,10 +523,6 @@ function signAdminToken(admin) {
   );
 }
 
-// Issued right after a correct password when the account has 2FA enabled.
-// Deliberately a different `role` than 'admin' so it can't be used against
-// any requireAuth-protected route — it's only good for POST /api/login/2fa,
-// and only for 5 minutes.
 function signAdminPendingToken(admin) {
   return jwt.sign(
     { id: admin.id, role: 'admin_2fa_pending' },
@@ -657,8 +539,6 @@ function signAdminSetupToken(admin) {
   );
 }
 
-// Best-effort logging — a logging failure should never break login itself,
-// so this swallows its own errors instead of throwing.
 async function logAdminEvent({ adminId = null, email, event, req }) {
   try {
     await prisma.adminAuditLog.create({
@@ -669,10 +549,6 @@ async function logAdminEvent({ adminId = null, email, event, req }) {
   }
 }
 
-// A verified discount lapses once discountVerifiedUntil passes — we don't
-// mutate the stored status (so admins can still see it was once verified,
-// and can re-verify with a fresh date), we just report it as 'expired' to
-// anything that checks it, including the booking discount enforcement below.
 function isDiscountExpired(customer) {
   return (
     customer.discountStatus === 'verified' &&
@@ -688,9 +564,6 @@ function publicCustomer(customer) {
     middleName: customer.middleName,
     lastName: customer.lastName,
     suffix: customer.suffix,
-    // Computed convenience field — pages that haven't been updated to the
-    // structured name yet (Account dashboard, Admin) can keep reading
-    // `.name` unchanged until they're revised.
     name: [customer.firstName, customer.lastName].filter(Boolean).join(' '),
     email: customer.email,
     contactNumber: customer.contactNumber,
@@ -703,8 +576,6 @@ function publicCustomer(customer) {
     discountStatus: isDiscountExpired(customer) ? 'expired' : customer.discountStatus,
     discountVerifiedUntil: customer.discountVerifiedUntil,
     emailVerified: customer.emailVerified,
-    // Exposed so the Account dashboard can show "Member since" — this is
-    // read-only account metadata, not something the customer can edit.
     createdAt: customer.createdAt,
   };
 }
@@ -713,15 +584,11 @@ function generateEmailVerificationToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
-// crypto.randomInt is cryptographically random (unlike Math.random) but
-// still gives a plain 6-digit number a guest can type back in, unlike the
-// long hex token above which is only ever clicked as part of a link.
+
 function generateSixDigitCode() {
   return crypto.randomInt(0, 1000000).toString().padStart(6, '0');
 }
 
-// Requires a valid customer token — used for routes only a logged-in
-// customer may hit (profile, discount request).
 function requireCustomerAuth(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
@@ -739,9 +606,7 @@ function requireCustomerAuth(req, res, next) {
   }
 }
 
-// Optional auth — attaches req.customerId if a valid customer token is
-// present, but never rejects the request. Used on booking creation so
-// guests can still check out, while logged-in customers get recognized.
+
 function attachCustomerIfPresent(req, res, next) {
   const authHeader = req.headers.authorization;
   if (authHeader?.startsWith('Bearer ')) {
@@ -749,15 +614,11 @@ function attachCustomerIfPresent(req, res, next) {
       const payload = jwt.verify(authHeader.slice(7), process.env.JWT_SECRET);
       if (payload.role === 'customer') req.customerId = payload.customerId;
     } catch {
-      // invalid/expired token — treat this request as a guest instead of rejecting it
     }
   }
   next();
 }
 
-// ---------------------------------------------------------------------------
-// Auth
-// ---------------------------------------------------------------------------
 
 app.post('/api/login', loginLimiter, loginByAccountLimiter, validate(loginSchema), async (req, res) => {
   const { email, password } = req.body;
@@ -775,9 +636,6 @@ app.post('/api/login', loginLimiter, loginByAccountLimiter, validate(loginSchema
     return res.status(400).json({ error: 'Invalid email or password' });
   }
 
-  // Password alone isn't enough once 2FA is turned on — hand back a
-  // short-lived pending token instead of a real session, and require a
-  // second call with a valid TOTP code before a usable token is issued.
   if (admin.twoFactorEnabled) {
     return res.json({
       requiresTwoFactor: true,
@@ -785,9 +643,7 @@ app.post('/api/login', loginLimiter, loginByAccountLimiter, validate(loginSchema
     });
   }
 
-   // 2FA is mandatory: an admin without it enabled never gets a real
-  // session token from a password alone — only a short-lived setup token
-  // that's good for nothing except the 2FA setup/enable routes below.
+  
   res.json({
     requiresTwoFactorSetup: true,
     setupToken: signAdminSetupToken(admin),
@@ -845,8 +701,6 @@ app.post('/api/admin/2fa/setup', requireAdminOrSetup, adminLimiter, async (req, 
 });
   
 
-// Step 2: admin proves they actually scanned the QR / added the secret by
-// submitting a live code. Only then does 2FA actually start being enforced.
 app.post('/api/admin/2fa/enable', requireAdminOrSetup, adminLimiter, validate(twoFactorEnableSchema), async (req, res) => {
   const { code } = req.body;
   const admin = await prisma.admin.findUnique({ where: { id: req.admin.id } });
@@ -873,8 +727,7 @@ app.post('/api/admin/2fa/enable', requireAdminOrSetup, adminLimiter, validate(tw
   });
 });
 
-// Requires the current password (not just an existing session) so leaving a
-// laptop unlocked isn't enough to strip 2FA off the account.
+
 app.post('/api/admin/2fa/disable', requireAuth, adminLimiter, validate(twoFactorDisableSchema), async (req, res) => {
   const { password } = req.body;
   const admin = await prisma.admin.findUnique({ where: { id: req.admin.id } });
@@ -898,10 +751,6 @@ app.post('/api/admin/logout', requireAuth, adminLimiter, async (req, res) => {
   res.json({ message: 'Logged out.' });
 });
 
-// Powers the admin dashboard sidebar (name/email shown at the bottom). This
-// route didn't exist before even though the frontend was already calling
-// it — every request 404'd, silently, so the sidebar never actually showed
-// the signed-in admin's name/email.
 app.get('/api/admin/me', requireAuth, adminLimiter, async (req, res) => {
   const admin = await prisma.admin.findUnique({
     where: { id: req.admin.id },
@@ -911,15 +760,7 @@ app.get('/api/admin/me', requireAuth, adminLimiter, async (req, res) => {
   res.json(admin);
 });
 
-// ---------------------------------------------------------------------------
-// Customer accounts — registration, login, profile, discount verification.
-//
-// Discount policy: a passenger's discount only counts if the person booking
-// is logged in AND their account has discountStatus === 'verified' (an
-// admin reviewed their uploaded ID once, on their profile). This is checked
-// server-side in POST /api/bookings below — never trust the client's
-// discount_type on its own.
-// ---------------------------------------------------------------------------
+
 
 app.post('/api/register', loginLimiter, validate(registerSchema), async (req, res) => {
   const {
@@ -954,9 +795,7 @@ app.post('/api/register', loginLimiter, validate(registerSchema), async (req, re
     },
   });
 
-  // Fire-and-forget — sendVerificationEmail never throws, so a mail
-  // provider hiccup doesn't stop the account from being created. The
-  // customer can always hit "Resend verification email" from their account.
+
   sendVerificationEmail(customer.email, customer.firstName, verificationToken);
 
   const token = signCustomerToken(customer);
@@ -1027,10 +866,7 @@ app.get('/api/customer/me', requireCustomerAuth, async (req, res) => {
   res.json({ customer: publicCustomer(customer) });
 });
 
-// The live selfie captured during Profile Verification doubles as the
-// account's permanent profile photo. Deliberately ignores any path/filename
-// from the client — it only ever serves the authenticated customer's own
-// selfiePath, so there's no way to request anyone else's file through this.
+
 app.get('/api/customer/me/photo', requireCustomerAuth, async (req, res) => {
   const customer = await prisma.customer.findUnique({ where: { id: req.customerId } });
   if (!customer?.selfiePath) {
@@ -1062,15 +898,13 @@ app.patch('/api/customer/me', requireCustomerAuth, writeLimiter, validate(update
       province,
       zipCode: zip_code,
       region,
-      contactNumber: contact_number || undefined, // contactNumber is required — skip the update if left blank
+      contactNumber: contact_number || undefined, 
     },
   });
   res.json({ message: 'Profile updated', customer: publicCustomer(customer) });
 });
 
-// Only ever returns bookings tied to the authenticated customer's own ID —
-// never trusts an email/reference-code from the client the way the guest
-// "Manage Booking" lookup does.
+
 app.get('/api/customer/bookings', requireCustomerAuth, async (req, res) => {
   const bookings = await prisma.booking.findMany({
     where: { customerId: req.customerId },
@@ -1120,9 +954,6 @@ app.post(
   }
 );
 
-// ---------------------------------------------------------------------------
-// Public: ferries & schedules
-// ---------------------------------------------------------------------------
 
 app.get('/api/ferries', async (req, res) => {
   const ferries = await prisma.ferry.findMany();
@@ -1150,11 +981,7 @@ app.get('/api/schedules', validate(schedulesQuerySchema, 'query'), async (req, r
   res.json(withAvailability);
 });
 
-// Lightweight companion to GET /api/schedules — just the distinct calendar
-// dates (Manila-local, not UTC) that have at least one upcoming sailing in
-// this direction. Used by the search widget's date picker to point
-// customers at days that are actually worth looking at, without making them
-// fetch a full day's schedule for every date they might click.
+
 app.get('/api/schedules/upcoming-dates', validate(upcomingDatesQuerySchema, 'query'), async (req, res) => {
   const { direction } = req.query;
   const schedules = await prisma.schedule.findMany({
@@ -1165,7 +992,7 @@ app.get('/api/schedules/upcoming-dates', validate(upcomingDatesQuerySchema, 'que
   const seen = new Set();
   const dates = [];
   for (const s of schedules) {
-    // en-CA gives YYYY-MM-DD directly, already in Manila's calendar day.
+    
     const dateStr = s.departureDatetime.toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
     if (!seen.has(dateStr)) {
       seen.add(dateStr);
@@ -1175,23 +1002,13 @@ app.get('/api/schedules/upcoming-dates', validate(upcomingDatesQuerySchema, 'que
   res.json(dates.slice(0, 30));
 });
 
-// ---------------------------------------------------------------------------
-// Guest bookings (no login required, no seat selection)
-//
-// Guest checkout has no account, so there's no persistent "verified" flag to
-// check the way logged-in customers have. Instead the email is verified
-// live, right before booking: a 6-digit code is emailed to it, and
-// confirming that code back returns a short-lived JWT scoped to that exact
-// address, which the frontend then attaches to the actual booking request.
-// ---------------------------------------------------------------------------
 
 app.post('/api/guest/send-code', guestCodeLimiter, validate(guestSendCodeSchema), async (req, res) => {
   const { email } = req.body;
   const code = generateSixDigitCode();
   const codeHash = await bcrypt.hash(code, 10);
 
-  // Old, unverified codes for this email are irrelevant once a new one is
-  // issued — only the latest should be checkable.
+
   await prisma.guestEmailVerification.deleteMany({ where: { email, verified: false } });
   await prisma.guestEmailVerification.create({
     data: { email, codeHash, expiresAt: new Date(Date.now() + 10 * 60 * 1000) },
@@ -1229,15 +1046,12 @@ app.post('/api/guest/verify-code', guestCodeLimiter, validate(guestVerifyCodeSch
 
   await prisma.guestEmailVerification.update({ where: { id: record.id }, data: { verified: true } });
 
-  // Short-lived and scoped to exactly this email — POST /api/bookings checks
-  // both the role and that the email matches before trusting it.
+  
   const token = jwt.sign({ email, role: 'guest_verified' }, process.env.JWT_SECRET, { expiresIn: '30m' });
   res.json({ message: 'Email verified.', token });
 });
 
-// Contact Us page submission — delivered straight to support's inbox via
-// Resend (reply-to set to the visitor's own address), so visitors never have
-// to leave the site or open their own email app to reach us.
+
 app.post('/api/contact', contactLimiter, validate(contactMessageSchema), async (req, res) => {
   const { name, email, message } = req.body;
   try {
@@ -1260,19 +1074,9 @@ app.post('/api/bookings', writeLimiter, attachCustomerIfPresent, validate(create
     return res.status(400).json({ error: 'This trip has already departed and can no longer be booked.' });
   }
 
-  // Email verification enforcement — a logged-in customer's account works
-  // immediately even before its email is verified, and guest checkout has no
-  // account at all, so neither path required proving you actually own the
-  // email address. A made-up address worked just as well as a real one
-  // either way. This is the actual enforcement point for both, plus the
-  // usual server-side discount enforcement for logged-in bookers (never
-  // trust discount_type from the client — it only survives if the booker is
-  // logged in with a verified profile, for the discount type that profile
-  // was verified for).
   let allowedDiscountType = null;
   if (req.customerId) {
-    // Logged in: block on the account's own emailVerified flag (set once,
-    // via the link sent at registration).
+  
     const customer = await prisma.customer.findUnique({ where: { id: req.customerId } });
     if (customer && !customer.emailVerified) {
       return res.status(403).json({
@@ -1284,10 +1088,7 @@ app.post('/api/bookings', writeLimiter, attachCustomerIfPresent, validate(create
       allowedDiscountType = customer.discountType;
     }
   } else {
-    // Guest: block unless they completed the one-time-code flow for this
-    // exact email and are presenting the token it issued. Re-verifies the
-    // token here rather than trusting a prior /guest/verify-code response
-    // blindly — the token could be stale, for a different email, or forged.
+  
     let guestPayload = null;
     try {
       guestPayload = guest_verification_token && jwt.verify(guest_verification_token, process.env.JWT_SECRET);
@@ -1317,14 +1118,11 @@ app.post('/api/bookings', writeLimiter, attachCustomerIfPresent, validate(create
   const totalFare = round2(passengersWithFare.reduce((sum, p) => sum + p.fare.total, 0));
   const vatAmount = round2(passengersWithFare.reduce((sum, p) => sum + p.fare.vat, 0));
 
-  // Capacity check + insert happen inside one transaction, behind a row lock
-  // on the schedule (SELECT ... FOR UPDATE), so simultaneous requests for the
-  // same sailing are processed one at a time and can never overbook it.
+  
   let booking;
   try {
     booking = await prisma.$transaction(async (tx) => {
-      // Row lock on this sailing: concurrent bookings for the same schedule
-      // wait here one at a time, so the seat count below can't go stale.
+      
       await tx.$queryRaw`SELECT id FROM schedules WHERE id = ${schedule_id} FOR UPDATE`;
       const ferry = await tx.ferry.findUnique({ where: { id: schedule.ferryId } });
       const bookedSeats = await getBookedSeatCount(tx, schedule_id);
@@ -1348,8 +1146,7 @@ app.post('/api/bookings', writeLimiter, attachCustomerIfPresent, validate(create
           contactNumber: contact_number,
           totalFare,
           vatAmount,
-          // Tags the booking to the logged-in customer, if any, so it shows up
-          // in their dashboard's booking history. Guests (no token) leave this null.
+     
           customerId: req.customerId || null,
           passengers: {
             create: passengersWithFare.map((p) => ({
@@ -1402,12 +1199,7 @@ app.get('/api/bookings/lookup', validate(lookupQuerySchema, 'query'), async (req
   res.json(booking);
 });
 
-// Downloadable PDF version of the booking invoice — same reference-code +
-// contact-email pair as the lookup route above is the only "auth" here (no
-// login required), matching how Manage Booking and the emailed invoice
-// already work. Generated on demand rather than stored, since it's cheap to
-// build and this way it never goes stale if a booking's details somehow
-// change after confirmation.
+
 app.get('/api/bookings/invoice-pdf', validate(lookupQuerySchema, 'query'), async (req, res) => {
   const { reference_code, contact_email } = req.query;
 
@@ -1422,8 +1214,7 @@ app.get('/api/bookings/invoice-pdf', validate(lookupQuerySchema, 'query'), async
   if (booking.contactEmail.toLowerCase() !== contact_email.toLowerCase()) {
     return res.status(403).json({ error: 'Reference code and email do not match' });
   }
-  // A PDF invoice only makes sense once payment has actually gone through —
-  // an unpaid booking has no confirmed trip to hand a "ticket" for yet.
+ 
   if (booking.status !== 'confirmed') {
     return res.status(400).json({ error: 'This booking is not confirmed yet, so there is no invoice to download.' });
   }
@@ -1456,12 +1247,7 @@ app.post('/api/bookings/cancel', writeLimiter, validate(cancelBookingSchema), as
     return res.status(400).json({ error: 'This booking has already been cancelled.' });
   }
 
-  // No money has changed hands yet for an unpaid booking, so there's
-  // nothing for an admin to refund — cancel it outright instead of putting
-  // it in the manual refund-review queue. This case skips the
-  // time-before-departure check below entirely: there's no refund at stake,
-  // so there's no reason to block someone from clearing out a booking they
-  // never paid for.
+
   const noPaymentTaken = booking.status === 'pending_payment' || booking.status === 'payment_declined';
 
   let refundPercent = null;
@@ -1489,9 +1275,6 @@ app.post('/api/bookings/cancel', writeLimiter, validate(cancelBookingSchema), as
   });
 });
 
-// ---------------------------------------------------------------------------
-// Automated payment: PayMongo QR Ph
-// ---------------------------------------------------------------------------
 
 app.post('/api/bookings/generate-payment', writeLimiter, validate(generatePaymentSchema), async (req, res) => {
   const { reference_code, contact_email } = req.body;
@@ -1510,7 +1293,7 @@ app.post('/api/bookings/generate-payment', writeLimiter, validate(generatePaymen
     return res.status(400).json({ error: 'This booking is not awaiting payment' });
   }
 
-  // Reuse an existing, still-valid QR instead of generating a new one on every click.
+
   if (
     booking.payment &&
     booking.payment.status === 'pending' &&
@@ -1539,8 +1322,7 @@ app.post('/api/bookings/generate-payment', writeLimiter, validate(generatePaymen
 
     const attached = await paymongo.attachPaymentMethod(paymentIntentId, paymentMethodId, clientKey);
     const imageUrl = attached.data.attributes.next_action?.code?.image_url;
-    // Test-mode only: lets you simulate a scan/payment without touching a real
-    // banking app. PayMongo does not return this field in live mode.
+  
     const testUrl = attached.data.attributes.next_action?.code?.test_url || null;
 
     if (!imageUrl) {
@@ -1595,7 +1377,7 @@ app.get('/api/bookings/payment-status', validate(paymentStatusQuerySchema, 'quer
     return res.json({ status: 'not_started' });
   }
 
-  // Already settled — no need to call PayMongo again.
+
   if (booking.payment.status === 'paid') {
     return res.json({ status: 'paid' });
   }
@@ -1633,9 +1415,6 @@ app.get('/api/bookings/payment-status', validate(paymentStatusQuerySchema, 'quer
   }
 });
 
-// ---------------------------------------------------------------------------
-// Admin: ferries, schedules, bookings, manifest, analytics
-// ---------------------------------------------------------------------------
 
 app.post('/api/admin/ferries', requireAuth, adminLimiter, validate(addFerrySchema), async (req, res) => {
   const { name, seat_capacity } = req.body;
@@ -1664,13 +1443,7 @@ app.post('/api/admin/schedules', requireAuth, adminLimiter, validate(addSchedule
   res.json({ message: 'Schedule created', schedule });
 });
 
-// Editing a schedule that already has bookings only changes future
-// calculations (new fare quotes, the invoice PDF's own snapshot of the
-// booking's totalFare, etc.) — it deliberately does NOT touch any existing
-// Booking/BookingPassenger rows, which already recorded their own fare at
-// booking time. That matches how fares already worked (each schedule keeps
-// whatever discount rates were in effect when it was created), so an edit
-// here reads the same way a brand new schedule would going forward.
+
 app.patch(
   '/api/admin/schedules/:id',
   requireAuth,
@@ -1711,10 +1484,7 @@ app.patch(
   }
 );
 
-// requireAdminOrCoastGuard (not plain requireAuth) — this is the one
-// existing route Coast Guard accounts are also allowed to read, so they can
-// see the same schedule/seat picture the admin does without any separate
-// endpoint to maintain.
+
 app.get('/api/admin/schedules', requireAdminOrCoastGuard, adminLimiter, async (req, res) => {
   const schedules = await prisma.schedule.findMany({
     include: { ferry: true },
@@ -1728,17 +1498,7 @@ app.get('/api/admin/schedules', requireAdminOrCoastGuard, adminLimiter, async (r
   res.json(withAvailability);
 });
 
-// ---------------------------------------------------------------------------
-// Coast Guard coordination — admin-provisioned accounts (role: coast_guard
-// on the same Admin table, see schema.prisma) that can only ever read
-// schedules (above) and use the shared chat below. See lib nowhere —
-// deliberately kept inline here since it's a small, tightly-scoped set of
-// routes rather than its own module.
-// ---------------------------------------------------------------------------
 
-// Admin-only (plain requireAuth): creates a new Coast Guard login. There's
-// no self-registration — these are handed out by Evershine staff to an
-// actual Coast Guard contact, the same way you'd hand someone a radio.
 app.post(
   '/api/admin/coastguard-accounts',
   requireAuth,
@@ -1771,10 +1531,7 @@ app.get('/api/admin/coastguard-accounts', requireAuth, adminLimiter, async (req,
   res.json(accounts);
 });
 
-// Lightweight "who am I" for the Coast Guard portal — requireAuth (admin
-// only) already has its own /api/admin/me; this is the coast_guard-inclusive
-// equivalent, used so the portal page can confirm the session and show a
-// name/station without needing full admin access.
+
 app.get('/api/admin/coastguard/me', requireAdminOrCoastGuard, adminLimiter, async (req, res) => {
   const admin = await prisma.admin.findUnique({
     where: { id: req.admin.id },
@@ -1784,10 +1541,7 @@ app.get('/api/admin/coastguard/me', requireAdminOrCoastGuard, adminLimiter, asyn
   res.json(admin);
 });
 
-// Message history, newest-last (oldest-first in the response) for the
-// single shared channel. `before` (an ISO timestamp) pages backward through
-// older messages — the chat UI only needs to ask for it when someone
-// scrolls up, not on every load.
+
 app.get(
   '/api/admin/coastguard/messages',
   requireAdminOrCoastGuard,
@@ -1804,12 +1558,7 @@ app.get(
   }
 );
 
-// Plain REST fallback for sending — the socket.io handler (see the bottom of
-// this file) is the primary path since it broadcasts live, but this exists
-// so a message can still be sent (just without instant delivery to others)
-// if a Coast Guard connection's socket happens to be down when they hit
-// Send. Both paths write through the same persistence, so history stays
-// consistent either way.
+
 app.post(
   '/api/admin/coastguard/messages',
   requireAdminOrCoastGuard,
@@ -1823,9 +1572,7 @@ app.post(
   }
 );
 
-// Marks the channel as read up to now, for whichever account is logged in —
-// server-side (not localStorage), so the "New" badge is correct regardless
-// of which browser/device someone checks from.
+
 app.post('/api/admin/coastguard/mark-read', requireAdminOrCoastGuard, adminLimiter, async (req, res) => {
   await prisma.admin.update({
     where: { id: req.admin.id },
@@ -1834,12 +1581,7 @@ app.post('/api/admin/coastguard/mark-read', requireAdminOrCoastGuard, adminLimit
   res.json({ message: 'Marked as read.' });
 });
 
-// Blocked if any booking already references this schedule, rather than
-// letting the delete cascade or fail on a raw foreign-key error. A customer
-// who already booked this sailing needs that record to stay intact (their
-// reference code, manifest entry, refund history, etc.). The admin has to
-// deal with those bookings first (cancel them, or just leave the schedule
-// alone) before the schedule itself can be removed.
+
 app.delete('/api/admin/schedules/:id', requireAuth, adminLimiter, validate(idParamSchema, 'params'), async (req, res) => {
   const schedule = await prisma.schedule.findUnique({ where: { id: req.params.id } });
   if (!schedule) {
@@ -1863,14 +1605,7 @@ app.get('/api/admin/bookings', requireAuth, adminLimiter, async (req, res) => {
   res.json(bookings);
 });
 
-// A direct admin override, separate from the customer-initiated
-// cancel -> refund-request -> mark-refunded/reject review flow above (that
-// flow still exists and is unchanged). This is for cases the admin needs to
-// act on unilaterally — e.g. a sailing gets cancelled outright and every
-// booking on it needs clearing, or a booking needs voiding for a reason
-// that didn't come through the customer's own cancellation request. Bookings
-// that already reached a final state (cancelled/refunded) can't be
-// cancelled again.
+
 app.post(
   '/api/admin/bookings/:id/cancel',
   requireAuth,
@@ -1884,17 +1619,9 @@ app.post(
     if (booking.status === 'cancelled' || booking.status === 'refunded') {
       return res.status(400).json({ error: 'This booking is already cancelled or refunded.' });
     }
-    // No payment was ever taken for these — a plain cancel is enough, same
-    // rule the customer-facing cancel route already uses. Anything that did
-    // involve money (confirmed, or already mid refund-review) goes to
-    // refund_requested instead, so it still shows up for an admin to
-    // formally mark as refunded once the money is actually sent back.
+   
     const noPaymentTaken = booking.status === 'pending_payment' || booking.status === 'payment_declined';
-    // This route is for Evershine-initiated cancellations (a sailing pulled
-    // outright, etc.), not a customer's own request — per the "If We Cancel
-    // Your Trip" policy that's always a full refund, not the tiered
-    // 80%/60% rate computeRefundEligibility applies to customer-requested
-    // cancellations.
+   
     const updated = await prisma.booking.update({
       where: { id: req.params.id },
       data: {
@@ -1907,10 +1634,6 @@ app.post(
   }
 );
 
-// Refunds are never sent automatically — a customer's cancellation just
-// queues the booking here with their stated reason. An admin reviews it and
-// either confirms they've manually sent the money (mark-refunded) or
-// decides the request doesn't hold up and reinstates the booking (reject).
 app.get('/api/admin/refund-requests', requireAuth, adminLimiter, async (req, res) => {
   const bookings = await prisma.booking.findMany({
     where: { status: 'refund_requested' },
@@ -1951,15 +1674,7 @@ app.post(
     if (!booking || booking.status !== 'refund_requested') {
       return res.status(400).json({ error: 'This booking is not awaiting a refund.' });
     }
-    // Denying the request means the cancellation itself didn't hold up —
-    // reinstate the booking as confirmed rather than leaving it in limbo.
-    // Clears refundPercent too, since it no longer applies to a booking
-    // that's back to normal — if the customer requests again later, a fresh
-    // rate gets computed based on however much time is left by then.
-    //
-    // Cancelling released this booking's seats, and they may have been
-    // rebooked since. Reinstating has to re-check capacity (in the same
-    // transaction as the update) rather than silently overbooking the ferry.
+    
     try {
       await prisma.$transaction(async (tx) => {
         await tx.$queryRaw`SELECT id FROM schedules WHERE id = ${booking.scheduleId} FOR UPDATE`;
@@ -1993,12 +1708,7 @@ app.get('/api/admin/schedules/:id/manifest', requireAuth, adminLimiter, validate
   res.json(manifest);
 });
 
-// Emails a PDF copy of a sailing's manifest — to any combination of
-// admin-provisioned Coast Guard accounts and/or a one-off email address an
-// admin types in. Recipients are resolved server-side from the account IDs
-// (not trusted from the client as raw email strings) so this can never be
-// used to blast the manifest to an address that isn't either a real Coast
-// Guard account or one the admin explicitly typed in this request.
+
 app.post(
   '/api/admin/schedules/:id/manifest/send',
   requireAuth,
@@ -2038,11 +1748,7 @@ app.post(
       const pdfBuffer = await generateManifestPdf(schedule, passengers);
       await sendManifestEmail(uniqueRecipients, schedule, pdfBuffer, passengers.length);
       await logAdminEvent({ adminId: req.admin.id, email: req.admin.email, event: 'manifest_sent', req });
-      // Recorded so a Coast Guard account can see this manifest was shared
-      // with them from inside the portal itself, not just their email inbox
-      // (which the portal has no way to read). Only real Coast Guard account
-      // ids go into recipientAccountIds — extraEmail is kept separately and
-      // never grants portal visibility to whoever holds that inbox.
+  
       if (coastGuardAccountIds.length > 0) {
         await prisma.sentManifest.create({
           data: {
@@ -2064,10 +1770,7 @@ app.post(
   }
 );
 
-// Lists manifests that have been shared with the logged-in account — powers
-// the Coast Guard portal's "Manifests" panel. Scoped with a `has` filter on
-// the scalar recipientAccountIds array, so an account only ever sees
-// manifests it was actually a recipient of.
+
 app.get('/api/admin/coastguard/manifests', requireAdminOrCoastGuard, adminLimiter, async (req, res) => {
   const sent = await prisma.sentManifest.findMany({
     where: { recipientAccountIds: { has: req.admin.id } },
@@ -2090,13 +1793,7 @@ app.get('/api/admin/coastguard/manifests', requireAdminOrCoastGuard, adminLimite
   );
 });
 
-// Streams the PDF for one shared manifest. Regenerated live from current
-// passenger data (not the exact bytes that were emailed) so a manifest
-// opened days later still reflects any bookings/cancellations since it was
-// first sent — more useful for a duty audience than a frozen snapshot would
-// be. Authorization: the requesting account must actually be a recipient on
-// this specific SentManifest row (or be a full admin), not just hold any
-// valid coast_guard token.
+
 app.get(
   '/api/admin/coastguard/manifests/:id/pdf',
   requireAdminOrCoastGuard,
@@ -2149,21 +1846,7 @@ app.get('/api/admin/analytics/monthly-sales', requireAuth, adminLimiter, async (
   res.json(result);
 });
 
-// ---------------------------------------------------------------------------
-// Accounting — raw money movements for a date range (Asia/Manila calendar
-// days), from which the Admin Accounting tab derives its summary cards, VAT
-// report and exports client-side. Three lists:
-//   sales          every booking whose payment was received in the range
-//                  (Payment.paidAt), split into VAT-exclusive net, 12% VAT,
-//                  and the portion that was VAT-exempt (Senior/PWD fares,
-//                  RA 9994 / RA 10754).
-//   refunds        bookings an admin marked as refunded in the range, with the
-//                  refunded amount (totalFare x refundPercent) and the share
-//                  of VAT that goes back with it. The retained part of a
-//                  partial refund stays as revenue, so its VAT stays too.
-//   pendingRefunds refund requests still awaiting an admin, as of right now
-//                  (not limited to the range, since they're money still owed).
-// ---------------------------------------------------------------------------
+
 const accountingQuerySchema = z.object({
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -2174,8 +1857,7 @@ app.get(
   requireAuth,
   adminLimiter,
   async (req, res) => {
-    // Parsed inline rather than through the validate() middleware: Express 5
-    // makes req.query read-only, and that middleware writes its result back.
+    
     const parsed = accountingQuerySchema.safeParse(req.query);
     if (!parsed.success) {
       return res.status(400).json({ error: 'Provide from and to as YYYY-MM-DD.' });
@@ -2257,10 +1939,7 @@ app.get(
   }
 );
 
-// Weather/marine conditions for the Padre Burgos <-> Limasawa crossing —
-// see lib/weather.js for the data source, caching, and the important
-// caveat that the "advisory" field is our own general threshold, not an
-// official PAGASA warning.
+
 app.get('/api/admin/weather', requireAuth, adminLimiter, async (req, res) => {
   try {
     const weather = await getWeather();
@@ -2271,8 +1950,7 @@ app.get('/api/admin/weather', requireAuth, adminLimiter, async (req, res) => {
   }
 });
 
-// Unofficial — see lib/pagasaBulletin.js for what this does and doesn't
-// pull from PAGASA's public bulletin page, and why.
+
 app.get('/api/admin/pagasa-bulletin', requireAuth, adminLimiter, async (req, res) => {
   try {
     const bulletin = await getPagasaBulletin();
@@ -2283,10 +1961,7 @@ app.get('/api/admin/pagasa-bulletin', requireAuth, adminLimiter, async (req, res
   }
 });
 
-// Full customer directory — every registered account, verified or not, so
-// admins can look up contact details (e.g. to send an invoice) without
-// digging through bookings. Password hashes and verification photos are
-// deliberately excluded; the Profile Verification tab already handles those.
+
 app.get('/api/admin/customers', requireAuth, adminLimiter, async (req, res) => {
   const customers = await prisma.customer.findMany({
     select: {
@@ -2295,8 +1970,6 @@ app.get('/api/admin/customers', requireAuth, adminLimiter, async (req, res) => {
       barangay: true, cityMunicipality: true, province: true, zipCode: true, region: true,
       discountType: true, discountStatus: true, discountVerifiedUntil: true,
       emailVerified: true, createdAt: true,
-      // Only the stored path, so the admin UI can fetch the photo through the
-      // authenticated uploads route.
       selfiePath: true,
     },
     orderBy: { createdAt: 'desc' },
@@ -2312,8 +1985,7 @@ app.get('/api/admin/customers/pending-discounts', requireAuth, adminLimiter, asy
       discountType: true, discountIdPath: true, discountIdBackPath: true, selfiePath: true, createdAt: true,
     },
   });
-  // Admin.jsx's Profile Verification tab still reads a single `.name` —
-  // compute it here so that page doesn't need changes for this revision.
+
   res.json(customers.map((c) => ({ ...c, name: [c.firstName, c.lastName].filter(Boolean).join(' ') })));
 });
 
@@ -2344,9 +2016,6 @@ app.post('/api/admin/customers/:id/reject-discount', requireAuth, adminLimiter, 
   res.json({ message: 'Discount rejected' });
 });
 
-// ---------------------------------------------------------------------------
-// Admin-only file access (discount IDs, verification selfies)
-// ---------------------------------------------------------------------------
 
 app.get('/api/admin/uploads/:folder/:filename', requireAuth, (req, res) => {
   const { folder, filename } = req.params;
@@ -2361,17 +2030,7 @@ app.get('/api/admin/uploads/:folder/:filename', requireAuth, (req, res) => {
   res.sendFile(filePath);
 });
 
-// ---------------------------------------------------------------------------
-// Coast Guard chat — socket.io connection handling. Sits after every HTTP
-// route on purpose (pure organization; socket.io attaches to `server`
-// independently of Express's route matching, so ordering relative to the
-// app.get/app.post calls above doesn't actually matter functionally).
-// ---------------------------------------------------------------------------
 
-// Same role boundary as requireAdminOrCoastGuard above, just for a socket
-// handshake instead of an HTTP request — the JWT is sent as
-// `auth: { token }` when the client calls io(), not as a header, since
-// socket.io's handshake isn't a normal HTTP request the browser controls.
 io.use((socket, next) => {
   const token = socket.handshake.auth?.token;
   if (!token) return next(new Error('Not logged in'));

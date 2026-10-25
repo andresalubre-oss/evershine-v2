@@ -1,16 +1,3 @@
-// Shared money math for the Admin Accounting tab and its exports. Takes the
-// raw response of GET /api/admin/accounting ({ sales, refunds,
-// pendingRefunds }) and derives everything the page and the PDF / Excel /
-// PowerPoint exports show, so the screen and every export always agree.
-//
-// Conventions:
-//   - "Net" means excluding the 12% VAT; "gross" / "total" includes it.
-//   - Output VAT is VAT collected on sales. A refund hands back the refunded
-//     share of the VAT with it (a partial refund keeps the rest as revenue,
-//     so that part of the VAT stays collected).
-//   - Months are Asia/Manila calendar months, matching how the backend turns
-//     the admin's from/to dates into a range.
-
 const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100
 const sum = (list, pick) => round2(list.reduce((acc, item) => acc + Number(pick(item) || 0), 0))
 

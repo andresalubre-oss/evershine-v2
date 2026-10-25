@@ -1,8 +1,3 @@
-// Client-side exports for the Admin Accounting tab: PDF, Excel and
-// PowerPoint. Like analyticsExport.js, everything works off the report the
-// page has already built (see buildAccountingReport in accounting.js), so an
-// export always matches what's on screen. See that file for why jspdf-
-// autotable is imported for its side effect and why these are static imports.
 import { jsPDF } from 'jspdf'
 import 'jspdf-autotable'
 import * as XLSX from 'xlsx'
@@ -26,9 +21,6 @@ const SUMMARY_ROWS = (s) => [
   [`Pending refunds (${s.pendingCount})`, s.pendingAmount],
 ]
 
-// ---------------------------------------------------------------------------
-// PDF
-// ---------------------------------------------------------------------------
 export async function exportAccountingPdf(report, rangeText) {
   const { summary, monthly, ledger, pendingRefunds } = report
   const doc = new jsPDF({ unit: 'pt', format: 'a4' })
@@ -108,10 +100,6 @@ export async function exportAccountingPdf(report, rangeText) {
   doc.save(`evershine-accounting-${fileStamp()}.pdf`)
 }
 
-// ---------------------------------------------------------------------------
-// Excel: Summary, Monthly VAT, Ledger and Refunds sheets, with real numbers
-// in the cells (not formatted text) so the admin can sum or pivot them.
-// ---------------------------------------------------------------------------
 export async function exportAccountingExcel(report, rangeText) {
   const { summary, monthly, ledger, refunds, pendingRefunds } = report
   const wb = XLSX.utils.book_new()
@@ -154,9 +142,7 @@ export async function exportAccountingExcel(report, rangeText) {
   XLSX.writeFile(wb, `evershine-accounting-${fileStamp()}.xlsx`)
 }
 
-// ---------------------------------------------------------------------------
-// PowerPoint: title, summary, monthly VAT and refunds slides.
-// ---------------------------------------------------------------------------
+
 export async function exportAccountingPptx(report, rangeText) {
   const { summary, monthly, pendingRefunds } = report
   const pptx = new PptxGenJS()

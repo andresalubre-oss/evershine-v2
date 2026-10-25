@@ -1,11 +1,3 @@
-// Save as: frontend/src/pages/PrivacyPolicy.jsx
-//
-// PLACEHOLDER CONTENT — this describes, in general terms, the kind of data
-// Evershine Booking's own features collect (based on what's built into the
-// app: registration, profile verification, bookings, email). It has not
-// been reviewed by a lawyer and should be checked against the Philippine
-// Data Privacy Act (RA 10173) and your actual data practices before launch.
-
 function Section({ title, children }) {
   return (
     <section className="border-t border-gray-100 py-6 first:border-t-0 first:pt-0">

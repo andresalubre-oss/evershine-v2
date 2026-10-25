@@ -1,24 +1,3 @@
-// Client-side exports for the Admin Analytics tab — PDF, Excel, and
-// PowerPoint. Everything here works off data the page has already loaded
-// (api.getMonthlySales(), filtered by the admin's chosen date range), so
-// there's no separate backend export route: whatever's on screen is exactly
-// what gets exported.
-//
-// `rows` — the visible table rows, oldest-to-newest reversed for display but
-// passed in here already sorted oldest-to-newest: [{ month: 'YYYY-MM',
-// revenue, count, change }]
-// `summary` — { totalRevenue, totalBookings, avgMonthlyRevenue, bestMonth:
-// { month, revenue, count } | null, rangeLabel }
-//
-// Static imports (not dynamic import()) on purpose — these libraries are
-// CommonJS under the hood, and a dynamic import() doesn't always unwrap
-// them the same way a normal top-level import does under Vite.
-//
-// jspdf-autotable specifically is imported for its side effect only: it
-// patches a `.autoTable()` method directly onto the jsPDF prototype rather
-// than reliably exposing a usable default export, so calls below use
-// `doc.autoTable(...)` instead of an imported `autoTable(doc, ...)`
-// function.
 import { jsPDF } from 'jspdf'
 import 'jspdf-autotable'
 import * as XLSX from 'xlsx'
@@ -41,10 +20,6 @@ function changeLabel(change) {
 
 const fileStamp = () => new Date().toISOString().slice(0, 10)
 
-// ---------------------------------------------------------------------------
-// PDF — jsPDF + autoTable, styled to loosely match the invoice PDF's teal
-// branding so exports feel like they came from the same app.
-// ---------------------------------------------------------------------------
 export async function exportAnalyticsPdf(rows, summary) {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' })
   const pageWidth = doc.internal.pageSize.getWidth()
@@ -66,8 +41,7 @@ export async function exportAnalyticsPdf(rows, summary) {
   doc.setFontSize(10)
   doc.text(`Range: ${summary.rangeLabel}  ·  Generated ${new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' })}`, 40, 92)
 
-  // Summary KPIs as a small 2x2 table rather than the app's card layout —
-  // simpler to lay out reliably in a PDF than replicating the UI.
+
   doc.autoTable({
     startY: 108,
     theme: 'plain',
@@ -99,11 +73,7 @@ export async function exportAnalyticsPdf(rows, summary) {
   doc.save(`evershine-analytics-${fileStamp()}.pdf`)
 }
 
-// ---------------------------------------------------------------------------
-// Excel — SheetJS. One sheet with the summary up top, then the monthly
-// table below it, so it opens straight into something readable rather than
-// requiring the admin to build their own pivot.
-// ---------------------------------------------------------------------------
+
 export async function exportAnalyticsExcel(rows, summary) {
   const summaryBlock = [
     ['Evershine Booking: Revenue & Booking Analytics'],
@@ -133,10 +103,7 @@ export async function exportAnalyticsExcel(rows, summary) {
   XLSX.writeFile(wb, `evershine-analytics-${fileStamp()}.xlsx`)
 }
 
-// ---------------------------------------------------------------------------
-// PowerPoint — pptxgenjs. A title slide, a KPI summary slide, and a table
-// slide — enough to drop straight into a report-out deck without editing.
-// ---------------------------------------------------------------------------
+
 export async function exportAnalyticsPptx(rows, summary) {
   const pptx = new PptxGenJS()
   const TEAL = '0F766E'

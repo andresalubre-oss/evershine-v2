@@ -1,13 +1,5 @@
-// Save as: backend/lib/email.js
-
 const { Resend } = require('resend');
 
-// The Resend constructor throws immediately if it doesn't get a key — that's
-// fine in production (RESEND_API_KEY should always be set there), but it
-// would otherwise crash the whole backend on startup for anyone running
-// locally without it configured yet. Constructed lazily instead, so a
-// missing key just disables email sending (logged once) rather than
-// bringing the server down.
 let resend = null;
 if (process.env.RESEND_API_KEY) {
   resend = new Resend(process.env.RESEND_API_KEY);
@@ -15,17 +7,9 @@ if (process.env.RESEND_API_KEY) {
   console.warn('RESEND_API_KEY is not set — verification emails will be skipped (logged, not sent).');
 }
 
-// Resend lets any account send from onboarding@resend.dev without first
-// verifying a domain — fine for getting this working, but mail from that
-// address is more likely to land in spam and is rate-limited. Once a real
-// domain is verified in the Resend dashboard, set EMAIL_FROM (e.g.
-// "Evershine Booking <no-reply@yourdomain.com>") to send from it instead.
+
 const FROM = process.env.EMAIL_FROM || 'Evershine Booking <onboarding@resend.dev>';
 
-// Never throws — a failed verification email shouldn't break registration
-// itself (the account still gets created; the customer can hit "Resend
-// verification email" from their account page later). Errors are logged
-// server-side so they're visible without exposing anything to the client.
 async function sendVerificationEmail(toEmail, firstName, token) {
   const verifyUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email?token=${token}`;
   if (!resend) {
@@ -59,26 +43,12 @@ async function sendVerificationEmail(toEmail, firstName, token) {
   }
 }
 
-// Guest checkout's one-time verification code — a plain 6-digit number
-// rather than a link, since it needs to be typed back into the same
-// checkout tab the guest is already sitting in, not opened from a separate
-// email client.
-//
-// Unlike sendVerificationEmail, this one DOES throw on failure. Account
-// email verification is a soft, optional trust signal — the account works
-// either way, so swallowing a send failure is harmless. Here, the code is
-// the *only* way a guest can ever prove the address, so if sending it fails,
-// the caller needs to know and tell the guest to try again rather than
-// claiming success.
 async function sendGuestVerificationCode(toEmail, code) {
   if (!resend) {
     console.warn(`(RESEND_API_KEY not set) Would have sent guest verification code to ${toEmail}: ${code}`);
     return;
   }
-  // The Resend SDK reports API failures (e.g. an unverified recipient while
-  // sending from onboarding@resend.dev) by RETURNING { error } rather than
-  // throwing, so it has to be checked explicitly or a failed send looks
-  // exactly like a successful one.
+  
   const { error } = await resend.emails.send({
     from: FROM,
     to: toEmail,
@@ -98,15 +68,9 @@ async function sendGuestVerificationCode(toEmail, code) {
   if (error) throw new Error(`Resend rejected the guest verification email: ${error.message || JSON.stringify(error)}`);
 }
 
-// Where a visitor's "Contact Us" message gets delivered. Defaults to the
-// same address shown on the Contact Us page / footer; override with
-// CONTACT_EMAIL if support should go somewhere else (e.g. a shared inbox).
 const CONTACT_TO = process.env.CONTACT_EMAIL || 'evershine.booking@gmail.com';
 
-// Contact Us form submission. Throws on failure — like the guest code, this
-// is the visitor's only attempt at reaching support through the site, so a
-// silent failure would leave them thinking their message went through when
-// it didn't. The route catches this and tells them to try again.
+
 async function sendContactMessage({ name, email, message }) {
   if (!resend) {
     console.warn(`(RESEND_API_KEY not set) Would have sent contact message from ${name} <${email}>: ${message}`);
@@ -134,18 +98,13 @@ const PORT_NAMES = {
   LIMASAWA_TO_PB: { from: 'Limasawa', to: 'Padre Burgos' },
 };
 
-// Matches the terminal/support details in the site's own footer
-// (frontend/src/components/Footer.jsx) so the two stay consistent, update
-// both together if this ever changes.
+
 const TERMINAL_NAME = 'Padre Burgos Terminal';
 const TERMINAL_ADDRESS = 'Padre Burgos Port, Southern Leyte, 6600 Philippines';
 const SUPPORT_PHONE = '+63 924565632';
 const SUPPORT_EMAIL = 'evershine.booking@gmail.com';
 
-// Policy text printed on the invoice, in both the email and the PDF. Kept in
-// one place so the two never disagree. Mirrors the website's Policies and
-// Refund & Cancellation pages and the rates enforced in index.js
-// (computeRefundEligibility); update all of them together if the policy changes.
+
 const CANCELLATION_RATES = [
   { when: 'More than 24 hours before departure', refund: '80% refund' },
   { when: 'Within 24 hours of departure', refund: '60% refund' },
@@ -173,29 +132,15 @@ function passengerFullName(p) {
   return [p.firstName, p.middleName, p.lastName, p.suffix].filter(Boolean).join(' ');
 }
 
-// Passenger names and the ferry name ultimately come from a customer/admin
-// form field, not a fixed value the app controls, so they're escaped before
-// going into the email's HTML the same way sendContactMessage already
-// escapes its own user-supplied fields.
+
 function escapeHtml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-// Sent once a booking's payment actually clears. See the two places in
-// index.js that flip a booking to 'confirmed' (the PayMongo webhook and the
-// payment-status poll), both call this the same way afterward. Doubles as
-// the customer's boarding proof, so the reference code is the single most
-// prominent thing in the email: the same code port staff or Manage Booking
-// would check it against. Never throws, same reasoning as
-// sendVerificationEmail: a failed send shouldn't undo an already-successful
-// payment, the booking stays confirmed either way and the customer can still
-// pull it up through Manage Booking with their reference code and email.
+
 async function sendBookingInvoice(booking) {
   const ports = PORT_NAMES[booking.schedule.direction] || { from: '', to: '' };
-  // Always rendered in Philippine time, regardless of what timezone the
-  // server process itself runs in (Render's servers default to UTC) — the
-  // ferry departs at a fixed real-world Manila-time slot, and that must
-  // never shift based on where the backend or the reader happens to be.
+
   const departure = new Date(booking.schedule.departureDatetime).toLocaleString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
     timeZone: 'Asia/Manila',
@@ -204,15 +149,10 @@ async function sendBookingInvoice(booking) {
     month: 'long', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila',
   });
   const passengerCount = booking.passengers.length;
-  // Same public/ frontend asset the site's own nav bar and footer use, built
-  // into an absolute URL since email clients can't resolve a relative path
-  // the way a browser can.
+
   const logoUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/evershine-logo.png`;
   const manageBookingUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/manage-booking`;
-  // Points at the API server itself, not the frontend — BACKEND_URL needs to
-  // be set to the backend's public URL (e.g. Render's service URL) in
-  // production for this link to resolve; falls back to the local dev API
-  // port so it still works when testing without that env var set.
+ 
   const invoicePdfUrl = `${process.env.BACKEND_URL || 'http://localhost:4000'}/api/bookings/invoice-pdf?reference_code=${encodeURIComponent(booking.referenceCode)}&contact_email=${encodeURIComponent(booking.contactEmail)}`;
 
   if (!resend) {
@@ -368,12 +308,7 @@ async function sendBookingInvoice(booking) {
   }
 }
 
-// Sends the passenger manifest for one sailing as a PDF attachment — used by
-// the admin's "Send Manifest" action (Coast Guard coordination, or any other
-// recipient an admin types in). Unlike the booking invoice, this always
-// throws on failure: an admin explicitly clicked "Send" expecting it to go
-// out immediately, so silently swallowing a failure here would leave them
-// thinking the Coast Guard has a manifest they don't actually have yet.
+
 async function sendManifestEmail(toEmails, schedule, pdfBuffer, passengerCount) {
   const ports = PORT_NAMES[schedule.direction] || { from: '', to: '' };
   const departure = new Date(schedule.departureDatetime).toLocaleString('en-US', {
@@ -420,9 +355,6 @@ module.exports = {
   sendContactMessage,
   sendBookingInvoice,
   sendManifestEmail,
-  // Exported so the PDF invoice generator (lib/pdfInvoice.js) can reuse the
-  // exact same port names, terminal/support details, and formatting instead
-  // of a second, driftable copy of the same constants.
   PORT_NAMES,
   CANCELLATION_RATES,
   CANCELLATION_NOTES,

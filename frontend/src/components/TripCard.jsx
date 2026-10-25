@@ -1,18 +1,9 @@
-// Save as: frontend/src/components/TripCard.jsx
-
 import { CROSSING_DURATION_HOURS, formatTime } from '../lib/portUtils.js'
 
-// One trip result — departure/arrival times with a duration line between
-// them, port names, price, and a Book button. Same card used for both the
-// outbound and return lists.
 export default function TripCard({ schedule, fromLabel, toLabel, onBook }) {
   const departure = new Date(schedule.departureDatetime)
   const arrival = new Date(departure.getTime() + CROSSING_DURATION_HOURS * 60 * 60 * 1000)
 
-  // availableSeats comes from the backend (Ferry.seatCapacity minus seats
-  // actively held by other bookings on this sailing) — undefined only if an
-  // older/cached response shape somehow reaches this component, in which
-  // case the seats line just doesn't render rather than showing "undefined".
   const seatsKnown = typeof schedule.availableSeats === 'number'
   const soldOut = seatsKnown && schedule.availableSeats <= 0
   const lowSeats = seatsKnown && !soldOut && schedule.availableSeats <= 5

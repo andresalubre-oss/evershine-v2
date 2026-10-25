@@ -1,8 +1,3 @@
-// Save as: frontend/src/context/AuthContext.jsx
-//
-// Wraps the app and tracks whether a customer is logged in. Any component
-// can call useAuth() to read the current customer or trigger login/logout.
-
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { api } from '../api.js'
 

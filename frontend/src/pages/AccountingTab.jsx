@@ -55,7 +55,7 @@ export default function AccountingTab({ Card, StatCard, DataTable }) {
 
   useEffect(() => {
     load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  
   }, [from, to])
 
   function choosePreset(key) {
@@ -94,7 +94,7 @@ export default function AccountingTab({ Card, StatCard, DataTable }) {
 
   const money = (n) => <span className={n < 0 ? 'text-red-700 dark:text-red-400' : ''}>{peso(n)}</span>
 
-  // One row of the profit / BIR breakdown. `strong` rows are the subtotals.
+
   const line = (label, value, { strong = false, indent = false, note } = {}) => (
     <div className={`flex items-start justify-between gap-4 py-1.5 ${strong ? 'border-t border-gray-200 dark:border-slate-800 font-semibold text-gray-900 dark:text-white' : 'text-gray-700 dark:text-slate-300'}`}>
       <span className={`text-sm ${indent ? 'pl-4' : ''}`}>

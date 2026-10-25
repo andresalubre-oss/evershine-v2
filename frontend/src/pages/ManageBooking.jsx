@@ -1,5 +1,3 @@
-// Save as: frontend/src/pages/ManageBooking.jsx
-
 import { useState, useEffect } from 'react'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { api } from '../api.js'
@@ -12,9 +10,7 @@ function formatPeso(amount) {
   return `₱${Number(amount).toLocaleString('en-US', { maximumFractionDigits: 0 })}`
 }
 
-// Same status palette used on the account dashboard's booking history, so a
-// booking reads the same way whether you're looking it up as a guest here
-// or logged in and viewing "My Bookings".
+
 const statusColors = {
   confirmed: 'bg-green-100 text-green-800',
   pending_payment: 'bg-yellow-100 text-yellow-800',
@@ -24,12 +20,6 @@ const statusColors = {
   refunded: 'bg-blue-100 text-blue-800',
 }
 
-// A reason category (dropdown) rather than free text alone — same pattern
-// OceanJet's refund form uses, and far easier for an admin to scan a queue
-// of requests by than a pile of differently-worded prose. "Other" is the
-// only option that requires its own free-text detail; every other category
-// is specific enough to stand on its own, though the detail field is still
-// offered to anyone who wants to add context regardless of category.
 const CANCEL_REASON_OPTIONS = [
   { value: '', label: 'Select a reason' },
   { value: 'Change of Plans', label: 'Change of Plans' },
@@ -48,9 +38,6 @@ function StatusBadge({ status }) {
   )
 }
 
-// Only alert triangle survives in the redesigned Booking Details view — the
-// rest of that page now uses plain solid-color left-border cards instead of
-// icon badges. This one is still used by the lookup form's error message.
 function IconAlertTriangle(props) {
   return (
     <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -68,11 +55,6 @@ function IconChevron(props) {
   )
 }
 
-// Promo/ad slider shown in the sidebar. Drop full poster-style images
-// (whatever you design — payment methods, promos, etc.) into
-// frontend/public/ and reference them here; nothing else needs to change.
-// object-contain (not cover) is used so a designed poster's text/logos
-// never get cropped, regardless of its exact proportions.
 const AD_SLIDES = ['/ad-poster-1.png', '/ad-poster-2.png']
 const AD_SLIDE_INTERVAL_MS = 7000
 
@@ -156,12 +138,6 @@ export default function ManageBooking() {
   const [looking, setLooking] = useState(false)
 
   const [confirmingCancel, setConfirmingCancel] = useState(false)
-  // A reason category (dropdown) rather than a free-text field alone — same
-  // pattern OceanJet's refund form uses, and much easier for an admin to
-  // scan a queue of requests by than a pile of differently-worded prose.
-  // "Other" is the only option that needs its own free-text detail; every
-  // other category is specific enough to stand on its own, though the
-  // detail field is still offered to anyone who wants to add context.
   const [cancelReasonCategory, setCancelReasonCategory] = useState('')
   const [cancelReason, setCancelReason] = useState('')
   const [cancelConsent, setCancelConsent] = useState(false)
@@ -205,15 +181,12 @@ export default function ManageBooking() {
     }
   }
 
-  // Lets a link elsewhere in the app (e.g. a booking card on the Account
-  // dashboard) deep-link straight to that booking's details, instead of
-  // landing on the blank lookup form and making the customer re-type
-  // information the app already has.
+
   useEffect(() => {
     if (searchParams.get('reference_code') && searchParams.get('contact_email')) {
       lookupBooking()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    
   }, [])
 
   async function confirmCancelBooking() {
@@ -234,9 +207,7 @@ export default function ManageBooking() {
       setCancelError(true)
       return
     }
-    // Combines the category with any optional detail into one string for
-    // the backend/admin view — the admin's Refund Requests tab (and the
-    // reason shown there) doesn't need to know this was ever two fields.
+ 
     const combinedReason = cancelReasonCategory === 'Other'
       ? cancelReason.trim()
       : cancelReason.trim()
@@ -261,12 +232,6 @@ export default function ManageBooking() {
   }
 
   const departureTime = booking ? new Date(booking.schedule.departureDatetime) : null
-  // Eligibility (and refund rate) is based on how far away departure is, not
-  // when the booking was made — adapted from OceanJet's published refund
-  // policy (80% more than 24h before departure, 60% within 24h; not
-  // accepted once departure has passed). The actual rate is decided and
-  // stored server-side when the request is submitted — this is just a
-  // preview so the customer knows what to expect before they submit.
   const hoursUntilDeparture = departureTime ? (departureTime - new Date()) / (1000 * 60 * 60) : 0
   const alreadyResolved = booking && ['cancelled', 'refund_requested', 'refunded'].includes(booking.status)
   const canCancel = booking && !alreadyResolved && hoursUntilDeparture > 0
@@ -284,9 +249,7 @@ export default function ManageBooking() {
     navigate('/manage-booking')
   }
 
-  // Once a booking is loaded, this page shows only the booking's details —
-  // not the lookup form and info cards crammed above it. Those belong to a
-  // different task (finding a booking) than this one (reading it).
+
   if (booking) {
     return (
       <div className="mx-auto max-w-4xl">
@@ -308,10 +271,7 @@ export default function ManageBooking() {
           <StatusBadge status={booking.status} />
         </div>
 
-        {/* Three focused cards instead of one long stacked card — each has
-            its own solid-color left-border accent (same pattern used on the
-            Account dashboard) so the sections read as distinct information,
-            not one wall of content. No icons, no gradients, no shadows. */}
+ 
         <div className="mt-6 space-y-5">
       <div className="rounded-xl border border-gray-200 bg-white p-6">
             <h2 className="border-b-2 border-gray-100 pb-3 text-base font-semibold uppercase tracking-wide text-gray-500">
@@ -583,10 +543,6 @@ export default function ManageBooking() {
           )}
         </form>
 
-        {/* Supporting info alongside the form — this page used to be just a
-            bare card with no other context, so first-time visitors had no
-            way to tell where the reference code comes from, what this page
-            can actually do, or how to get help if lookup fails. */}
         <aside className="space-y-4">
           <AdSlider />
         </aside>

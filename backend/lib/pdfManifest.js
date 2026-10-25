@@ -1,12 +1,3 @@
-// Save as: backend/lib/pdfManifest.js
-//
-// Generates a PDF passenger manifest for one sailing — the soft copy an
-// admin sends to the Coast Guard (or anyone else) from the Manifest tab.
-// Deliberately mirrors pdfInvoice.js's layout conventions (same header/
-// footer bars, same color tokens, same section-heading helper) so every PDF
-// this app produces reads as coming from the same system, and reuses
-// email.js's shared constants/helpers instead of a second, driftable copy.
-
 const path = require('path');
 const PDFDocument = require('pdfkit');
 const { PORT_NAMES, TERMINAL_NAME, TERMINAL_ADDRESS, SUPPORT_PHONE, SUPPORT_EMAIL } = require('./email');
@@ -28,9 +19,6 @@ function fullAddress(p) {
   return [p.barangay, p.cityMunicipality, p.province, p.zipCode, p.country].filter(Boolean).join(', ');
 }
 
-// schedule must include its ferry (same shape as elsewhere in the app:
-// { direction, departureDatetime, ferry: { name, seatCapacity } }).
-// passengers is the flat list from GET /api/admin/schedules/:id/manifest.
 function generateManifestPdf(schedule, passengers) {
   return new Promise((resolve, reject) => {
     try {
@@ -54,7 +42,7 @@ function generateManifestPdf(schedule, passengers) {
       });
       const seatsLeft = schedule.ferry ? Math.max(schedule.ferry.seatCapacity - passengers.length, 0) : null;
 
-      // ---- Header bar ------------------------------------------------------
+
       doc.rect(0, 0, pageWidth, 90).fill(TEAL_DARK);
       const logoBadgeSize = 38;
       const logoBadgeX = marginX;
@@ -67,7 +55,7 @@ function generateManifestPdf(schedule, passengers) {
           valign: 'center',
         });
       } catch {
-        // Missing logo shouldn't block the document.
+    
       }
 
       const wordmarkX = logoBadgeX + logoBadgeSize + 12;
@@ -86,7 +74,7 @@ function generateManifestPdf(schedule, passengers) {
 
       let y = 118;
 
-      // ---- Trip details panel ------------------------------------------------
+  
       const panelHeight = 60;
       doc.rect(marginX, y, contentWidth, panelHeight).lineWidth(1).stroke(GRAY_BORDER);
       const col1X = marginX + 16;
@@ -114,7 +102,7 @@ function generateManifestPdf(schedule, passengers) {
 
       y += panelHeight + 24;
 
-      // ---- Passenger table ---------------------------------------------------
+  
       y = sectionHeading(doc, `Passenger List (${passengers.length})`, marginX, y, contentWidth);
 
       const numW = 24;
@@ -123,7 +111,6 @@ function generateManifestPdf(schedule, passengers) {
       const natW = contentWidth * 0.13;
       const addrW = contentWidth * 0.27;
       const emailW = contentWidth * 0.16;
-      // contactW takes the remainder
 
       let headerY = y;
       doc.fillColor(GRAY_LABEL).font('Helvetica-Bold').fontSize(8);
@@ -145,9 +132,6 @@ function generateManifestPdf(schedule, passengers) {
       }
 
       passengers.forEach((p, i) => {
-        // A row can wrap onto a new page — pdfkit doesn't do this
-        // automatically for a manually-positioned layout like this one, so
-        // it's checked before each row rather than assuming everything fits.
         if (y > doc.page.height - 100) {
           doc.addPage();
           y = 50;
@@ -173,7 +157,7 @@ function generateManifestPdf(schedule, passengers) {
         y = 50;
       }
 
-      // ---- Sign-off ------------------------------------------------------
+
       const signOffWidth = (contentWidth - 24) / 2;
       doc.moveTo(marginX, y + 30).lineTo(marginX + signOffWidth, y + 30).lineWidth(1).stroke(GRAY_BORDER);
       doc.fillColor(GRAY_LABEL).font('Helvetica').fontSize(8).text('Verified by (Crew/Purser)', marginX, y + 35);
@@ -181,7 +165,7 @@ function generateManifestPdf(schedule, passengers) {
       doc.moveTo(col2SignX, y + 30).lineTo(col2SignX + signOffWidth, y + 30).lineWidth(1).stroke(GRAY_BORDER);
       doc.fillColor(GRAY_LABEL).font('Helvetica').fontSize(8).text('Signature & Date', col2SignX, y + 35);
 
-      // ---- Footer -----------------------------------------------------------
+    
       const footerHeight = 70;
       const footerY = doc.page.height - footerHeight;
       doc.rect(0, footerY, pageWidth, footerHeight).fill(TEAL_DARK);

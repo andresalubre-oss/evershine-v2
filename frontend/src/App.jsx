@@ -23,19 +23,12 @@ import PrivacyPolicy from './pages/PrivacyPolicy.jsx'
 import TermsConditions from './pages/TermsConditions.jsx'
 import CookiePolicy from './pages/CookiePolicy.jsx'
 import ContactUs from './pages/ContactUs.jsx'
+import DevelopersPage from "./pages/DevelopersPage";
 
-// Lazy-loaded, not a static import like the pages above. This page pulls in
-// Leaflet and its CSS, which is one of the heaviest dependencies in the app.
-// Now that it's reachable from the main nav and account sidebar (not just a
-// specific booking), most visits to the site will never open it, so bundling
-// its weight into everyone's initial page load would be wasteful. This way
-// it's only fetched the moment someone actually navigates to /directions.
+
 const Directions = lazy(() => import('./pages/Directions.jsx'))
 
-// React Router doesn't reset scroll position on navigation (unlike a plain
-// multi-page site), so switching pages while scrolled down would otherwise
-// land on the new page still scrolled down. This resets to the top on every
-// route change; renders nothing itself.
+
 function ScrollToTop() {
   const { pathname } = useLocation()
   useEffect(() => {
@@ -49,8 +42,7 @@ export default function App() {
     <>
       <ScrollToTop />
       <Routes>
-      {/* Standalone — no top nav/footer/sidebar chrome, since this is a printable
-          document opened in its own tab from the admin Manifest tab. */}
+ 
       <Route path="/admin/manifest-print" element={<ManifestPrint />} />
 
       <Route element={<Layout />}>
@@ -83,6 +75,7 @@ export default function App() {
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/terms-conditions" element={<TermsConditions />} />
         <Route path="/cookie-policy" element={<CookiePolicy />} />
+        <Route path="/developers-page" element={<DevelopersPage />} />
       </Route>
       </Routes>
     </>

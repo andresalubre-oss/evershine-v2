@@ -1,8 +1,3 @@
-// Save as: frontend/src/pages/FAQs.jsx
-
-// The question/answer content lives in lib/faqKnowledge.js so this page and
-// the help chat widget both read from the same source instead of drifting
-// apart over time.
 import { FAQS } from '../lib/faqKnowledge.js'
 
 const AD_BANNER_IMAGE = '/faqs.png'

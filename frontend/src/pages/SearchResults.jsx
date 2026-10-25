@@ -1,10 +1,3 @@
-// Save as: frontend/src/pages/SearchResults.jsx
-//
-// Dedicated results page — the landing page ("/") only ever shows the hero
-// + search form and never renders results itself. Clicking "Search Trips"
-// there navigates here with the search criteria in the URL, so this page
-// is bookmarkable/shareable and the landing page always stays clean.
-
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../api.js'
@@ -89,11 +82,9 @@ export default function SearchResults() {
     }
   }
 
-  // Run the search whenever this page is opened or landed on via a link —
-  // reads straight from the URL so the page works from a bookmark too.
   useEffect(() => {
     runSearch(direction, tripType, date, returnDate)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [])
 
   async function handleSearch() {
@@ -133,9 +124,7 @@ export default function SearchResults() {
 
   async function changeReturnDate(deltaDays) {
     const newDate = shiftDate(returnDateRef.current, deltaDays)
-    // Can't go earlier than the outbound departure date — mirrors the
-    // "Return date must be on or after the departure date" rule enforced
-    // when the search is first submitted.
+    
     if (newDate < dateRef.current) return
     returnDateRef.current = newDate
     setReturnDate(newDate)
@@ -150,20 +139,13 @@ export default function SearchResults() {
     }
   }
 
-  // Each leg books independently (its own reference code and payment) —
-  // tripDirection is passed explicitly since the return leg's direction is
-  // the opposite of whatever `direction` currently holds.
+  
   function bookTrip(schedule, tripDirection) {
     const params = new URLSearchParams({
       schedule_id: schedule.id,
       fare: schedule.baseFare,
       datetime: schedule.departureDatetime,
       direction: tripDirection,
-      // Set by the admin per schedule alongside the fare itself (Admin
-      // dashboard > Add Schedule). Carried through here so Booking.jsx can
-      // show an accurate discounted-price preview; the server always
-      // recalculates the real charge from the schedule row itself, so this
-      // is only ever used for display, never trusted as-is.
       senior_discount: schedule.seniorDiscountPercent,
       pwd_discount: schedule.pwdDiscountPercent,
       student_discount: schedule.studentDiscountPercent,

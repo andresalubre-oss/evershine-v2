@@ -3,12 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../api.js'
 import BookingSteps from '../components/BookingSteps.jsx'
 
-// Local calendar date, not UTC — new Date().toISOString() reports the UTC
-// date, which lags a full day behind Philippine time (UTC+8) for the first
-// several hours of every local day. That made "today" (and therefore the
-// date picker's minimum) compute as yesterday overnight, letting an already
-// past date still be selected. Same class of bug as the email invoice
-// timezone fix elsewhere in this app.
 function todayLocalDateString() {
   const d = new Date()
   const pad = (n) => String(n).padStart(2, '0')
@@ -16,9 +10,6 @@ function todayLocalDateString() {
 }
 const today = todayLocalDateString()
 
-// Approximate Padre Burgos <-> Limasawa crossing time. The schedule table
-// only stores a departure time, not an arrival time, so this is used to
-// show an estimated arrival — adjust here if the real crossing time differs.
 const CROSSING_DURATION_HOURS = 1
 
 const PORT_NAMES = {
@@ -26,19 +17,14 @@ const PORT_NAMES = {
   LIMASAWA_TO_PB: { from: 'Limasawa', to: 'Padre Burgos' },
 }
 
-// Hero background slides. Each can carry its own crop position, same
-// convention as LIMASAWA_HIGHLIGHTS below, since different photos frame
-// differently. Add/remove entries here to change what rotates through —
-// nothing else needs to change.
+
 const HERO_SLIDES = [
   { image: '/hero-8.png', position: 'center 30%' },
   { image: '/hero-6.jpg', position: 'center 70%' },
 ]
 const HERO_SLIDE_INTERVAL_MS = 5000
 
-// "Explore Limasawa Island" gallery entries. `image` points at whichever
-// existing photo is available for now — replace with a real photo of each
-// spot once one's ready, nothing else needs to change.
+
 const LIMASAWA_HIGHLIGHTS = [
   {
     name: 'Island Lagoon',
@@ -76,11 +62,6 @@ const LIMASAWA_HIGHLIGHTS = [
   },
 ]
 
-// Mobile carousel only: the real list with the last spot cloned onto the
-// front and the first spot cloned onto the back, so there's always a real
-// photo peeking on both sides — even at rest on the first/last spot — instead
-// of blank margin. The desktop grid below renders LIMASAWA_HIGHLIGHTS
-// directly and never sees these clones.
 const GALLERY_LOOP = [
   LIMASAWA_HIGHLIGHTS[LIMASAWA_HIGHLIGHTS.length - 1],
   ...LIMASAWA_HIGHLIGHTS,
@@ -95,29 +76,14 @@ function IconChevron(props) {
   )
 }
 
-// Landscape ad/promo banner shown between the search form and the gallery.
-// Drop full banner-style images (whatever you design) into frontend/public/
-// and reference them here — nothing else needs to change. object-contain
-// (not cover) keeps a designed banner's text/logos from getting cropped,
-// regardless of its exact proportions.
+
 const BANNER_AD_SLIDES = ['/book-now-landscape.png', '/island-lagoon-landscape.png']
 const BANNER_AD_SLIDE_INTERVAL_MS = 6000
 
-// Portrait ad beside the booking form itself, same size and image set as the
-// one already used on the Manage Booking page (ManageBooking.jsx's AdSlider)
-// so the two match. object-contain in a 4/5 box keeps a designed poster's
-// text/logos from getting cropped.
+
 const HERO_SIDE_AD_SLIDES = ['/search-dakdak.png', '/search-diving.png', 'search-lagoon.png', 'search-magellan.png']
 const HERO_SIDE_AD_SLIDE_INTERVAL_MS = 6000
 
-// Reusable across multiple spots on the page (each with its own slide list,
-// sizing, and aspect ratio) instead of a single hardcoded instance, so a
-// second slider can reuse this same carousel logic rather than duplicating
-// it. `className` sets the outer wrapper's width/margin, `aspectClassName`
-// sets the slide box's shape, e.g. a fixed landscape ratio for a banner
-// placed inline in the page, or a responsive override that switches to
-// `h-full` on larger screens so it can stretch to match a sibling's height
-// in a flex row instead of keeping a fixed ratio.
 function BannerAdSlider({
   slides = BANNER_AD_SLIDES,
   intervalMs = BANNER_AD_SLIDE_INTERVAL_MS,
@@ -213,9 +179,6 @@ function formatTime(date) {
   return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
 }
 
-// One trip result — departure/arrival times with a duration line between
-// them, port names, price, and a Book button. Same card used for both the
-// outbound and return lists.
 function TripCard({ schedule, fromLabel, toLabel, onBook }) {
   const departure = new Date(schedule.departureDatetime)
   const arrival = new Date(departure.getTime() + CROSSING_DURATION_HOURS * 60 * 60 * 1000)
@@ -256,9 +219,7 @@ function TripCard({ schedule, fromLabel, toLabel, onBook }) {
   )
 }
 
-// Short "Sep 24" style label for the upcoming-sailings hint below the
-// departure date field — deliberately terser than formatDateLabel (which
-// includes weekday + year) since several of these get listed side by side.
+
 function formatShortDate(dateStr) {
   const d = new Date(`${dateStr}T00:00:00`)
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
@@ -421,9 +382,7 @@ export default function Search() {
 
   const ports = PORT_NAMES[direction]
 
-  // Refetched whenever the direction flips (via Swap), since "upcoming
-  // sailings" is direction-specific — a date with a PB→Limasawa sailing
-  // might have nothing going the other way.
+ 
   useEffect(() => {
     let cancelled = false
     api.getUpcomingScheduleDates(direction)
@@ -432,8 +391,6 @@ export default function Search() {
     return () => { cancelled = true }
   }, [direction])
 
-  // Auto-advance the hero background slider; still manually jumpable via
-  // the dots below the photo.
   useEffect(() => {
     const id = setInterval(() => {
       setHeroIndex((i) => (i + 1) % HERO_SLIDES.length)
@@ -441,17 +398,14 @@ export default function Search() {
     return () => clearInterval(id)
   }, [])
 
-  // Advances the mobile gallery carousel by roughly one card. Desktop never
-  // calls this since the arrow buttons that trigger it are sm:hidden. The
-  // actual looping (landing seamlessly back on a real slide after passing
-  // a cloned one) is handled by the settle effect below.
+  
   function scrollGallery(dir) {
     const el = galleryScrollRef.current
     if (!el) return
     el.scrollBy({ left: dir * el.clientWidth * 0.85, behavior: 'smooth' })
   }
 
-  // Finds which gallery card is currently centered in the scroll container.
+ 
   function centeredGalleryIndex(el) {
     const target = el.scrollLeft + el.clientWidth / 2
     let closestIndex = 0
@@ -467,21 +421,13 @@ export default function Search() {
     return closestIndex
   }
 
-  // Centers a gallery card horizontally by setting scrollLeft directly,
-  // instead of scrollIntoView. scrollIntoView's `block` option can scroll
-  // the whole *page* vertically too (to bring the element into view), which
-  // fought with the app-wide scroll-to-top-on-navigate behavior whenever
-  // this ran right after landing on the page mid-scroll. Setting scrollLeft
-  // touches only this container, never the page.
+
   function centerGalleryChild(el, child) {
     if (!el || !child) return
     el.scrollLeft = child.offsetLeft - (el.clientWidth - child.offsetWidth) / 2
   }
 
-  // Positions the carousel on the real first spot at rest (skipping past the
-  // cloned last-spot at index 0), and — once scrolling settles on either
-  // cloned end — jumps instantly to the matching real spot so the loop feels
-  // seamless instead of dead-ending.
+
   useEffect(() => {
     const el = galleryScrollRef.current
     if (!el) return
@@ -608,18 +554,7 @@ export default function Search() {
   return (
     <div>
 
-      {/* Hero photo — fixed, generous height so it reads as a proper full
-          photo like the OceanJet reference. The search card below is
-          absolutely positioned (not pulled up via negative margin), so its
-          real rendered height — which changes with round-trip vs one-way,
-          error messages, etc. — can never affect where this box ends or
-          where the next section starts. `mb-40/48` on this wrapper reserves
-          room below it for the card's bottom half, which hangs past the
-          photo via `translate-y-1/2`.
-
-          The background itself is now a slider: each HERO_SLIDES entry is
-          its own absolutely-positioned layer, crossfaded via opacity so
-          there's no dependency on a single static image. */}
+    
      <div className="relative left-1/2 -mt-28 -ml-[50vw] w-screen sm:mb-48 sm:flex sm:h-[760px] sm:items-center">
         {HERO_SLIDES.map((slide, i) => (
           <div
@@ -653,22 +588,10 @@ export default function Search() {
           </p>
         </div>
 
-        {/* Search form — sits exactly half over the photo, half below it,
-            no matter how tall the form itself grows, since it's taken out
-            of normal document flow entirely. Widened from max-w-5xl to
-            max-w-6xl to give the ad slider beside it real estate without
-            squeezing the booking form's own column down to something
-            cramped. */}
+       
    <div className="relative z-10 mt-6 px-4 pb-10 sm:absolute sm:inset-x-0 sm:bottom-0 sm:mt-0 sm:translate-y-1/4 sm:pb-0">
           <div className="mx-auto w-full max-w-6xl">
-            {/* Same fixed-width side-column convention as the Manage Booking
-                page (ManageBooking.jsx's lookup form): a 300px column for the
-                ad and a flexible column for the primary content, switching
-                to a single stacked column below lg:. The form stays first in
-                the markup (and so first in tab order) at every width; lg:
-                order-1/order-2 only changes where each column is painted,
-                putting the ad on the left visually without reordering the
-                DOM, so keyboard users still reach the form first. */}
+           
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-[300px_minmax(0,1fr)] lg:gap-6">
               <div className="w-full rounded-lg border border-gray-200 bg-white p-4 shadow-xl lg:order-2 sm:p-6">
                 <h2 className="text-3xl font-bold text-gray-800 sm:text-4xl">Book your tickets now!</h2>
@@ -706,28 +629,19 @@ export default function Search() {
         </div>
       </div>
 
-      {/* Landscape promo banner — sits between the search form and the
-          gallery below. Same slider mechanism as the hero, just a wider
-          aspect ratio and its own image list (BANNER_AD_SLIDES above). */}
+   
       <div className="pt-10 sm:pt-14">
         <BannerAdSlider />
       </div>
 
-      {/* Explore Limasawa Island — a gallery of what's waiting at the other
-          end of the crossing. Evershine only serves the one route, so
-          unlike a multi-destination carrier this showcases spots on the
-          island rather than "popular routes". Labels/descriptions sit in a
-          plain card below each photo (no overlay text on the image, no
-          gradient) so it stays flat and readable. */}
+  
       <div className="mx-auto max-w-6xl px-4 py-14 sm:py-20">
         <h2 className="text-center text-4xl font-bold text-gray-800 sm:text-5xl">Explore Limasawa Island</h2>
         <p className="mt-2 text-center text-lg text-gray-600 sm:text-xl">
           Historic sites and scenic spots waiting at the other end of your crossing.
         </p>
 
-        {/* Mobile: looping swipe carousel — GALLERY_LOOP clones the last/first
-            spot onto each end so a real photo always peeks on both sides,
-            even at rest. Arrow buttons since dragging isn't always obvious. */}
+   
         <div className="relative mt-8 sm:hidden">
           <div
             ref={galleryScrollRef}
@@ -770,7 +684,7 @@ export default function Search() {
           </button>
         </div>
 
-        {/* Desktop (sm+): plain grid, untouched by the mobile carousel. */}
+   
         <div className="mt-8 hidden sm:grid sm:grid-cols-2 sm:gap-5 ">
           {LIMASAWA_HIGHLIGHTS.map((spot) => (
             <div key={spot.name} className="overflow-hidden rounded-xl border border-gray-200 bg-white">

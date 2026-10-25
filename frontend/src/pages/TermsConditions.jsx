@@ -1,11 +1,3 @@
-// Save as: frontend/src/pages/TermsConditions.jsx
-//
-// PLACEHOLDER CONTENT — mirrors the behavior actually enforced elsewhere in
-// the app (tiered departure-based cancellation/refund policy, Profile
-// Verification requirement, no ticket transfers, etc.) but has not been
-// reviewed by a lawyer. Confirm wording and any liability language before
-// publishing.
-
 function Section({ title, children }) {
   return (
     <section className="border-t border-gray-100 py-6 first:border-t-0 first:pt-0">

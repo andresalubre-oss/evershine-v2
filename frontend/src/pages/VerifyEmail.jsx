@@ -1,5 +1,3 @@
-// Save as: frontend/src/pages/VerifyEmail.jsx
-
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../api.js'
@@ -8,14 +6,6 @@ import { useAuth } from '../context/AuthContext.jsx'
 export default function VerifyEmail() {
   const [searchParams] = useSearchParams()
   const token = searchParams.get('token') || ''
-  // 'idle' waits for an explicit click before calling the API at all. Email
-  // providers (Gmail's link-safety checks, antivirus software, even browser
-  // link preloading) can open a link automatically before a person ever
-  // clicks it. Firing verification straight from a useEffect on page load
-  // meant that automatic open could silently burn the one-time token before
-  // the real click happened, and the person would land here to a confusing
-  // "invalid or already used" error. Requiring a button press first means
-  // only an actual click can trigger the request.
   const [status, setStatus] = useState(token ? 'idle' : 'error')
   const [error, setError] = useState(token ? '' : 'This link is missing its verification token.')
   const { refreshMe } = useAuth()
@@ -24,10 +14,6 @@ export default function VerifyEmail() {
     setStatus('checking')
     api.verifyEmail(token)
       .then(async () => {
-        // Without this, the customer object cached in AuthContext (loaded
-        // once when the app started) would still show emailVerified: false
-        // for the rest of the session — e.g. still blocking them from
-        // booking — even though the server-side flag just flipped to true.
         await refreshMe()
         setStatus('success')
       })

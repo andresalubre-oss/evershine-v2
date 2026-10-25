@@ -4,11 +4,7 @@ import { MapContainer, TileLayer, CircleMarker, Circle, Marker, Polyline, Popup,
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
-// Browsers estimate "current location" from GPS, Wi-Fi, or (on desktop,
-// most commonly) the network/ISP — the last of those can be off by tens or
-// even hundreds of kilometers in the Philippines. Rather than trusting the
-// browser blindly, the origin marker below is draggable so the user can
-// correct it, and we show its accuracy radius when the browser reports one.
+
 const originIcon = L.divIcon({
   className: '',
   html: '<div style="width:16px;height:16px;border-radius:9999px;background:#3b82f6;border:2px solid #1d4ed8;box-sizing:border-box;"></div>',
@@ -25,11 +21,7 @@ function IconMapPin(props) {
   )
 }
 
-// A single, consistently-styled "open in Google Maps" button used both when
-// we can't draw a route ourselves (location denied) and as a companion
-// action next to the in-page map. Solid fill, one plain map-pin mark (no
-// brand logo reproduction), and a subtitle so it reads as an action with a
-// clear purpose rather than a bare link.
+
 function GoogleMapsButton({ href, className = '' }) {
   return (
     <a
@@ -47,9 +39,7 @@ function GoogleMapsButton({ href, className = '' }) {
   )
 }
 
-// Port coordinates. These are close approximations of the town/port area —
-// if they're off from the actual wharf, right-click the real spot on
-// Google Maps ("What's here?") and swap the lat/lng below.
+
 const PORTS = {
   PB_TO_LIMASAWA: {
     name: 'Padre Burgos Port',
@@ -63,8 +53,7 @@ const PORTS = {
   },
 }
 
-// Small helper that lives inside <MapContainer> so it can access the Leaflet
-// map instance via react-leaflet's hook, then zoom/pan to fit the route.
+
 function FitRoute({ bounds }) {
   const map = useMap()
   useEffect(() => {
@@ -78,11 +67,7 @@ function FitRoute({ bounds }) {
 export default function Directions() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  // Reachable two ways now: from a specific booking (arrives with a
-  // direction already in the URL) and from the main nav / account sidebar
-  // (arrives with no query at all). Kept as local state, seeded from the
-  // URL, so a visitor who got here generally can still switch ports with
-  // the toggle below instead of being stuck on whichever one loaded first.
+  
   const [direction, setDirection] = useState(
     searchParams.get('direction') === 'LIMASAWA_TO_PB' ? 'LIMASAWA_TO_PB' : 'PB_TO_LIMASAWA'
   )
@@ -94,15 +79,14 @@ export default function Directions() {
   }
 
   const [origin, setOrigin] = useState(null)
-  // locating | location_denied | routing | ready | error
+ 
   const [status, setStatus] = useState('locating')
   const [errorMessage, setErrorMessage] = useState('')
   const [routeLine, setRouteLine] = useState(null)
   const [distanceText, setDistanceText] = useState('')
   const [durationText, setDurationText] = useState('')
 
-  // Get the user's current location. Runs on mount, and again if the user
-  // taps "Update my location" after noticing the marker is off.
+
   function locate() {
     if (!navigator.geolocation) {
       setStatus('error')
@@ -126,19 +110,16 @@ export default function Directions() {
 
   useEffect(() => {
     locate()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [])
 
-  // Lets the user drag the origin marker to correct it when the browser's
-  // network-based location estimate lands somewhere clearly wrong. Once
-  // dragged, the position is exact (user-placed), so we drop the accuracy
-  // circle rather than showing a now-meaningless radius.
+  
   function handleOriginDrag(e) {
     const { lat, lng } = e.target.getLatLng()
     setOrigin({ lat, lng, accuracy: null })
   }
 
-  // Fetch a driving route from OSRM's free public routing service.
+  
   useEffect(() => {
     if (!origin) return
 
@@ -151,7 +132,7 @@ export default function Directions() {
           throw new Error('No route found')
         }
         const route = data.routes[0]
-        // OSRM returns [lng, lat] pairs; Leaflet wants [lat, lng].
+   
         const coords = route.geometry.coordinates.map(([lng, lat]) => [lat, lng])
         setRouteLine(coords)
 
@@ -165,9 +146,7 @@ export default function Directions() {
         setStatus('error')
         setErrorMessage('Could not calculate a driving route to the port.')
       })
-    // destination changes whenever the port toggle below is used, so it
-    // needs to be a real dependency now (it used to be effectively constant
-    // per visit, back when this page only ever loaded with one fixed port).
+   
   }, [origin, destination])
 
   const googleMapsAppUrl = `https://www.google.com/maps/dir/?api=1&destination=${destination.lat},${destination.lng}&travelmode=driving`
@@ -189,10 +168,7 @@ export default function Directions() {
           : 'Head here to catch your ferry to Padre Burgos.'}
       </p>
 
-      {/* Only meaningful now that this page is reachable without an active
-          booking (main nav, account sidebar). A visitor coming from a
-          specific booking already has the right port selected, but still
-          sees this in case they need the other terminal too. */}
+  
       <div className="mt-5 inline-flex rounded-md border border-gray-200 bg-gray-50 p-1.5">
         <button
           type="button"
@@ -239,10 +215,7 @@ export default function Directions() {
       {(status === 'routing' || status === 'ready') && origin && (
         <>
           <div
-            // `isolate` boxes in Leaflet's internal stacking (its zoom
-            // controls and panes use z-index up to 1000), which otherwise
-            // escapes this wrapper and can render on top of fixed page
-            // elements like the chat widget when zoomed/panned.
+           
             className={`${status === 'ready' ? 'mt-3' : 'mt-6'} isolate h-[32rem] w-full overflow-hidden rounded-lg border border-gray-200`}
           >
             <MapContainer
